@@ -1,0 +1,33 @@
+/*----------------------------------------------------------------------------
+   OpenHBCADStudio - resources/OpenHBCADStudio.rc
+   Rust origen: build.rs (winresource) — metadatos del ejecutable Windows.
+----------------------------------------------------------------------------*/
+#include <windows.h>
+
+1 VERSIONINFO
+ FILEVERSION     2026,40,1,1
+ PRODUCTVERSION  2026,40,1,1
+ FILEFLAGSMASK   0x3fL
+ FILEFLAGS       0x0L
+ FILEOS          VOS_NT_WINDOWS32
+ FILETYPE        VFT_APP
+ FILESUBTYPE     VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904E4"
+        BEGIN
+            VALUE "CompanyName",      "OpenHBCADStudio"
+            VALUE "FileDescription",  "OpenHBCADStudio CAD 2D (Harbour/FiveWin64)"
+            VALUE "FileVersion",      "2026.40.1-hb1"
+            VALUE "InternalName",     "OpenHBCADStudio"
+            VALUE "OriginalFilename", "OpenHBCADStudio.exe"
+            VALUE "ProductName",      "OpenHBCADStudio"
+            VALUE "ProductVersion",   "2026.40.1-hb1"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1252
+    END
+END

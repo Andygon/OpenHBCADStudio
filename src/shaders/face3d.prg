@@ -1,0 +1,9 @@
+/*--------------------------------------------------------------------------
+   OpenHBCADStudio - src\shaders\face3d.prg
+   ESPEJO de OpenCADStudio (Rust): src\shaders\face3d.wgsl (0 lineas)
+   Estado fase 1: logica equivalente en src/ui/cad_canvas.prg (shaders WGSL -> GDI). Ver docs/PORTING.md.
+--------------------------------------------------------------------------*/
+
+PROCEDURE OHB_STUB_SRC_SHADERS_FACE3D_PRG()
+RETURN
+

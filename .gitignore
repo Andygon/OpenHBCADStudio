@@ -1,0 +1,8 @@
+# OpenHBCADStudio - artefactos de compilación MSVC22/Harbour
+obj/
+*.exe
+*.res
+*.log
+*.tmp
+*.ppo
+*.map

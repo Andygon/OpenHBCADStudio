@@ -1,0 +1,210 @@
+  0
+SECTION
+  2
+HEADER
+  9
+$ACADVER
+  1
+AC1009
+  9
+$INSUNITS
+ 70
+4
+  0
+ENDSEC
+  0
+SECTION
+  2
+TABLES
+  0
+TABLE
+  2
+LTYPE
+ 70
+1
+  0
+LTYPE
+  2
+Continuous
+ 70
+0
+  3
+Solid line
+ 72
+65
+ 73
+0
+ 40
+0.0
+  0
+ENDTAB
+  0
+TABLE
+  2
+LAYER
+ 70
+2
+  0
+LAYER
+  2
+0
+ 70
+0
+ 62
+7
+  6
+Continuous
+  0
+LAYER
+  2
+EJES
+ 70
+0
+ 62
+1
+  6
+Continuous
+  0
+ENDTAB
+  0
+ENDSEC
+  0
+SECTION
+  2
+BLOCKS
+  0
+ENDSEC
+  0
+SECTION
+  2
+ENTITIES
+  0
+LINE
+  5
+1
+  8
+0
+ 10
+0.0
+ 20
+0.0
+ 11
+100.0
+ 21
+0.0
+  0
+LINE
+  5
+2
+  8
+0
+ 10
+100.0
+ 20
+0.0
+ 11
+100.0
+ 21
+70.0
+  0
+LINE
+  5
+3
+  8
+0
+ 10
+100.0
+ 20
+70.0
+ 11
+0.0
+ 21
+70.0
+  0
+LINE
+  5
+4
+  8
+0
+ 10
+0.0
+ 20
+70.0
+ 11
+0.0
+ 21
+0.0
+  0
+CIRCLE
+  5
+5
+  8
+0
+ 10
+50.0
+ 20
+35.0
+ 40
+20.0
+  0
+ARC
+  5
+6
+  8
+EJES
+ 10
+50.0
+ 20
+35.0
+ 40
+28.0
+ 50
+0.0
+ 51
+180.0
+  0
+LWPOLYLINE
+  5
+7
+  8
+0
+ 90
+4
+ 70
+1
+ 10
+10.0
+ 20
+10.0
+ 10
+30.0
+ 20
+10.0
+ 10
+30.0
+ 20
+25.0
+ 10
+10.0
+ 20
+25.0
+  0
+TEXT
+  5
+8
+  8
+0
+ 10
+10.0
+ 20
+60.0
+ 40
+5.0
+  1
+HOLA OpenHBCADStudio
+ 50
+0.0
+  0
+ENDSEC
+  0
+EOF

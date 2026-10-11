@@ -1,0 +1,9 @@
+/*--------------------------------------------------------------------------
+   OpenHBCADStudio - src\ui\window\attdef_dialog.prg
+   ESPEJO de OpenCADStudio (Rust): src\ui\window\attdef_dialog.rs (527 lineas)
+   Estado fase 1: logica equivalente en src/ui/mainwin.prg + cmdline.prg (di?logos). Ver docs/PORTING.md.
+--------------------------------------------------------------------------*/
+
+PROCEDURE OHB_STUB_SRC_UI_WINDOW_ATTDEF_DIALOG_PRG()
+RETURN
+
