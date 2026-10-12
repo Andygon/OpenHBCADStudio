@@ -712,19 +712,173 @@ STATIC FUNCTION Sr_ReadInsert( s )
    e[ "column_spacing" ] := nCsp ; e[ "row_spacing" ] := nRsp ; e[ "view_rep_handle" ] := hVr
    pt := PR_GetPoint( nor ) ; IF pt != NIL ; e[ "normal" ] := pt ; ENDIF
    IF lAtt
-      /* ATTRIB: PENDIENTE (ent_attrib reader no portado); se salta hasta SEQEND */
       DO WHILE ( p := Sr_Next( s ) ) != NIL
          IF p[ DP_CODE ] == 0
             cEn := Upper( AllTrim( p[ DP_VALUE ] ) )
-            IF cEn == "SEQEND" ; Sr_SkipEntity( s ) ; ELSEIF cEn == "ATTRIB" ; Sr_SkipEntity( s ) ; LOOP ; ELSE ; Sr_PushBack( s, p ) ; ENDIF
+            IF cEn == "ATTRIB"
+               AAdd( e[ "attributes" ], Sr_ReadAttdefAttrib( s, .F. ) )
+               LOOP
+            ELSEIF cEn == "SEQEND"
+               Sr_SkipEntity( s )
+            ELSE
+               Sr_PushBack( s, p )
+            ENDIF
             EXIT
          ENDIF
+         Sr_PushBack( s, p ) ; EXIT
       ENDDO
    ENDIF
 RETURN e
 
 /* Despacha un tipo de entidad ya leido (par 0). Devuelve entidad o NIL (y salta lo desconocido) */
+/* Cuenta "\\P" (matches("\\P") del original) */
+STATIC FUNCTION Sr_CountP( c )
+   LOCAL n := 0, i := 1, k
+   DO WHILE ( k := hb_At( "\\P", c, i ) ) > 0
+      n++ ; i := k + 2
+   ENDDO
+RETURN n
+
+/* read_attdef (lDef=.T.) / read_attrib (lDef=.F.). El MTEXT embebido (101, R2018+) se consume
+   pero no se interpreta: PENDIENTE (read_attrib_embedded_mtext). */
+STATIC FUNCTION Sr_ReadAttdefAttrib( s, lDef )
+   LOCAL e := IIf( lDef, Ead_New( "", "", "" ), Eat_New( "", "" ) ), ip := PR_New(), al := PR_New(), nor := PR_New()
+   LOCAL p, v, n, pt, lSub := .F., lSeen := .F., cV := IIf( lDef, "default_value", "value" ), lEmb := .F.
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      n := p[ DP_CODE ]
+      DO CASE
+      CASE n == 100
+         IF p[ DP_VALUE ] == IIf( lDef, "AcDbAttributeDefinition", "AcDbAttribute" ) ; lSub := .T. ; ENDIF
+      CASE n == 1 ; e[ cV ] := p[ DP_VALUE ]
+      CASE n == 2 ; e[ "tag" ] := p[ DP_VALUE ] ; lSeen := .T.
+      CASE ( n == 11 .OR. n == 21 .OR. n == 31 .OR. n == 72 ) .AND. lSub
+         IF n == 72 .AND. Dp_AsI16( p ) != NIL
+            e[ "horizontal_alignment" ] := Ha_FromValue( Dp_AsI16( p ) )
+         ENDIF
+      CASE n == 3 .AND. lDef ; e[ "prompt" ] := p[ DP_VALUE ]
+      CASE n == 10 .OR. n == 20 .OR. n == 30 ; PR_AddCoordinate( ip, p )
+      CASE n == 7 ; e[ "text_style" ] := p[ DP_VALUE ]
+      CASE n == 11 .OR. n == 21 .OR. n == 31 ; PR_AddCoordinate( al, p )
+      CASE ( n == 210 .OR. n == 220 .OR. n == 230 ) .AND. lDef ; PR_AddCoordinate( nor, p )
+      CASE n == 41
+         v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "width_factor" ] := v ; ENDIF
+      CASE n == 51
+         v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "oblique_angle" ] := Sr_Deg( v ) ; ENDIF
+      CASE n == 70
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "flags" ] := Taf_FromBits( v ) ; ENDIF
+      CASE n == 71
+         v := Dp_AsI16( p )
+         IF v != NIL
+            IF lSub
+               e[ "mtext_flag" ] := IIf( lDef, Mtf_FromValue( v ), IIf( v == 2, MTF_MULTILINE, IIf( v == 4, MTF_CONSTANTMULTILINE, MTF_SINGLELINE ) ) )
+               IF ! lDef ; e[ "is_multiline" ] := ( e[ "mtext_flag" ] != MTF_SINGLELINE ) ; ENDIF
+            ELSE
+               e[ "text_generation_flags" ] := v
+            ENDIF
+         ENDIF
+      CASE n == 72
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "horizontal_alignment" ] := Ha_FromValue( v ) ; ENDIF
+      CASE n == 73 .AND. lDef
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "field_length" ] := v ; ENDIF
+      CASE n == 74
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "vertical_alignment" ] := Va_FromValue( v ) ; ENDIF
+      CASE n == 40
+         v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "height" ] := v ; ENDIF
+      CASE n == 50
+         v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "rotation" ] := Sr_Deg( v ) ; ENDIF
+      CASE n == 280
+         IF lSeen
+            v := Dp_AsI16( p ) ; IF v != NIL ; e[ "lock_position" ] := ( v != 0 ) ; ENDIF
+         ENDIF
+      CASE n == 101
+         lEmb := .T.
+         DO WHILE ( p := Sr_Next( s ) ) != NIL
+            IF p[ DP_CODE ] == 0 .OR. p[ DP_CODE ] >= 1000 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+         ENDDO
+      OTHERWISE ; Sr_EntBase( s, p, e )
+      ENDCASE
+   ENDDO
+   pt := PR_GetPoint( ip ) ; e[ "insertion_point" ] := IIf( pt != NIL, pt, Vc3_Zero() )
+   pt := PR_GetPoint( al ) ; IF pt != NIL .OR. ! lDef ; e[ "alignment_point" ] := IIf( pt != NIL, pt, Vc3_Zero() ) ; ENDIF
+   IF lDef
+      pt := PR_GetPoint( nor ) ; IF pt != NIL ; e[ "normal" ] := pt ; ENDIF
+      e[ "is_multiline" ] := ( e[ "mtext_flag" ] != MTF_SINGLELINE .OR. lEmb )
+   ELSEIF lEmb
+      e[ "is_multiline" ] := .T.
+   ENDIF
+   e[ "line_count" ] := Sr_CountP( e[ cV ] ) + 1
+RETURN e
+
+STATIC FUNCTION Sr_ReadEllipse( s )
+   LOCAL e := Eel_New(), c := PR_New(), ma := PR_New(), nor := PR_New(), p, v, n, pt
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      n := p[ DP_CODE ]
+      DO CASE
+      CASE n == 10 .OR. n == 20 .OR. n == 30 ; PR_AddCoordinate( c, p )
+      CASE n == 11 .OR. n == 21 .OR. n == 31 ; PR_AddCoordinate( ma, p )
+      CASE n == 40
+         v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "minor_axis_ratio" ] := v ; ENDIF
+      CASE n == 41
+         v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "start_parameter" ] := v ; ENDIF
+      CASE n == 42
+         v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "end_parameter" ] := v ; ENDIF
+      CASE n == 210 .OR. n == 220 .OR. n == 230 ; PR_AddCoordinate( nor, p )
+      OTHERWISE ; Sr_EntBase( s, p, e )
+      ENDCASE
+   ENDDO
+   pt := PR_GetPoint( c ) ; IF pt != NIL ; e[ "center" ] := pt ; ENDIF
+   pt := PR_GetPoint( ma ) ; IF pt != NIL ; e[ "major_axis" ] := pt ; ENDIF
+   pt := PR_GetPoint( nor ) ; IF pt != NIL ; e[ "normal" ] := pt ; ENDIF
+RETURN e
+
+/* read_solid (SOLID y TRACE) / read_face3d / read_ray / read_xline. Nota: en el original 8/62/370
+   se guardan en variables locales y se vuelcan al final (si 420 dio color verdadero gana sobre 62);
+   aqui van directo a common via Sr_CommonCode (difiere solo si 62 llega despues de 420). */
+STATIC FUNCTION Sr_ReadSolidFace( s, lFace )
+   LOCAL e := IIf( lFace, Ef3_New( Vc3_Zero(), Vc3_Zero(), Vc3_Zero(), Vc3_Zero() ), Eso_New( Vc3_Zero(), Vc3_Zero(), Vc3_Zero(), Vc3_Zero() ) )
+   LOCAL cr := { PR_New(), PR_New(), PR_New(), PR_New() }, nor := PR_New(), p, v, n, pt, a := { NIL, NIL, NIL, NIL }, i
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      n := p[ DP_CODE ]
+      DO CASE
+      CASE ( n >= 10 .AND. n <= 13 ) .OR. ( n >= 20 .AND. n <= 23 ) .OR. ( n >= 30 .AND. n <= 33 )
+         PR_AddCoordinate( cr[ n % 10 + 1 ], p )
+      CASE n == 39 .AND. ! lFace
+         v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "thickness" ] := v ; ENDIF
+      CASE n == 70 .AND. lFace
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "invisible_edges" ] := hb_bitAnd( v, 15 ) ; ENDIF
+      CASE ( n == 210 .OR. n == 220 .OR. n == 230 ) .AND. ! lFace ; PR_AddCoordinate( nor, p )
+      OTHERWISE ; Sr_EntBase( s, p, e )
+      ENDCASE
+   ENDDO
+   FOR i := 1 TO 4
+      a[ i ] := PR_GetPoint( cr[ i ] )
+      IF a[ i ] == NIL .AND. i < 4 ; a[ i ] := Vc3_Zero() ; ENDIF
+   NEXT
+   IF a[ 4 ] == NIL ; a[ 4 ] := a[ 3 ] ; ENDIF
+   e[ "first_corner" ] := a[ 1 ] ; e[ "second_corner" ] := a[ 2 ] ; e[ "third_corner" ] := a[ 3 ] ; e[ "fourth_corner" ] := a[ 4 ]
+   pt := PR_GetPoint( nor ) ; IF pt != NIL ; e[ "normal" ] := pt ; ENDIF
+RETURN e
+
+STATIC FUNCTION Sr_ReadRayXline( s, lRay )
+   LOCAL e := IIf( lRay, Ery_Default(), Exl_Default() ), b := PR_New(), d := PR_New(), p, n, pt
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      n := p[ DP_CODE ]
+      DO CASE
+      CASE n == 10 .OR. n == 20 .OR. n == 30 ; PR_AddCoordinate( b, p )
+      CASE n == 11 .OR. n == 21 .OR. n == 31 ; PR_AddCoordinate( d, p )
+      OTHERWISE ; Sr_EntBase( s, p, e )
+      ENDCASE
+   ENDDO
+   pt := PR_GetPoint( b ) ; IF pt != NIL ; e[ "base_point" ] := pt ; ENDIF
+   pt := PR_GetPoint( d ) ; IF pt != NIL ; e[ "direction" ] := Vc3_Normalize( pt ) ; ENDIF
+RETURN e
+
 STATIC FUNCTION Sr_ReadEntityOfType( s, cT )
+   LOCAL p
    DO CASE
    CASE cT == "POINT" ; RETURN Sr_ReadPoint( s )
    CASE cT == "LINE" .OR. cT == "3DLINE" ; RETURN Sr_ReadLine( s )
@@ -733,6 +887,14 @@ STATIC FUNCTION Sr_ReadEntityOfType( s, cT )
    CASE cT == "LWPOLYLINE" ; RETURN Sr_ReadLwPoly( s )
    CASE cT == "TEXT" ; RETURN Sr_ReadText( s )
    CASE cT == "INSERT" ; RETURN Sr_ReadInsert( s )
+   CASE cT == "ATTDEF" ; RETURN Sr_ReadAttdefAttrib( s, .T. )
+   CASE cT == "ELLIPSE" ; RETURN Sr_ReadEllipse( s )
+   CASE cT == "SOLID" ; RETURN Sr_ReadSolidFace( s, .F. )
+   CASE cT == "TRACE"
+      p := Sr_ReadSolidFace( s, .F. ) ; p[ "is_trace" ] := .T. ; RETURN p
+   CASE cT == "3DFACE" ; RETURN Sr_ReadSolidFace( s, .T. )
+   CASE cT == "RAY" ; RETURN Sr_ReadRayXline( s, .T. )
+   CASE cT == "XLINE" ; RETURN Sr_ReadRayXline( s, .F. )
    ENDCASE
    Sr_SkipEntity( s ) /* PENDIENTE: resto de tipos (original: read_unknown_entity / lectores propios) */
 RETURN NIL
