@@ -15,10 +15,53 @@
 
 FUNCTION Sr_NewText( cData ) ; RETURN { TxR_New( cData ), .F. }
 
-FUNCTION Sr_Next( s ) ; RETURN IIf( s[ 2 ], BnR_ReadPair( s[ 1 ] ), TxR_ReadPair( s[ 1 ] ) )
+/* Grabador de xdata (XDataRecorder del original). s[3] = { grabando, en_xdata, par_handle, pendientes, grabados } o NIL. */
+FUNCTION Sr_Next( s )
+   LOCAL p, r := IIf( Len( s ) >= 3, s[ 3 ], NIL )
+   IF r != NIL .AND. Len( r[ 4 ] ) > 0
+      p := ATail( r[ 4 ] ) ; ASize( r[ 4 ], Len( r[ 4 ] ) - 1 )
+      RETURN p
+   ENDIF
+   p := IIf( s[ 2 ], BnR_ReadPair( s[ 1 ] ), TxR_ReadPair( s[ 1 ] ) )
+   IF r != NIL .AND. r[ 1 ] .AND. p != NIL
+      IF p[ 1 ] == 1001
+         r[ 2 ] := .T.
+      ELSEIF ! ( p[ 1 ] >= 1000 .AND. p[ 1 ] <= 1071 )
+         r[ 2 ] := .F.
+      ENDIF
+      IF r[ 2 ]
+         AAdd( r[ 5 ], p )
+      ELSEIF p[ 1 ] == 5 .AND. r[ 3 ] == NIL
+         r[ 3 ] := p
+      ENDIF
+   ENDIF
+RETURN p
 FUNCTION Sr_PushBack( s, p )
-   IF s[ 2 ] ; BnR_PushBack( s[ 1 ], p ) ; ELSE ; TxR_PushBack( s[ 1 ], p ) ; ENDIF
+   IF Len( s ) >= 3 .AND. s[ 3 ] != NIL
+      AAdd( s[ 3 ][ 4 ], p )
+   ELSEIF s[ 2 ] ; BnR_PushBack( s[ 1 ], p ) ; ELSE ; TxR_PushBack( s[ 1 ], p ) ; ENDIF
 RETURN NIL
+/* activa el grabador (lo vacia) */
+PROCEDURE Sr_RecInit( s )
+   IF Len( s ) < 3 ; AAdd( s, NIL ) ; ENDIF
+   s[ 3 ] := { .F., .F., NIL, {}, {} }
+RETURN
+/* record_xdata(on) */
+PROCEDURE Sr_RecSet( s, lOn )
+   LOCAL r := s[ 3 ]
+   r[ 1 ] := lOn ; r[ 2 ] := .F. ; r[ 3 ] := NIL ; r[ 5 ] := {}
+RETURN
+/* take_recorded_xdata -> { par_handle|NIL, pares }; deja de grabar */
+FUNCTION Sr_RecTake( s )
+   LOCAL r := s[ 3 ], a := { r[ 3 ], r[ 5 ] }
+   r[ 3 ] := NIL ; r[ 5 ] := {}
+RETURN a
+/* desactiva el grabador devolviendo los pendientes al lector */
+PROCEDURE Sr_RecEnd( s )
+   LOCAL r := s[ 3 ], i
+   s[ 3 ] := NIL
+   FOR i := Len( r[ 4 ] ) TO 1 STEP -1 ; Sr_PushBack( s, r[ 4 ][ i ] ) ; NEXT
+RETURN
 FUNCTION Sr_Error( s ) ; RETURN IIf( s[ 2 ], BnR_Error( s[ 1 ] ), TxR_Error( s[ 1 ] ) )
 FUNCTION Sr_SetEncoding( s, c )
    IF ! s[ 2 ] ; TxR_SetEncoding( s[ 1 ], c ) ; ENDIF
