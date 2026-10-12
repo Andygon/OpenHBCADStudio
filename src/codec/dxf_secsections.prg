@@ -1861,6 +1861,88 @@ STATIC FUNCTION Sr_ReadLeader( s )
    IF Len( e[ "vertices" ] ) > 0 ; e[ "origin" ] := e[ "vertices" ][ 1 ] ; ENDIF
 RETURN e
 
+STATIC FUNCTION Sr_ReadViewport( s )
+   LOCAL e := Evp_New(), p, n, v, rC := PR_New(), rVC := PR_New(), rVD := PR_New(), rVT := PR_New(), rUO := PR_New(), rUX := PR_New(), rUY := PR_New(), pt
+   LOCAL nSbx := NIL, nSby := NIL, nSsx := NIL, nSsy := NIL, nGsx := NIL, nGsy := NIL
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      n := p[ DP_CODE ]
+      DO CASE
+      CASE n == 8 ; e[ "common" ][ "layer" ] := p[ DP_VALUE ]
+      CASE n == 62
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "common" ][ "color" ] := Cl_FromIndex( v ) ; ENDIF
+      CASE n == 10 .OR. n == 20 .OR. n == 30 ; PR_AddCoordinate( rC, p )
+      CASE n == 40
+         v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "width" ] := v ; ENDIF
+      CASE n == 41
+         v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "height" ] := v ; ENDIF
+      CASE n == 90
+         v := Dp_AsI32( p ) ; IF v != NIL ; e[ "status" ] := Vsf_FromBits( v ) ; ENDIF
+      CASE n == 68
+         v := Dp_AsI16( p ) ; e[ "off_screen" ] := ( v != NIL .AND. v == -1 )
+      CASE n == 69
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "id" ] := v ; ENDIF
+      CASE n == 12 .OR. n == 22 ; PR_AddCoordinate( rVC, p )
+      CASE n == 13 ; nSbx := Dp_AsDouble( p )
+      CASE n == 23 ; nSby := Dp_AsDouble( p )
+      CASE n == 14 ; nSsx := Dp_AsDouble( p )
+      CASE n == 24 ; nSsy := Dp_AsDouble( p )
+      CASE n == 15 ; nGsx := Dp_AsDouble( p )
+      CASE n == 25 ; nGsy := Dp_AsDouble( p )
+      CASE n == 16 .OR. n == 26 .OR. n == 36 ; PR_AddCoordinate( rVD, p )
+      CASE n == 17 .OR. n == 27 .OR. n == 37 ; PR_AddCoordinate( rVT, p )
+      CASE n == 42
+         v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "lens_length" ] := v ; ENDIF
+      CASE n == 43
+         v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "front_clip_z" ] := v ; ENDIF
+      CASE n == 44
+         v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "back_clip_z" ] := v ; ENDIF
+      CASE n == 45
+         v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "view_height" ] := v ; ENDIF
+      CASE n == 50
+         v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "snap_angle" ] := Sr_Deg( v ) ; ENDIF
+      CASE n == 51
+         v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "twist_angle" ] := Sr_Deg( v ) ; ENDIF
+      CASE n == 72
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "circle_sides" ] := v ; ENDIF
+      CASE n == 331
+         v := Sr_HexVal( p ) ; IF v != NIL ; AAdd( e[ "frozen_layers" ], v ) ; ENDIF
+      CASE n == 340
+         v := Sr_HexVal( p ) ; e[ "clip_boundary_handle" ] := IIf( v == NIL, Hd_Null(), v )
+      CASE n == 281
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "render_mode" ] := Vrm_FromValue( v ) ; ENDIF
+      CASE n == 71
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "ucs_per_viewport" ] := ( v != 0 ) ; ENDIF
+      CASE n == 110 .OR. n == 120 .OR. n == 130 ; PR_AddCoordinate( rUO, p )
+      CASE n == 111 .OR. n == 121 .OR. n == 131 ; PR_AddCoordinate( rUX, p )
+      CASE n == 112 .OR. n == 122 .OR. n == 132 ; PR_AddCoordinate( rUY, p )
+      CASE n == 146
+         v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "elevation" ] := v ; ENDIF
+      CASE n == 61
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "grid_major" ] := v ; ENDIF
+      CASE n == 141
+         v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "brightness" ] := v ; ENDIF
+      CASE n == 142
+         v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "contrast" ] := v ; ENDIF
+      CASE n == 292
+         v := Dp_AsBool( p ) ; IF v != NIL ; e[ "default_lighting" ] := v ; ENDIF
+      CASE n == 282
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "default_lighting_type" ] := v ; ENDIF
+      OTHERWISE ; Sr_EntBase( s, p, e )
+      ENDCASE
+   ENDDO
+   pt := PR_GetPoint( rC ) ; IF pt != NIL ; e[ "center" ] := pt ; ENDIF
+   pt := PR_GetPoint( rVD ) ; IF pt != NIL ; e[ "view_direction" ] := pt ; ENDIF
+   pt := PR_GetPoint( rVT ) ; IF pt != NIL ; e[ "view_target" ] := pt ; ENDIF
+   pt := PR_GetPoint( rUO ) ; IF pt != NIL ; e[ "ucs_origin" ] := pt ; ENDIF
+   pt := PR_GetPoint( rUX ) ; IF pt != NIL ; e[ "ucs_x_axis" ] := pt ; ENDIF
+   pt := PR_GetPoint( rUY ) ; IF pt != NIL ; e[ "ucs_y_axis" ] := pt ; ENDIF
+   pt := PR_GetPoint( rVC ) ; IF pt != NIL ; e[ "view_center" ] := Vc3_New( pt[ 1 ], pt[ 2 ], 0.0 ) ; ENDIF
+   e[ "snap_base" ] := Vc3_New( IIf( nSbx == NIL, 0.0, nSbx ), IIf( nSby == NIL, 0.0, nSby ), 0.0 )
+   e[ "snap_spacing" ] := Vc3_New( IIf( nSsx == NIL, 10.0, nSsx ), IIf( nSsy == NIL, 10.0, nSsy ), 0.0 )
+   e[ "grid_spacing" ] := Vc3_New( IIf( nGsx == NIL, 10.0, nGsx ), IIf( nGsy == NIL, 10.0, nGsy ), 0.0 )
+RETURN e
+
 STATIC FUNCTION Sr_ReadEntityOfType( s, cT )
    LOCAL p
    DO CASE
@@ -1885,6 +1967,7 @@ STATIC FUNCTION Sr_ReadEntityOfType( s, cT )
    CASE cT == "DIMENSION" ; RETURN Sr_ReadDimension( s )
    CASE cT == "TOLERANCE" ; RETURN Sr_ReadTolerance( s )
    CASE cT == "SHAPE" ; RETURN Sr_ReadShape( s )
+   CASE cT == "VIEWPORT" ; RETURN Sr_ReadViewport( s )
    CASE cT == "LEADER" ; RETURN Sr_ReadLeader( s )
    CASE cT == "MLINE" ; RETURN Sr_ReadMline( s )
    CASE cT == "WIPEOUT" ; RETURN Sr_ReadWipeout( s )
