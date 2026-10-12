@@ -430,3 +430,16 @@
 #define PMF_POLYGON_MESH 16
 #define PMF_CLOSED_N    32
 #define PMF_CONTINUOUS_LINETYPE 128
+
+/* entities/ole2frame.rs OleObjectType */
+#define OOT_LINK     1
+#define OOT_EMBEDDED 2
+#define OOT_STATIC   3
+/* entities/centerline.rs */
+#define CLS_LINE            0
+#define CLS_LWPOLY_SEGMENT  1
+#define CLS_POLY2D_SEGMENT  2
+#define CMS_CIRCLE          0
+#define CMS_ARC             1
+#define CMS_LWPOLY_ARC_SEG  2
+#define CMS_POLY2D_ARC_SEG  3
