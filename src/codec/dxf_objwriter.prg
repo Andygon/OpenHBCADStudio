@@ -200,7 +200,7 @@ STATIC PROCEDURE Dxo_WriteMLineStyle( w, st )
    Sw_WriteSubclass( w, "AcDbMlineStyle" )
    Sw_WriteString( w, 2, st[ "name" ] ) ; Sw_WriteI16( w, 70, Mlsf_ToBits( st[ "flags" ] ) ) ; Sw_WriteString( w, 3, st[ "description" ] )
    Sw_WriteI16( w, 62, Dxo_ColorIndex( st[ "fill_color" ] ) )
-   Sw_WriteDouble( w, 51, st[ "start_angle" ] * 180.0 / OCX_PI ) ; Sw_WriteDouble( w, 52, st[ "end_angle" ] * 180.0 / OCX_PI )
+   Sw_WriteDouble( w, 51, st[ "start_angle" ] * ( 180.0 / OCX_PI ) ) ; Sw_WriteDouble( w, 52, st[ "end_angle" ] * ( 180.0 / OCX_PI ) )
    Sw_WriteI16( w, 71, Len( st[ "elements" ] ) )
    FOR EACH e IN st[ "elements" ]
       Sw_WriteDouble( w, 49, e[ "offset" ] ) ; Sw_WriteI16( w, 62, Dxo_ColorIndex( e[ "color" ] ) ) ; Sw_WriteString( w, 6, e[ "linetype" ] )
