@@ -1065,7 +1065,7 @@ STATIC PROCEDURE Swr_PolyEntity( st, e, hOwner )
 RETURN
 
 STATIC PROCEDURE Swr_WriteEntity( st, e, hOwner )
-   LOCAL w := st[ 1 ], c := e[ "common" ], t := e[ "_type" ], v, hSeq, att, nI
+   LOCAL w := st[ 1 ], c := e[ "common" ], t := e[ "_type" ], v, hSeq, att, nI, g, q
    DO CASE
    CASE t == "POINT"
       Sw_WriteEntityType( w, "POINT" ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbPoint" )
@@ -1169,6 +1169,20 @@ STATIC PROCEDURE Swr_WriteEntity( st, e, hOwner )
       IF st[ 2 ] >= Dxv_FromVersionString( "AC1024" ) ; Sw_WriteBool( w, 290, e[ "clip_mode" ] == WCM_INSIDE ) ; ENDIF
       Sw_WriteI16( w, 71, e[ "clip_type" ] ) ; Sw_WriteI32( w, 91, Len( e[ "clip_boundary_vertices" ] ) )
       FOR EACH v IN e[ "clip_boundary_vertices" ] ; Sw_WriteDouble( w, 14, v[ 1 ] ) ; Sw_WriteDouble( w, 24, v[ 2 ] ) ; NEXT
+   CASE t == "MLINE"
+      Sw_WriteEntityType( w, "MLINE" ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbMline" ) ; Sw_WriteString( w, 2, e[ "style_name" ] )
+      Sw_WriteHandle( w, 340, IIf( e[ "style_handle" ] == NIL, Hd_Null(), e[ "style_handle" ] ) ) ; Sw_WriteDouble( w, 40, e[ "scale_factor" ] ) ; Sw_WriteI16( w, 70, e[ "justification" ] )
+      Sw_WriteI16( w, 71, Eml_SerializedFlags( e ) ) ; Sw_WriteI16( w, 72, Len( e[ "vertices" ] ) ) ; Sw_WriteI16( w, 73, e[ "style_element_count" ] )
+      Sw_WritePoint3d( w, 10, e[ "start_point" ] ) ; Sw_WritePoint3d( w, 210, e[ "normal" ] )
+      FOR EACH v IN e[ "vertices" ]
+         Sw_WritePoint3d( w, 11, v[ "position" ] ) ; Sw_WritePoint3d( w, 12, v[ "direction" ] ) ; Sw_WritePoint3d( w, 13, v[ "miter" ] )
+         FOR EACH g IN v[ "segments" ]
+            Sw_WriteI16( w, 74, Len( g[ "parameters" ] ) )
+            FOR EACH q IN g[ "parameters" ] ; Sw_WriteDouble( w, 41, q ) ; NEXT
+            Sw_WriteI16( w, 75, Len( g[ "area_fill_parameters" ] ) )
+            FOR EACH q IN g[ "area_fill_parameters" ] ; Sw_WriteDouble( w, 42, q ) ; NEXT
+         NEXT
+      NEXT
    CASE t == "SHAPE"
       Sw_WriteEntityType( w, "SHAPE" ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbShape" )
       IF Abs( e[ "thickness" ] ) > 0.0000000001 ; Sw_WriteDouble( w, 39, e[ "thickness" ] ) ; ENDIF
