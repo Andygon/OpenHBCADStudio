@@ -949,6 +949,107 @@ STATIC FUNCTION Sr_ReadSpline( s )
    pt := PR_GetPoint( et ) ; IF pt != NIL ; e[ "end_tangent" ] := pt ; ENDIF
 RETURN e
 
+/* read_polyline_entity: POLYLINE segun flags (70): 64 polyface, 16 malla poligonal, 8 3D, resto 2D.
+   Mascaras = bits conocidos de bitflags (from_bits_truncate) del original. */
+STATIC FUNCTION Sr_ReadPolyline( s )
+   LOCAL com := Ec_New(), nFl := 0, nElev := 0.0, nTh := 0.0, nSw := 0.0, nEw := 0.0, nM := 0, nN := 0, nDm := 0, nDn := 0, nSm := 0
+   LOCAL nor := PR_New(), aGeom := {}, aPv := {}, aPf := {}, p, v, n, vp, e, g, lHs, lHe, lAny, vtx
+   LOCAL vl, vf, vsw, vew, vb, vt, v1, v2, v3, v4, vc, vh, vly, vh2
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0
+         IF p[ DP_VALUE ] == "VERTEX"
+            vl := Vc3_Zero() ; vf := 0 ; vsw := 0.0 ; vew := 0.0 ; lHs := .F. ; lHe := .F. ; vb := 0.0 ; vt := 0.0
+            v1 := 0 ; v2 := 0 ; v3 := 0 ; v4 := 0 ; vc := NIL ; vh := 0 ; vly := "0"
+            DO WHILE ( vp := Sr_Next( s ) ) != NIL
+               IF vp[ DP_CODE ] == 0 ; Sr_PushBack( s, vp ) ; EXIT ; ENDIF
+               n := vp[ DP_CODE ]
+               DO CASE
+               CASE n == 5 ; v := Sr_HexVal( vp ) ; IF v != NIL ; vh := v ; ENDIF
+               CASE n == 8 ; vly := vp[ DP_VALUE ]
+               CASE n == 10 ; v := Dp_AsDouble( vp ) ; IF v != NIL ; vl := Vc3_New( v, vl[ 2 ], vl[ 3 ] ) ; ENDIF
+               CASE n == 20 ; v := Dp_AsDouble( vp ) ; IF v != NIL ; vl := Vc3_New( vl[ 1 ], v, vl[ 3 ] ) ; ENDIF
+               CASE n == 30 ; v := Dp_AsDouble( vp ) ; IF v != NIL ; vl := Vc3_New( vl[ 1 ], vl[ 2 ], v ) ; ENDIF
+               CASE n == 40 ; v := Dp_AsDouble( vp ) ; IF v != NIL ; vsw := v ; lHs := .T. ; ENDIF
+               CASE n == 41 ; v := Dp_AsDouble( vp ) ; IF v != NIL ; vew := v ; lHe := .T. ; ENDIF
+               CASE n == 42 ; v := Dp_AsDouble( vp ) ; IF v != NIL ; vb := v ; ENDIF
+               CASE n == 50 ; v := Dp_AsDouble( vp ) ; IF v != NIL ; vt := Sr_Deg( v ) ; ENDIF
+               CASE n == 62 ; v := Dp_AsI16( vp ) ; IF v != NIL ; vc := Cl_FromIndex( v ) ; ENDIF
+               CASE n == 420 ; v := Dp_AsI32Bits( vp ) ; IF v != NIL ; vc := Cl_FromTrueColorValue( v ) ; ENDIF
+               CASE n == 70 ; v := Dp_AsI16( vp ) ; IF v != NIL ; vf := v ; ENDIF
+               CASE n == 71 ; v := Dp_AsI16( vp ) ; IF v != NIL ; v1 := v ; ENDIF
+               CASE n == 72 ; v := Dp_AsI16( vp ) ; IF v != NIL ; v2 := v ; ENDIF
+               CASE n == 73 ; v := Dp_AsI16( vp ) ; IF v != NIL ; v3 := v ; ENDIF
+               CASE n == 74 ; v := Dp_AsI16( vp ) ; IF v != NIL ; v4 := v ; ENDIF
+               ENDCASE
+            ENDDO
+            vh2 := vh
+            IF hb_bitAnd( vf, 64 ) != 0
+               vtx := Pfv_New( vl ) ; vtx[ "flags" ] := hb_bitAnd( vf, 219 ) ; vtx[ "bulge" ] := 0.0 ; AAdd( aPv, vtx )
+            ELSEIF hb_bitAnd( vf, 128 ) != 0
+               vtx := Pff_Quad( v1, v2, v3, v4 ) ; vtx[ "flags" ] := hb_bitAnd( vf, 219 ) ; vtx[ "color" ] := vc ; AAdd( aPf, vtx )
+            ELSE
+               AAdd( aGeom, { vl, vf, vsw, vew, lHs, lHe, vb, vt, vh2, vly } )
+            ENDIF
+         ELSEIF p[ DP_VALUE ] == "SEQEND"
+            DO WHILE ( vp := Sr_Next( s ) ) != NIL
+               IF vp[ DP_CODE ] == 0 ; Sr_PushBack( s, vp ) ; EXIT ; ENDIF
+            ENDDO
+            EXIT
+         ELSE
+            Sr_PushBack( s, p ) ; EXIT
+         ENDIF
+      ELSE
+         n := p[ DP_CODE ]
+         DO CASE
+         CASE n == 70 ; v := Dp_AsI16( p ) ; IF v != NIL ; nFl := v ; ENDIF
+         CASE n == 30 ; v := Dp_AsDouble( p ) ; IF v != NIL ; nElev := v ; ENDIF
+         CASE n == 39 ; v := Dp_AsDouble( p ) ; IF v != NIL ; nTh := v ; ENDIF
+         CASE n == 40 ; v := Dp_AsDouble( p ) ; IF v != NIL ; nSw := v ; ENDIF
+         CASE n == 41 ; v := Dp_AsDouble( p ) ; IF v != NIL ; nEw := v ; ENDIF
+         CASE n == 71 ; v := Dp_AsI16( p ) ; IF v != NIL ; nM := v ; ENDIF
+         CASE n == 72 ; v := Dp_AsI16( p ) ; IF v != NIL ; nN := v ; ENDIF
+         CASE n == 73 ; v := Dp_AsI16( p ) ; IF v != NIL ; nDm := v ; ENDIF
+         CASE n == 74 ; v := Dp_AsI16( p ) ; IF v != NIL ; nDn := v ; ENDIF
+         CASE n == 75 ; v := Dp_AsI16( p ) ; IF v != NIL ; nSm := v ; ENDIF
+         CASE n == 210 .OR. n == 220 .OR. n == 230 ; PR_AddCoordinate( nor, p )
+         OTHERWISE ; Sr_CommonCode( s, p, com )
+         ENDCASE
+      ENDIF
+   ENDDO
+   vp := PR_GetPoint( nor ) ; IF vp == NIL ; vp := Vc3_UnitZ() ; ENDIF
+   IF hb_bitAnd( nFl, 64 ) != 0 .OR. Len( aPv ) > 0 .OR. Len( aPf ) > 0
+      e := Epf_New() ; e[ "common" ] := com ; e[ "flags" ] := hb_bitAnd( nFl, 247 ) ; e[ "elevation" ] := nElev
+      e[ "vertices" ] := aPv ; e[ "faces" ] := aPf
+   ELSEIF hb_bitAnd( nFl, 16 ) != 0
+      e := Epm_New() ; e[ "common" ] := com ; e[ "flags" ] := hb_bitAnd( nFl, 183 ) ; e[ "m_vertex_count" ] := nM ; e[ "n_vertex_count" ] := nN
+      e[ "m_smooth_density" ] := nDm ; e[ "n_smooth_density" ] := nDn ; e[ "smooth_type" ] := Sst_FromI16( nSm )
+      e[ "elevation" ] := nElev ; e[ "normal" ] := vp
+      FOR EACH g IN aGeom
+         vtx := Pmv_At( g[ 1 ] ) ; vtx[ "flags" ] := g[ 2 ] ; AAdd( e[ "vertices" ], vtx )
+      NEXT
+   ELSEIF hb_bitAnd( nFl, 8 ) != 0
+      e := P3d_New() ; e[ "common" ] := com ; e[ "flags" ] := P3f_FromBits( nFl ) ; e[ "smooth_type" ] := Sst_FromI16( nSm )
+      e[ "default_start_width" ] := nSw ; e[ "default_end_width" ] := nEw ; e[ "elevation" ] := nElev ; e[ "normal" ] := vp
+      FOR EACH g IN aGeom
+         vtx := V3p_New( g[ 1 ] ) ; vtx[ "flags" ] := g[ 2 ] ; vtx[ "handle" ] := g[ 9 ] ; vtx[ "layer" ] := g[ 10 ] ; AAdd( e[ "vertices" ], vtx )
+      NEXT
+   ELSE
+      e := Pl2_New() ; e[ "common" ] := com ; e[ "flags" ] := nFl ; e[ "smooth_surface" ] := Sst_From( nSm ) ; e[ "thickness" ] := nTh
+      e[ "elevation" ] := nElev ; e[ "normal" ] := vp ; lAny := .F.
+      FOR EACH g IN aGeom
+         vtx := Vx2_New( g[ 1 ] ) ; vtx[ "flags" ] := hb_bitAnd( g[ 2 ], 255 )
+         vtx[ "start_width" ] := IIf( g[ 5 ], g[ 3 ], nSw ) ; vtx[ "end_width" ] := IIf( g[ 6 ], g[ 4 ], nEw )
+         vtx[ "bulge" ] := g[ 7 ] ; vtx[ "curve_tangent" ] := g[ 8 ] ; AAdd( e[ "vertices" ], vtx )
+         IF g[ 5 ] .OR. g[ 6 ] ; lAny := .T. ; ENDIF
+      NEXT
+      IF lAny
+         e[ "start_width" ] := 0.0 ; e[ "end_width" ] := 0.0
+      ELSE
+         e[ "start_width" ] := nSw ; e[ "end_width" ] := nEw
+      ENDIF
+   ENDIF
+RETURN e
+
 STATIC FUNCTION Sr_ReadEllipse( s )
    LOCAL e := Eel_New(), c := PR_New(), ma := PR_New(), nor := PR_New(), p, v, n, pt
    DO WHILE ( p := Sr_Next( s ) ) != NIL
@@ -1029,6 +1130,7 @@ STATIC FUNCTION Sr_ReadEntityOfType( s, cT )
    CASE cT == "ATTDEF" ; RETURN Sr_ReadAttdefAttrib( s, .T. )
    CASE cT == "MTEXT" ; RETURN Sr_ReadMText( s )
    CASE cT == "SPLINE" ; RETURN Sr_ReadSpline( s )
+   CASE cT == "POLYLINE" ; RETURN Sr_ReadPolyline( s )
    CASE cT == "ELLIPSE" ; RETURN Sr_ReadEllipse( s )
    CASE cT == "SOLID" ; RETURN Sr_ReadSolidFace( s, .F. )
    CASE cT == "TRACE"
