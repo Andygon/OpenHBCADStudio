@@ -231,3 +231,11 @@
 #define DAP_BOTTOMLEFT   7
 #define DAP_BOTTOMCENTER 8
 #define DAP_BOTTOMRIGHT  9
+
+/* entities/leader.rs */
+#define LPT_STRAIGHT 0
+#define LPT_SPLINE   1
+#define LCT_WITHTEXT      0
+#define LCT_WITHTOLERANCE 1
+#define LCT_WITHBLOCK     2
+#define LCT_NOANNOTATION  3
