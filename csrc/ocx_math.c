@@ -74,3 +74,20 @@ HB_FUNC( OCX_F64DIGITS )
    }
 }
 HB_FUNC( OCX_COPYSIGN1 ) { hb_retnd( copysign( 1.0, hb_parnd( 1 ) ) ); }
+/* Rust format!("{:.16e}", v): mantisa con 16 decimales y exponente sin signo + ni ceros a la izquierda */
+HB_FUNC( OCX_EXP16 )
+{
+   char buf[ 64 ], out[ 64 ];
+   char * pe;
+   int e;
+   snprintf( buf, sizeof( buf ), "%.16e", hb_parnd( 1 ) );
+   pe = strchr( buf, 'e' );
+   if( pe ) { e = atoi( pe + 1 ); *pe = 0; snprintf( out, sizeof( out ), "%.40se%d", buf, e ); }
+   else snprintf( out, sizeof( out ), "%s", buf );
+   hb_retc( out );
+}
+HB_FUNC( OCX_I64BIN )   /* i64 -> 8 bytes little-endian */
+{
+   long long v = ( long long ) hb_parnint( 1 );
+   hb_retclen( ( const char * ) &v, 8 );
+}
