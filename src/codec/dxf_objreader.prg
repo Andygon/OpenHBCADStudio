@@ -700,12 +700,35 @@ STATIC FUNCTION Dxo_ReadLayout( s )
 RETURN l
 
 /* read_objects: parcial (ver cabecera) */
+/* object_has_own_dxf_xdata (solo los tipos que este port modela) */
+FUNCTION Dxo_HasOwnXdata( o )
+   LOCAL t := o[ "_type" ]
+   IF t == "XRecord" .OR. t == "TableStyle" .OR. t == "UnderlayDefinition" .OR. t == "Field" ; RETURN .T. ; ENDIF
+   IF t == "SortEntitiesTable" ; RETURN o[ "raw_dxf_codes" ] != NIL ; ENDIF
+   IF t == "Unknown" ; RETURN .T. ; ENDIF
+RETURN .F.
+
+/* read_object_xdata: reproduce las pares grabadas por el XDataRecorder y las guarda en object_xdata */
+STATIC PROCEDURE Dxo_ReadObjXdata( s, d )
+   LOCAL a, h, i, r
+   a := Sr_RecTake( s ) ; Sr_RecSet( s, .F. )
+   IF a[ 1 ] == NIL ; RETURN ; ENDIF
+   h := Sr_HexVal( a[ 1 ] )
+   IF h == NIL .OR. Len( a[ 2 ] ) == 0 .OR. ! hb_HHasKey( d[ "objects" ], h ) .OR. Dxo_HasOwnXdata( d[ "objects" ][ h ] ) ; RETURN ; ENDIF
+   FOR i := Len( a[ 2 ] ) TO 1 STEP -1 ; Sr_PushBack( s, a[ 2 ][ i ] ) ; NEXT
+   r := Sr_ReadExtendedDataP( s )
+   IF r[ 2 ] != NIL ; Sr_PushBack( s, r[ 2 ] ) ; ENDIF
+   IF ! Xd_IsEmpty( r[ 1 ] ) ; d[ "object_xdata" ][ h ] := r[ 1 ] ; ENDIF
+RETURN
+
 PROCEDURE Dxo_ReadObjects( s, d )
    LOCAL p, o
    d[ "objects" ] := hb_Hash()
+   Sr_RecInit( s )
    DO WHILE ( p := Sr_Next( s ) ) != NIL
       IF p[ DP_CODE ] == 0 .AND. p[ DP_VALUE ] == "ENDSEC" ; EXIT ; ENDIF
       IF p[ DP_CODE ] == 0
+         Sr_RecSet( s, .T. )
          DO CASE
          CASE p[ DP_VALUE ] == "DICTIONARY"
             o := Dxo_ReadDictionary( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
@@ -741,6 +764,8 @@ PROCEDURE Dxo_ReadObjects( s, d )
          OTHERWISE
             Sr_SkipEntity( s )
          ENDCASE
+         Dxo_ReadObjXdata( s, d )
       ENDIF
    ENDDO
+   Sr_RecEnd( s )
 RETURN
