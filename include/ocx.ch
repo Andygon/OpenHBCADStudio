@@ -71,4 +71,14 @@
 #define TR_X 1
 #define TR_Y 2
 #define TR_O 3
+/* Fillet = { aTangent1, aTangent2, aCentre, nStartAngle, nEndAngle } */
+#define FL_T1 1
+#define FL_T2 2
+#define FL_C  3
+#define FL_S  4
+#define FL_E  5
+/* Crossing = { aPoint, nTA, nTB } */
+#define CR_POINT 1
+#define CR_TA    2
+#define CR_TB    3
 #endif
