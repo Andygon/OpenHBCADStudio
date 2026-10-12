@@ -443,3 +443,15 @@
 #define CMS_ARC             1
 #define CMS_LWPOLY_ARC_SEG  2
 #define CMS_POLY2D_ARC_SEG  3
+
+/* entities/underlay.rs UnderlayType y UnderlayDisplayFlags */
+#define UTY_PDF 0
+#define UTY_DWF 1
+#define UTY_DGN 2
+#define UDF_NONE 0
+#define UDF_CLIPPING 1
+#define UDF_ON 2
+#define UDF_MONOCHROME 4
+#define UDF_ADJUST_FOR_BACKGROUND 8
+#define UDF_CLIP_INSIDE 16
+#define UDF_DEFAULT 2
