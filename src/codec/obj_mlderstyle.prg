@@ -55,8 +55,8 @@ FUNCTION Mst_UniformBlockScale( s )
    ENDIF
 RETURN NIL
 
-PROCEDURE Mst_SetBlockRotationDegrees( s, n ) ; s[ "block_content_rotation" ] := n * OCX_PI / 180.0 ; RETURN
-FUNCTION Mst_BlockRotationDegrees( s ) ; RETURN s[ "block_content_rotation" ] * 180.0 / OCX_PI
+PROCEDURE Mst_SetBlockRotationDegrees( s, n ) ; s[ "block_content_rotation" ] := n * ( OCX_PI / 180.0 ) ; RETURN
+FUNCTION Mst_BlockRotationDegrees( s ) ; RETURN s[ "block_content_rotation" ] * ( 180.0 / OCX_PI )
 FUNCTION Mst_HasTextContent( s ) ; RETURN s[ "content_type" ] == MST_CT_MTEXT
 FUNCTION Mst_HasBlockContent( s ) ; RETURN s[ "content_type" ] == MST_CT_BLOCK
 FUNCTION Mst_HasToleranceContent( s ) ; RETURN s[ "content_type" ] == MST_CT_TOLERANCE
