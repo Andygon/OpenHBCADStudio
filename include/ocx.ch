@@ -85,4 +85,14 @@
 #define CL_T 1
 #define CL_P 2
 #define CL_D 3
+/* SnapKind y SnapPoint = { nKind, aPoint, nT } */
+#define SK_ENDPOINT 1
+#define SK_MIDPOINT 2
+#define SK_CENTRE 3
+#define SK_QUADRANT 4
+#define SK_PERPENDICULAR 5
+#define SK_TANGENT 6
+#define SP_KIND 1
+#define SP_POINT 2
+#define SP_T 3
 #endif
