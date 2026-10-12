@@ -415,6 +415,155 @@ STATIC FUNCTION Sr_AppIdEntry( s )
    ENDDO
 RETURN a
 
+STATIC FUNCTION Sr_DimStyleMap()
+   STATIC hM
+   IF hM == NIL
+      hM := { ;
+         2 => { "name", "S" }, ;
+         3 => { "dimpost", "S" }, ;
+         4 => { "dimapost", "S" }, ;
+         5 => { "dimblk_name", "S" }, ;
+         6 => { "dimblk1_name", "S" }, ;
+         7 => { "dimblk2_name", "S" }, ;
+         40 => { "dimscale", "D" }, ;
+         41 => { "dimasz", "D" }, ;
+         42 => { "dimexo", "D" }, ;
+         43 => { "dimdli", "D" }, ;
+         44 => { "dimexe", "D" }, ;
+         45 => { "dimrnd", "D" }, ;
+         46 => { "dimdle", "D" }, ;
+         47 => { "dimtp", "D" }, ;
+         48 => { "dimtm", "D" }, ;
+         49 => { "dimfxl", "D" }, ;
+         50 => { "dimjogang", "D" }, ;
+         140 => { "dimtxt", "D" }, ;
+         141 => { "dimcen", "D" }, ;
+         142 => { "dimtsz", "D" }, ;
+         143 => { "dimaltf", "D" }, ;
+         144 => { "dimlfac", "D" }, ;
+         145 => { "dimtvp", "D" }, ;
+         146 => { "dimtfac", "D" }, ;
+         147 => { "dimgap", "D" }, ;
+         69 => { "dimtfill", "I" }, ;
+         71 => { "dimtol", "B" }, ;
+         72 => { "dimlim", "B" }, ;
+         73 => { "dimtih", "B" }, ;
+         74 => { "dimtoh", "B" }, ;
+         75 => { "dimse1", "B" }, ;
+         76 => { "dimse2", "B" }, ;
+         77 => { "dimtad", "I" }, ;
+         78 => { "dimzin", "I" }, ;
+         79 => { "dimazin", "I" }, ;
+         90 => { "dimarcsym", "I" }, ;
+         170 => { "dimalt", "B" }, ;
+         171 => { "dimaltd", "I" }, ;
+         172 => { "dimtofl", "B" }, ;
+         173 => { "dimsah", "B" }, ;
+         174 => { "dimtix", "B" }, ;
+         175 => { "dimsoxd", "B" }, ;
+         176 => { "dimclrd", "I" }, ;
+         177 => { "dimclre", "I" }, ;
+         178 => { "dimclrt", "I" }, ;
+         179 => { "dimadec", "I" }, ;
+         270 => { "dimunit", "I" }, ;
+         271 => { "dimdec", "I" }, ;
+         272 => { "dimtdec", "I" }, ;
+         273 => { "dimaltu", "I" }, ;
+         274 => { "dimalttd", "I" }, ;
+         275 => { "dimaunit", "I" }, ;
+         276 => { "dimfrac", "I" }, ;
+         277 => { "dimlunit", "I" }, ;
+         278 => { "dimdsep", "I" }, ;
+         279 => { "dimtmove", "I" }, ;
+         280 => { "dimjust", "I" }, ;
+         281 => { "dimsd1", "B" }, ;
+         282 => { "dimsd2", "B" }, ;
+         283 => { "dimtolj", "I" }, ;
+         284 => { "dimtzin", "I" }, ;
+         285 => { "dimaltz", "I" }, ;
+         286 => { "dimalttz", "I" }, ;
+         287 => { "dimfit", "I" }, ;
+         288 => { "dimupt", "B" }, ;
+         289 => { "dimatfit", "I" }, ;
+         290 => { "dimfxlon", "B" }, ;
+         340 => { "dimtxsty_handle", "H" }, ;
+         341 => { "dimldrblk", "H" }, ;
+         342 => { "dimblk", "H" }, ;
+         343 => { "dimblk1", "H" }, ;
+         344 => { "dimblk2", "H" }, ;
+         345 => { "dimltex_handle", "H" }, ;
+         346 => { "dimltex1_handle", "H" }, ;
+         347 => { "dimltex2_handle", "H" }, ;
+         371 => { "dimlwd", "I" }, ;
+         372 => { "dimlwe", "I" }, ;
+         294 => { "dimtxtdirection", "B" }, ;
+         295 => { "dimtxtdirection", "B" }, ;
+         105 => { "handle", "H" } }
+   ENDIF
+RETURN hM
+
+STATIC FUNCTION Sr_DimStyleEntry( s )
+   LOCAL ds := Dst_DxfDefaults( "Standard" ), p, v, m, lSeen := .F., x, rec, aV, i, nLast, n
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      n := p[ DP_CODE ]
+      m := hb_HGetDef( Sr_DimStyleMap(), n, NIL )
+      IF m != NIL
+         DO CASE
+         CASE m[ 2 ] == "S" ; ds[ m[ 1 ] ] := p[ DP_VALUE ]
+         CASE m[ 2 ] == "H"
+            v := Sr_HexVal( p ) ; IF v != NIL ; ds[ m[ 1 ] ] := v ; ENDIF
+         CASE m[ 2 ] == "D"
+            v := Dp_AsDouble( p ) ; IF v != NIL ; ds[ m[ 1 ] ] := v ; ENDIF
+         CASE m[ 2 ] == "I"
+            v := Dp_AsI16( p ) ; IF v != NIL ; ds[ m[ 1 ] ] := v ; ENDIF
+         CASE m[ 2 ] == "B"
+            v := Dp_AsI16( p ) ; IF v != NIL ; ds[ m[ 1 ] ] := v != 0 ; ENDIF
+         ENDCASE
+      ELSEIF n == 70
+         v := Dp_AsI16( p )
+         IF v != NIL
+            IF lSeen
+               ds[ "dimtfillclr" ] := v
+            ELSE
+               lSeen := .T.
+               ds[ "xref_dependent" ] := hb_bitAnd( v, 16 ) != 0 ; ds[ "xref_resolved" ] := hb_bitAnd( v, 32 ) != 0 ; ds[ "xref_reference" ] := hb_bitAnd( v, 64 ) != 0
+            ENDIF
+         ENDIF
+      ELSEIF n == 1001 .AND. p[ DP_VALUE ] == "AcadAnnotative"
+         x := Sr_XDataFrom( s, p )
+         rec := Xd_GetRecord( x, "AcadAnnotative" )
+         ds[ "annotative" ] := .F.
+         IF rec != NIL
+            aV := Xr_Values( rec ) ; nLast := NIL
+            FOR i := 1 TO Len( aV )
+               IF aV[ i ][ 1 ] == XV_INTEGER16 ; nLast := aV[ i ][ 2 ] ; ENDIF
+            NEXT
+            ds[ "annotative" ] := ( nLast != NIL .AND. nLast != 0 )
+         ENDIF
+      ENDIF
+   ENDDO
+RETURN ds
+
+STATIC PROCEDURE Sr_ReadDimStyleTable( s, d )
+   LOCAL p, h, e, ts, t := d[ "dim_styles" ]
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 .AND. p[ DP_VALUE ] == "ENDTAB" ; EXIT ; ENDIF
+      IF p[ DP_CODE ] == 5
+         h := Sr_HexVal( p )
+         IF h != NIL ; Tb_SetHandle( t, h ) ; d[ "header" ][ "dimstyle_control_handle" ] := h ; ENDIF
+      ELSEIF p[ DP_CODE ] == 0 .AND. p[ DP_VALUE ] == "DIMSTYLE"
+         e := Sr_DimStyleEntry( s )
+         IF ! Hd_IsNull( e[ "dimtxsty_handle" ] )
+            FOR EACH ts IN Tb_Values( d[ "text_styles" ] )
+               IF ts[ "handle" ] == e[ "dimtxsty_handle" ] ; e[ "dimtxsty" ] := ts[ "name" ] ; EXIT ; ENDIF
+            NEXT
+         ENDIF
+         Tb_AddOrReplace( t, e )
+      ENDIF
+   ENDDO
+RETURN
+
 STATIC FUNCTION Sr_VportDblMap()
    STATIC hM
    IF hM == NIL
@@ -709,10 +858,11 @@ PROCEDURE Sr_ReadTables( s, d )
             CASE cN == "STYLE" ; Sr_TableGeneric( s, d, "text_styles", "STYLE", "style_control_handle", {|| Sr_StyleEntry( s ) }, .T. )
             CASE cN == "BLOCK_RECORD" ; Sr_ReadBlockRecordTable( s, d )
             CASE cN == "APPID" ; Sr_TableGeneric( s, d, "app_ids", "APPID", "appid_control_handle", {|| Sr_AppIdEntry( s ) }, .F. )
+            CASE cN == "DIMSTYLE" ; Sr_ReadDimStyleTable( s, d )
             CASE cN == "VPORT" ; Tb_Clear( d[ "vports" ] ) ; Sr_TableGeneric( s, d, "vports", "VPORT", "vport_control_handle", {|| Sr_VportEntry( s ) }, 2 )
             CASE cN == "VIEW" ; Sr_TableGeneric( s, d, "views", "VIEW", "view_control_handle", {|| Sr_ViewEntry( s ) }, .F. )
             CASE cN == "UCS" ; Sr_TableGeneric( s, d, "ucss", "UCS", "ucs_control_handle", {|| Sr_UcsEntry( s ) }, .F. )
-            OTHERWISE ; Sr_SkipToEndTab( s ) /* DIMSTYLE: PENDIENTE (se saltan) */
+            OTHERWISE ; Sr_SkipToEndTab( s )
             ENDCASE
          ENDIF
       ENDIF
