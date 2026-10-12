@@ -82,7 +82,7 @@ RETURN iif( p == NIL, NIL, { nDef, p } )
 
 FUNCTION Doc_DynamicDefinitionForInsert( d, nInsert )
    LOCAL e := Doc_GetEntity( d, nInsert ), x, k, br
-   IF e == NIL .OR. e[ "_type" ] != "INSERT" ; RETURN NIL ; ENDIF
+   IF e == NIL .OR. ! ( e[ "_type" ] == "INSERT" ) ; RETURN NIL ; ENDIF
    x := e[ "common" ][ "xdictionary_handle" ]
    IF x != NIL
       FOR EACH k IN hb_HKeys( d[ "block_representations" ] )
