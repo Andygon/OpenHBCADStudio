@@ -45,8 +45,8 @@ FUNCTION Eul_SetScaleXyz( e, x, y, z ) ; e[ "x_scale" ] := x ; e[ "y_scale" ] :=
 FUNCTION Eul_UniformScale( e )
    IF Abs( e[ "x_scale" ] - e[ "y_scale" ] ) < 0.0000000001 .AND. Abs( e[ "y_scale" ] - e[ "z_scale" ] ) < 0.0000000001 ; RETURN e[ "x_scale" ] ; ENDIF
 RETURN NIL
-FUNCTION Eul_SetRotationDegrees( e, n ) ; e[ "rotation" ] := n * OCX_PI / 180.0 ; RETURN NIL
-FUNCTION Eul_RotationDegrees( e ) ; RETURN e[ "rotation" ] * 180.0 / OCX_PI
+FUNCTION Eul_SetRotationDegrees( e, n ) ; e[ "rotation" ] := n * ( OCX_PI / 180.0 ) ; RETURN NIL
+FUNCTION Eul_RotationDegrees( e ) ; RETURN e[ "rotation" ] * ( 180.0 / OCX_PI )
 FUNCTION Eul_SetRectangularClip( e, vMin, vMax )
    e[ "clip_boundary_vertices" ] := { { vMin[ 1 ], vMin[ 2 ] }, { vMax[ 1 ], vMin[ 2 ] }, { vMax[ 1 ], vMax[ 2 ] }, { vMin[ 1 ], vMax[ 2 ] } }
    e[ "flags" ] := hb_bitOr( e[ "flags" ], UDF_CLIPPING )
