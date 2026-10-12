@@ -52,7 +52,7 @@ FUNCTION Ent_Transparency( e ) ; RETURN e[ "common" ][ "transparency" ]
 FUNCTION Ent_SetTransparency( e, t ) ; e[ "common" ][ "transparency" ] := t ; RETURN NIL
 FUNCTION Ent_IsInvisible( e ) ; RETURN e[ "common" ][ "invisible" ]
 FUNCTION Ent_SetInvisible( e, l ) ; e[ "common" ][ "invisible" ] := l ; RETURN NIL
-FUNCTION Ent_EntityType( e ) ; RETURN iif( e[ "_type" ] == "POLYLINE2D" .OR. e[ "_type" ] == "POLYLINE3D" .OR. e[ "_type" ] == "POLYGON_MESH", "POLYLINE", e[ "_type" ] )
+FUNCTION Ent_EntityType( e ) ; RETURN iif( e[ "_type" ] == "POLYLINE2D" .OR. e[ "_type" ] == "POLYLINE3D" .OR. e[ "_type" ] == "POLYGON_MESH" .OR. e[ "_type" ] == "POLYFACE_MESH", "POLYLINE", e[ "_type" ] )
 
 /* --- trait Entity: despacho por tipo --- */
 FUNCTION Ent_BoundingBox( e )
@@ -88,6 +88,7 @@ FUNCTION Ent_BoundingBox( e )
    CASE e[ "_type" ] == "LIGHT" ; RETURN Elt_BoundingBox( e )
    CASE e[ "_type" ] == "POLYGON_MESH" ; RETURN Epm_BoundingBox( e )
    CASE e[ "_type" ] == "OLE2FRAME" ; RETURN Eo2_BoundingBox( e )
+   CASE e[ "_type" ] == "POLYFACE_MESH" ; RETURN Epf_BoundingBox( e )
    CASE e[ "_type" ] == "SECTIONLINE" ; RETURN Esy_BoundingBox( e )
    CASE Edm_IsDimension( e[ "_type" ] ) ; RETURN Edm_BoundingBox( e )
    CASE e[ "_type" ] == "ATTRIB" ; RETURN Eat_BoundingBox( e )
@@ -130,6 +131,7 @@ FUNCTION Ent_Translate( e, vOffset )
    CASE e[ "_type" ] == "LIGHT" ; Elt_Translate( e, vOffset )
    CASE e[ "_type" ] == "POLYGON_MESH" ; Epm_Translate( e, vOffset )
    CASE e[ "_type" ] == "OLE2FRAME" ; Eo2_Translate( e, vOffset )
+   CASE e[ "_type" ] == "POLYFACE_MESH" ; Epf_Translate( e, vOffset )
    CASE e[ "_type" ] == "SECTIONLINE" ; HB_SYMBOL_UNUSED( e ) // no-op en el despachador (anclado a su vista)
    CASE Edm_IsDimension( e[ "_type" ] ) ; Edm_Translate( e, vOffset )
    CASE e[ "_type" ] == "ATTRIB" ; Eat_Translate( e, vOffset )
@@ -171,6 +173,7 @@ FUNCTION Ent_ApplyTransform( e, t )
    CASE e[ "_type" ] == "LIGHT" ; HB_SYMBOL_UNUSED( e ) // no-op en el despachador: las luces son solo glifo
    CASE e[ "_type" ] == "POLYGON_MESH" ; Epm_Transform( e, t )
    CASE e[ "_type" ] == "OLE2FRAME" ; Eo2_Transform( e, t )
+   CASE e[ "_type" ] == "POLYFACE_MESH" ; Epf_Transform( e, t )
    CASE e[ "_type" ] == "SECTIONLINE" ; HB_SYMBOL_UNUSED( e ) // no-op en el despachador (anclado a su vista)
    CASE Edm_IsDimension( e[ "_type" ] ) ; Edm_Transform( e, t )
    CASE e[ "_type" ] == "ATTRIB" ; Eat_Transform( e, t )
@@ -190,6 +193,7 @@ FUNCTION Ent_ApplyMirror( e, t )
    CASE e[ "_type" ] == "TEXT" ; Etx_Mirror( e, t )
    CASE e[ "_type" ] == "MTEXT" ; Emt_Mirror( e, t )
    CASE e[ "_type" ] == "SHAPE" ; Esh_Mirror( e, t )
+   CASE e[ "_type" ] == "POLYFACE_MESH" ; Epf_Mirror( e, t )
    OTHERWISE ; Ent_ApplyTransform( e, t )
    ENDCASE
 RETURN NIL
