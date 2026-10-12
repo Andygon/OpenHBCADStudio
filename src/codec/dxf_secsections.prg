@@ -1243,7 +1243,8 @@ RETURN
 
 /* reader.rs: bucle de secciones. Devuelve documento, o cadena de error */
 FUNCTION Dxr_ReadString( cData )
-   LOCAL s, d := Doc_New(), p, np, cSec
+   LOCAL s, d := Doc_New(), p, np, cSec, aDef
+   aDef := Dxp_SnapshotDefaults( d )
    s := Sr_NewText( cData )
    DO WHILE ( p := Sr_Next( s ) ) != NIL
       IF p[ DP_CODE ] == 0 .AND. p[ DP_VALUE ] == "EOF" ; EXIT ; ENDIF
@@ -1264,7 +1265,10 @@ FUNCTION Dxr_ReadString( cData )
    ENDDO
    IF Sr_Error( s ) != NIL ; RETURN Sr_Error( s ) ; ENDIF
    Doc_SynchronizeHandleAllocator( d )
+   Dxp_RehandleCollidingDefaultEntries( d, aDef )
    Doc_ResolveReferences( d )
+   Dxp_RewireStaleTextStyleReferences( d )
+   Dxp_RewireDanglingLayoutBlockRecords( d )
    Doc_EnsureModelLayout( d )
 RETURN d
 
