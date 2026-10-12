@@ -1,0 +1,37 @@
+/* Tests: sort_entities_table.rs (22 tests 1:1) */
+#include "ocx.ch"
+PROCEDURE T_CodecObjSortEnts()
+   LOCAL t, r, e, n, i
+   t := Sot_New() ; Chk( Sot_IsEmpty( t ) .AND. Sot_Len( t ) == 0, "creation" )
+   t := Sot_ForBlock( 0x1F ) ; Chk( t[ "block_owner_handle" ] == 0x1F, "for_block" )
+   t := Sot_New() ; r := Sot_AddEntry( t, 0x100, 0x50 ) ; Chk( r == NIL .AND. Sot_Len( t ) == 1 .AND. Sot_Contains( t, 0x100 ), "add_entry" )
+   t := Sot_New() ; Sot_AddEntry( t, 0x100, 0x50 ) ; r := Sot_AddEntry( t, 0x100, 0x75 )
+   Chk( r == 0x50 .AND. Sot_Len( t ) == 1 .AND. Sot_GetSortHandle( t, 0x100 ) == 0x75, "add_entry_update" )
+   t := Sot_New() ; Sot_AddEntry( t, 0x100, 0x50 ) ; r := Sot_RemoveEntry( t, 0x100 )
+   Chk( r != NIL .AND. Sot_IsEmpty( t ) .AND. ! Sot_Contains( t, 0x100 ), "remove_entry" )
+   t := Sot_New() ; Chk( Sot_RemoveEntry( t, 0x100 ) == NIL, "remove_nonexistent" )
+   t := Sot_New() ; Sot_AddEntry( t, 0x100, 0x50 ) ; Chk( Sot_GetSortHandle( t, 0x100 ) == 0x50 .AND. Sot_GetSortHandle( t, 0x999 ) == NIL, "get_sort_handle" )
+   t := Sot_New() ; Chk( ! Sot_Contains( t, 0x100 ), "contains 1" ) ; Sot_AddEntry( t, 0x100, 0x50 ) ; Chk( Sot_Contains( t, 0x100 ), "contains 2" )
+   t := Sot_New() ; Sot_AddEntry( t, 0x100, 0x50 ) ; Sot_AddEntry( t, 0x101, 0x51 ) ; Chk( Sot_Len( t ) == 2, "clear 1" ) ; Sot_Clear( t ) ; Chk( Sot_IsEmpty( t ), "clear 2" )
+   t := Sot_New() ; Sot_AddEntry( t, 0x100, 0x30 ) ; Sot_AddEntry( t, 0x101, 0x10 ) ; Sot_AddEntry( t, 0x102, 0x20 ) ; e := Sot_SortedEntries( t )
+   Chk( e[ 1 ][ "entity_handle" ] == 0x101 .AND. e[ 2 ][ "entity_handle" ] == 0x102 .AND. e[ 3 ][ "entity_handle" ] == 0x100, "sorted_entries" )
+   t := Sot_New() ; Sot_AddEntry( t, 0x100, 0x50 ) ; Sot_AddEntry( t, 0x101, 0x60 ) ; n := Sot_SendToBack( t, 0x102 ) ; Chk( n < 0x50 .AND. Sot_Contains( t, 0x102 ), "send_to_back" )
+   t := Sot_New() ; Sot_AddEntry( t, 0x100, 0x50 ) ; Sot_AddEntry( t, 0x101, 0x60 ) ; n := Sot_BringToFront( t, 0x102 ) ; Chk( n > 0x60 .AND. Sot_Contains( t, 0x102 ), "bring_to_front" )
+   t := Sot_New() ; Sot_AddEntry( t, 0x100, 0x50 ) ; n := Sot_MoveAbove( t, 0x101, 0x100 ) ; Chk( n != NIL .AND. n > 0x50, "move_above" )
+   t := Sot_New() ; Sot_AddEntry( t, 0x100, 0x50 ) ; n := Sot_MoveBelow( t, 0x101, 0x100 ) ; Chk( n != NIL .AND. n < 0x50, "move_below" )
+   t := Sot_New() ; Chk( Sot_MoveAbove( t, 0x101, 0x100 ) == NIL, "move_above_nonexistent" )
+   t := Sot_New() ; Sot_AddEntry( t, 0x100, 0x50 )
+   Chk( Sot_EffectiveSortHandle( t, 0x100 ) == 0x50 .AND. Sot_EffectiveSortHandle( t, 0x200 ) == 0x200, "effective_sort_handle" )
+   t := Sot_New() ; Sot_AddEntry( t, 0x100, 0x50 ) ; Sot_AddEntry( t, 0x101, 0x51 ) ; Chk( Len( Sot_Entries( t ) ) == 2, "entries_iterator" )
+   t := Sot_New() ; Sot_AddEntry( t, 0x100, 0x50 ) ; FOR EACH i IN Sot_Entries( t )
+      i[ "sort_handle" ] := 0x99
+   NEXT
+   Chk( Sot_GetSortHandle( t, 0x100 ) == 0x99, "entries_mut_iterator" )
+   t := Sot_New() ; Sot_AddEntry( t, 0x100, 0x50 ) ; Sot_AddEntry( t, 0x101, 0x51 ) ; hb_HClear( t[ "entry_map" ] ) ; Chk( ! Sot_Contains( t, 0x100 ), "rebuild_map 1" )
+   Sot_RebuildMap( t ) ; Chk( Sot_Contains( t, 0x100 ) .AND. Sot_Contains( t, 0x101 ), "rebuild_map 2" )
+   t := Sot_New() ; Chk( Sot_IsEmpty( t ), "default" )
+   e := Sen_New( 0x100, 0x50 ) ; Chk( e[ "entity_handle" ] == 0x100 .AND. e[ "sort_handle" ] == 0x50, "sortentsentry_creation" )
+   t := Sot_New() ; Sot_AddEntry( t, 0x100, 0x50 ) ; Sot_AddEntry( t, 0x101, 0x51 ) ; Sot_AddEntry( t, 0x102, 0x52 ) ; Sot_RemoveEntry( t, 0x100 )
+   Chk( Sot_Len( t ) == 2 .AND. Sot_Contains( t, 0x101 ) .AND. Sot_Contains( t, 0x102 ) .AND. ! Sot_Contains( t, 0x100 ), "remove_with_swap" )
+   Chk( Sot_ObjectName() == "SORTENTSTABLE" .AND. Sot_SubclassMarker() == "AcDbSortentsTable" .AND. Sot_DictionaryKey() == "ACAD_SORTENTS", "constants" )
+RETURN
