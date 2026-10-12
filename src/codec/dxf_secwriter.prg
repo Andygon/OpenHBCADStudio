@@ -1151,6 +1151,35 @@ STATIC PROCEDURE Swr_WriteEntity( st, e, hOwner )
       IF e[ "invisible_edges" ] != 0 ; Sw_WriteI16( w, 70, e[ "invisible_edges" ] ) ; ENDIF
    CASE t == "DIMENSION_ALIGNED" .OR. t == "DIMENSION_LINEAR" .OR. t == "DIMENSION_RADIUS" .OR. t == "DIMENSION_DIAMETER" .OR. t == "DIMENSION_ANGULAR_2LINE" .OR. t == "DIMENSION_ANGULAR_3POINT" .OR. t == "DIMENSION_ORDINATE" .OR. t == "ARC_DIMENSION" .OR. t == "LARGE_RADIAL_DIMENSION"
       Swr_Dimension( st, e, hOwner )
+   CASE t == "TOLERANCE"
+      Sw_WriteEntityType( w, "TOLERANCE" ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbFcf" ) ; Sw_WriteString( w, 3, e[ "dimension_style_name" ] )
+      Sw_WriteDouble( w, 10, e[ "insertion_point" ][ 1 ] ) ; Sw_WriteDouble( w, 20, e[ "insertion_point" ][ 2 ] ) ; Sw_WriteDouble( w, 30, e[ "insertion_point" ][ 3 ] )
+      Sw_WriteDouble( w, 210, e[ "normal" ][ 1 ] ) ; Sw_WriteDouble( w, 220, e[ "normal" ][ 2 ] ) ; Sw_WriteDouble( w, 230, e[ "normal" ][ 3 ] )
+      Sw_WriteDouble( w, 11, e[ "direction" ][ 1 ] ) ; Sw_WriteDouble( w, 21, e[ "direction" ][ 2 ] ) ; Sw_WriteDouble( w, 31, e[ "direction" ][ 3 ] ) ; Sw_WriteString( w, 1, e[ "text" ] )
+   CASE t == "WIPEOUT"
+      Sw_WriteEntityType( w, "WIPEOUT" ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbWipeout" ) ; Sw_WriteI32( w, 90, e[ "class_version" ] )
+      Sw_WriteDouble( w, 10, e[ "insertion_point" ][ 1 ] ) ; Sw_WriteDouble( w, 20, e[ "insertion_point" ][ 2 ] ) ; Sw_WriteDouble( w, 30, e[ "insertion_point" ][ 3 ] )
+      Sw_WriteDouble( w, 11, e[ "u_vector" ][ 1 ] ) ; Sw_WriteDouble( w, 21, e[ "u_vector" ][ 2 ] ) ; Sw_WriteDouble( w, 31, e[ "u_vector" ][ 3 ] )
+      Sw_WriteDouble( w, 12, e[ "v_vector" ][ 1 ] ) ; Sw_WriteDouble( w, 22, e[ "v_vector" ][ 2 ] ) ; Sw_WriteDouble( w, 32, e[ "v_vector" ][ 3 ] )
+      Sw_WriteDouble( w, 13, e[ "size" ][ 1 ] ) ; Sw_WriteDouble( w, 23, e[ "size" ][ 2 ] )
+      IF e[ "definition_handle" ] != NIL ; Sw_WriteHandle( w, 340, e[ "definition_handle" ] ) ; ENDIF
+      Sw_WriteI16( w, 70, e[ "flags" ] ) ; Sw_WriteByte( w, 280, IIf( e[ "clipping_enabled" ], 1, 0 ) ) ; Sw_WriteByte( w, 281, e[ "brightness" ] )
+      Sw_WriteByte( w, 282, e[ "contrast" ] ) ; Sw_WriteByte( w, 283, e[ "fade" ] )
+      IF e[ "definition_reactor_handle" ] != NIL ; Sw_WriteHandle( w, 360, e[ "definition_reactor_handle" ] ) ; ENDIF
+      IF st[ 2 ] >= Dxv_FromVersionString( "AC1024" ) ; Sw_WriteBool( w, 290, e[ "clip_mode" ] == WCM_INSIDE ) ; ENDIF
+      Sw_WriteI16( w, 71, e[ "clip_type" ] ) ; Sw_WriteI32( w, 91, Len( e[ "clip_boundary_vertices" ] ) )
+      FOR EACH v IN e[ "clip_boundary_vertices" ] ; Sw_WriteDouble( w, 14, v[ 1 ] ) ; Sw_WriteDouble( w, 24, v[ 2 ] ) ; NEXT
+   CASE t == "SHAPE"
+      Sw_WriteEntityType( w, "SHAPE" ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbShape" )
+      IF Abs( e[ "thickness" ] ) > 0.0000000001 ; Sw_WriteDouble( w, 39, e[ "thickness" ] ) ; ENDIF
+      Sw_WriteDouble( w, 10, e[ "insertion_point" ][ 1 ] ) ; Sw_WriteDouble( w, 20, e[ "insertion_point" ][ 2 ] ) ; Sw_WriteDouble( w, 30, e[ "insertion_point" ][ 3 ] )
+      Sw_WriteDouble( w, 40, e[ "size" ] ) ; Sw_WriteString( w, 2, e[ "shape_name" ] )
+      IF Abs( e[ "rotation" ] ) > 0.0000000001 ; Sw_WriteDouble( w, 50, e[ "rotation" ] * ( 180.0 / OCX_PI ) ) ; ENDIF
+      IF Abs( e[ "relative_x_scale" ] - 1.0 ) > 0.0000000001 ; Sw_WriteDouble( w, 41, e[ "relative_x_scale" ] ) ; ENDIF
+      IF Abs( e[ "oblique_angle" ] ) > 0.0000000001 ; Sw_WriteDouble( w, 51, e[ "oblique_angle" ] * ( 180.0 / OCX_PI ) ) ; ENDIF
+      IF Esh_HasCustomNormal( e )
+         Sw_WriteDouble( w, 210, e[ "normal" ][ 1 ] ) ; Sw_WriteDouble( w, 220, e[ "normal" ][ 2 ] ) ; Sw_WriteDouble( w, 230, e[ "normal" ][ 3 ] )
+      ENDIF
    CASE t == "RAY" .OR. t == "XLINE"
       Sw_WriteEntityType( w, t ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, IIf( t == "RAY", "AcDbRay", "AcDbXline" ) )
       Sw_WritePoint3d( w, 10, e[ "base_point" ] ) ; Sw_WritePoint3d( w, 11, e[ "direction" ] )
