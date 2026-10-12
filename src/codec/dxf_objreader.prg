@@ -333,6 +333,84 @@ STATIC FUNCTION Dxo_U32( n )
    IF n >= 4294967295.0 ; RETURN 4294967295 ; ENDIF
 RETURN Int( n )
 
+STATIC FUNCTION Dxo_ReadUnderlayDef( s, nType )
+   LOCAL df := Udf_New( nType ), p, v, lReact := .F., cApp := ""
+   df[ "_type" ] := "UnderlayDefinition"
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      DO CASE
+      CASE p[ DP_CODE ] == 102 ; lReact := ( p[ DP_VALUE ] == "{ACAD_REACTORS" )
+      CASE p[ DP_CODE ] == 5
+         v := Sr_HexVal( p ) ; IF v != NIL ; df[ "handle" ] := v ; ENDIF
+      CASE p[ DP_CODE ] == 330
+         v := Sr_HexVal( p )
+         IF v != NIL
+            IF lReact ; AAdd( df[ "reactors" ], v ) ; ELSE ; df[ "owner_handle" ] := v ; ENDIF
+         ENDIF
+      CASE p[ DP_CODE ] == 1 ; df[ "file_path" ] := p[ DP_VALUE ]
+      CASE p[ DP_CODE ] == 2 ; df[ "page_name" ] := p[ DP_VALUE ]
+      CASE p[ DP_CODE ] == 1001 ; cApp := p[ DP_VALUE ]
+      CASE p[ DP_CODE ] == 1000 .AND. Upper( cApp ) == "ACAD" .AND. Upper( p[ DP_VALUE ] ) == "NOLOAD"
+         df[ "unloaded" ] := .T.
+      ENDCASE
+   ENDDO
+RETURN df
+
+/* v as i16 de Rust (envoltura) */
+STATIC FUNCTION Dxo_WrapI16( n )
+   LOCAL m := n % 65536
+   IF m < 0 ; m += 65536 ; ENDIF
+   IF m >= 32768 ; m -= 65536 ; ENDIF
+RETURN m
+
+STATIC FUNCTION Dxo_ReadMLeaderStyle( s )
+   LOCAL st := Mst_New( "Standard" ), p, v, c
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      c := p[ DP_CODE ]
+      DO CASE
+      CASE c == 5
+         v := Sr_HexVal( p ) ; IF v != NIL ; st[ "handle" ] := v ; ENDIF
+      CASE c == 330
+         v := Sr_HexVal( p ) ; IF v != NIL ; st[ "owner_handle" ] := v ; ENDIF
+      CASE c == 3 ; st[ "name" ] := p[ DP_VALUE ]
+      CASE c == 300 ; st[ "description" ] := p[ DP_VALUE ]
+      CASE c == 304 ; st[ "default_text" ] := p[ DP_VALUE ]
+      CASE c == 170 .OR. c == 173 .OR. c == 174 .OR. c == 178 .OR. c == 175 .OR. c == 176
+         v := Dp_AsI16( p )
+         IF v != NIL
+            DO CASE
+            CASE c == 170 ; st[ "content_type" ] := Mst_ContentTypeFrom( v )
+            CASE c == 173 ; st[ "path_type" ] := Mst_PathTypeFrom( v )
+            CASE c == 174 ; st[ "text_left_attachment" ] := Mst_TextAttachmentFrom( v )
+            CASE c == 178 ; st[ "text_right_attachment" ] := Mst_TextAttachmentFrom( v )
+            CASE c == 175 ; st[ "text_angle_type" ] := Mst_TextAngleFrom( v )
+            CASE c == 176 ; st[ "text_alignment" ] := Mst_TextAlignmentFrom( v )
+            ENDCASE
+         ENDIF
+      CASE c == 91 .OR. c == 93
+         v := Dp_AsI32( p ) ; IF v != NIL ; st[ IIf( c == 91, "line_color", "text_color" ) ] := Cl_FromIndex( Dxo_WrapI16( v ) ) ; ENDIF
+      CASE c == 92
+         v := Dp_AsI32( p ) ; IF v != NIL ; st[ "line_weight" ] := Lw_FromValue( Dxo_WrapI16( v ) ) ; ENDIF
+      CASE c == 290 .OR. c == 291 .OR. c == 292 .OR. c == 296
+         v := Dp_AsBool( p )
+         IF v != NIL
+            st[ IIf( c == 290, "enable_landing", IIf( c == 291, "enable_dogleg", IIf( c == 292, "text_frame", "is_annotative" ) ) ) ] := v
+         ENDIF
+      CASE c == 43 .OR. c == 42 .OR. c == 44 .OR. c == 45 .OR. c == 142
+         v := Dp_AsDouble( p )
+         IF v != NIL
+            st[ IIf( c == 43, "landing_distance", IIf( c == 42, "landing_gap", IIf( c == 44, "arrowhead_size", IIf( c == 45, "text_height", "scale_factor" ) ) ) ) ] := v
+         ENDIF
+      CASE c == 340 .OR. c == 341 .OR. c == 342 .OR. c == 343
+         v := Sr_HexVal( p )
+         IF v != NIL
+            st[ IIf( c == 340, "line_type_handle", IIf( c == 341, "arrowhead_handle", IIf( c == 342, "text_style_handle", "block_content_handle" ) ) ) ] := v
+         ENDIF
+      ENDCASE
+   ENDDO
+RETURN st
+
 STATIC FUNCTION Dxo_ReadDictionary( s )
    LOCAL d := Dic_New(), p, cKey := NIL, v
    DO WHILE ( p := Sr_Next( s ) ) != NIL
@@ -482,6 +560,11 @@ PROCEDURE Dxo_ReadObjects( s, d )
             o := Dxo_ReadSortEnts( s, d[ "version" ] ) ; d[ "objects" ][ o[ "handle" ] ] := o
          CASE p[ DP_VALUE ] == "IMAGEDEF"
             o := Dxo_ReadImageDef( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
+         CASE p[ DP_VALUE ] == "PDFDEFINITION" .OR. p[ DP_VALUE ] == "DWFDEFINITION" .OR. p[ DP_VALUE ] == "DGNDEFINITION"
+            o := Dxo_ReadUnderlayDef( s, IIf( p[ DP_VALUE ] == "DWFDEFINITION", UTY_DWF, IIf( p[ DP_VALUE ] == "DGNDEFINITION", UTY_DGN, UTY_PDF ) ) )
+            d[ "objects" ][ o[ "handle" ] ] := o
+         CASE p[ DP_VALUE ] == "MLEADERSTYLE"
+            o := Dxo_ReadMLeaderStyle( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
          CASE p[ DP_VALUE ] == "GROUP"
             o := Dxo_ReadGroup( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
          OTHERWISE
