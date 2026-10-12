@@ -415,6 +415,80 @@ STATIC FUNCTION Sr_AppIdEntry( s )
    ENDDO
 RETURN a
 
+STATIC FUNCTION Sr_ViewEntry( s )
+   LOCAL w := Viw_New( "*Active" ), p, v, n, ce := PR_New(), tg := PR_New(), di := PR_New(), uo := PR_New(), ux := PR_New(), uy := PR_New(), pt
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      n := p[ DP_CODE ]
+      DO CASE
+      CASE n == 5
+         v := Sr_HexVal( p ) ; IF v != NIL ; w[ "handle" ] := v ; ENDIF
+      CASE n == 2 ; w[ "name" ] := p[ DP_VALUE ]
+      CASE n == 10 .OR. n == 20 .OR. n == 30 ; PR_AddCoordinate( ce, p )
+      CASE n == 11 .OR. n == 21 .OR. n == 31 ; PR_AddCoordinate( di, p )
+      CASE n == 12 .OR. n == 22 .OR. n == 32 ; PR_AddCoordinate( tg, p )
+      CASE n == 110 .OR. n == 120 .OR. n == 130 ; PR_AddCoordinate( uo, p )
+      CASE n == 111 .OR. n == 121 .OR. n == 131 ; PR_AddCoordinate( ux, p )
+      CASE n == 112 .OR. n == 122 .OR. n == 132 ; PR_AddCoordinate( uy, p )
+      CASE n == 40 .OR. n == 41 .OR. n == 42 .OR. n == 43 .OR. n == 44 .OR. n == 50 .OR. n == 141 .OR. n == 142 .OR. n == 146
+         v := Dp_AsDouble( p )
+         IF v != NIL
+            DO CASE
+            CASE n == 40 ; w[ "height" ] := v
+            CASE n == 41 ; w[ "width" ] := v
+            CASE n == 42 ; w[ "lens_length" ] := v
+            CASE n == 43 ; w[ "front_clip" ] := v
+            CASE n == 44 ; w[ "back_clip" ] := v
+            CASE n == 50 ; w[ "twist_angle" ] := v * OCX_PI / 180.0
+            CASE n == 141 ; w[ "brightness" ] := v
+            CASE n == 142 ; w[ "contrast" ] := v
+            CASE n == 146 ; w[ "ucs_elevation" ] := v
+            ENDCASE
+         ENDIF
+      CASE n == 63
+         v := Dp_AsI16( p ) ; IF v != NIL ; w[ "ambient_color" ] := Cl_FromIndex( v ) ; ENDIF
+      CASE n == 70
+         v := Dp_AsI16( p )
+         IF v != NIL
+            w[ "paper_space" ] := hb_bitAnd( v, 1 ) != 0 ; w[ "xref_dependent" ] := hb_bitAnd( v, 16 ) != 0
+            w[ "xref_resolved" ] := hb_bitAnd( v, 32 ) != 0 ; w[ "xref_reference" ] := hb_bitAnd( v, 64 ) != 0
+         ENDIF
+      CASE n == 71
+         v := Dp_AsI16( p )
+         IF v != NIL
+            w[ "perspective" ] := hb_bitAnd( v, 1 ) != 0 ; w[ "front_clipping" ] := hb_bitAnd( v, 2 ) != 0
+            w[ "back_clipping" ] := hb_bitAnd( v, 4 ) != 0 ; w[ "front_clip_at_eye" ] := hb_bitAnd( v, 16 ) != 0
+         ENDIF
+      CASE n == 72
+         v := Dp_AsI16( p ) ; IF v != NIL ; w[ "ucs_associated" ] := v != 0 ; ENDIF
+      CASE n == 73
+         v := Dp_AsI16( p ) ; IF v != NIL ; w[ "camera_plottable" ] := v != 0 ; ENDIF
+      CASE n == 79
+         v := Dp_AsI16( p ) ; IF v != NIL ; w[ "ucs_ortho_type" ] := v ; ENDIF
+      CASE n == 281
+         v := Dp_AsI16( p ) ; IF v != NIL ; w[ "render_mode" ] := Vrm_FromValue( v ) ; ENDIF
+      CASE n == 282
+         v := Dp_AsI16( p ) ; IF v != NIL ; w[ "default_lighting_type" ] := v ; ENDIF
+      CASE n == 292
+         v := Dp_AsI16( p ) ; IF v != NIL ; w[ "use_default_lights" ] := v != 0 ; ENDIF
+      CASE n == 332 ; v := Sr_HexVal( p ) ; IF v != NIL ; w[ "background_handle" ] := v ; ENDIF
+      CASE n == 334 ; v := Sr_HexVal( p ) ; IF v != NIL ; w[ "live_section_handle" ] := v ; ENDIF
+      CASE n == 345 ; v := Sr_HexVal( p ) ; IF v != NIL ; w[ "named_ucs_handle" ] := v ; ENDIF
+      CASE n == 346 ; v := Sr_HexVal( p ) ; IF v != NIL ; w[ "base_ucs_handle" ] := v ; ENDIF
+      CASE n == 348 ; v := Sr_HexVal( p ) ; IF v != NIL ; w[ "visual_style_handle" ] := v ; ENDIF
+      CASE n == 361 ; v := Sr_HexVal( p ) ; IF v != NIL ; w[ "sun_handle" ] := v ; ENDIF
+      CASE n == 421
+         v := Dp_AsI32Bits( p ) ; IF v != NIL ; w[ "ambient_color" ] := Cl_FromTrueColorValue( v ) ; ENDIF
+      ENDCASE
+   ENDDO
+   pt := PR_GetPoint( ce ) ; IF pt != NIL ; w[ "center" ] := pt ; ENDIF
+   pt := PR_GetPoint( tg ) ; IF pt != NIL ; w[ "target" ] := pt ; ENDIF
+   pt := PR_GetPoint( di ) ; IF pt != NIL ; w[ "direction" ] := pt ; ENDIF
+   pt := PR_GetPoint( uo ) ; IF pt != NIL ; w[ "ucs_origin" ] := pt ; ENDIF
+   pt := PR_GetPoint( ux ) ; IF pt != NIL ; w[ "ucs_x_axis" ] := pt ; ENDIF
+   pt := PR_GetPoint( uy ) ; IF pt != NIL ; w[ "ucs_y_axis" ] := pt ; ENDIF
+RETURN w
+
 STATIC FUNCTION Sr_UcsEntry( s )
    LOCAL u := Ucs_New( "World" ), p, v, o := PR_New(), xa := PR_New(), ya := PR_New(), pt
    DO WHILE ( p := Sr_Next( s ) ) != NIL
@@ -548,8 +622,9 @@ PROCEDURE Sr_ReadTables( s, d )
             CASE cN == "STYLE" ; Sr_TableGeneric( s, d, "text_styles", "STYLE", "style_control_handle", {|| Sr_StyleEntry( s ) }, .T. )
             CASE cN == "BLOCK_RECORD" ; Sr_ReadBlockRecordTable( s, d )
             CASE cN == "APPID" ; Sr_TableGeneric( s, d, "app_ids", "APPID", "appid_control_handle", {|| Sr_AppIdEntry( s ) }, .F. )
+            CASE cN == "VIEW" ; Sr_TableGeneric( s, d, "views", "VIEW", "view_control_handle", {|| Sr_ViewEntry( s ) }, .F. )
             CASE cN == "UCS" ; Sr_TableGeneric( s, d, "ucss", "UCS", "ucs_control_handle", {|| Sr_UcsEntry( s ) }, .F. )
-            OTHERWISE ; Sr_SkipToEndTab( s ) /* DIMSTYLE/VIEW/VPORT: PENDIENTE (se saltan) */
+            OTHERWISE ; Sr_SkipToEndTab( s ) /* DIMSTYLE/VPORT: PENDIENTE (se saltan) */
             ENDCASE
          ENDIF
       ENDIF
