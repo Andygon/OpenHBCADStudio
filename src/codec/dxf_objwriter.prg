@@ -20,7 +20,7 @@ STATIC FUNCTION Dxo_FindRootDictHandle( d )
 RETURN nBest
 
 /* tipos de objeto que este escritor emite: las entradas de diccionario a otros tipos se omiten (equivale al filtro valid_handles de Rust) */
-STATIC FUNCTION Dxo_IsWritten( o ) ; RETURN o[ "_type" ] == "Dictionary" .OR. o[ "_type" ] == "Layout" .OR. o[ "_type" ] == "XRecord" .OR. o[ "_type" ] == "Group" .OR. o[ "_type" ] == "MLineStyle" .OR. o[ "_type" ] == "SortEntitiesTable" .OR. o[ "_type" ] == "ImageDefinition" .OR. o[ "_type" ] == "Scale" .OR. o[ "_type" ] == "DictionaryVariable"
+STATIC FUNCTION Dxo_IsWritten( o ) ; RETURN o[ "_type" ] == "Dictionary" .OR. o[ "_type" ] == "Layout" .OR. o[ "_type" ] == "XRecord" .OR. o[ "_type" ] == "Group" .OR. o[ "_type" ] == "MLineStyle" .OR. o[ "_type" ] == "SortEntitiesTable" .OR. o[ "_type" ] == "ImageDefinition" .OR. o[ "_type" ] == "UnderlayDefinition" .OR. o[ "_type" ] == "MultiLeaderStyle" .OR. o[ "_type" ] == "Scale" .OR. o[ "_type" ] == "DictionaryVariable"
 
 STATIC PROCEDURE Dxo_WriteDictionary( w, d, dic )
    LOCAL aR := dic[ "reactors" ], hX, e, lForced
@@ -224,6 +224,60 @@ STATIC PROCEDURE Dxo_WriteImageDef( w, df )
    Sw_WriteByte( w, 280, IIf( df[ "is_loaded" ], 1, 0 ) ) ; Sw_WriteByte( w, 281, Rsu_ToCode( df[ "resolution_unit" ] ) )
 RETURN
 
+STATIC PROCEDURE Dxo_WriteUnderlayDef( w, df )
+   LOCAL h
+   Sw_WriteString( w, 0, Udf_EntityName( df ) ) ; Sw_WriteHandle( w, 5, df[ "handle" ] )
+   IF Len( df[ "reactors" ] ) > 0
+      Sw_WriteString( w, 102, "{ACAD_REACTORS" )
+      FOR EACH h IN df[ "reactors" ] ; Sw_WriteHandle( w, 330, h ) ; NEXT
+      Sw_WriteString( w, 102, "}" )
+   ENDIF
+   Sw_WriteHandle( w, 330, df[ "owner_handle" ] ) ; Sw_WriteSubclass( w, Udf_SubclassMarker( df ) )
+   Sw_WriteString( w, 1, df[ "file_path" ] ) ; Sw_WriteString( w, 2, df[ "page_name" ] )
+   IF df[ "unloaded" ] ; Sw_WriteString( w, 1001, "ACAD" ) ; Sw_WriteString( w, 1000, "NOLOAD" ) ; ENDIF
+RETURN
+
+/* write_color_i32 */
+STATIC PROCEDURE Dxo_WriteColorI32( w, nCode, c )
+   LOCAL n
+   DO CASE
+   CASE c[ 1 ] == CK_BYLAYER ; n := 3221225472
+   CASE c[ 1 ] == CK_BYBLOCK ; n := 3238002688
+   CASE c[ 1 ] == CK_RGB ; n := 3254779904 + c[ 2 ] * 65536 + c[ 3 ] * 256 + c[ 4 ]
+   CASE c[ 1 ] == CK_INDEX ; n := 3271557120 + c[ 2 ]
+   OTHERWISE ; n := 3355443200
+   ENDCASE
+   IF n >= 2147483648 ; n -= 4294967296 ; ENDIF
+   Sw_WriteI32( w, nCode, n )
+RETURN
+
+STATIC PROCEDURE Dxo_WriteMLeaderStyle( w, d, st )
+   LOCAL h := st[ "line_type_handle" ], lt
+   Sw_WriteString( w, 0, "MLEADERSTYLE" ) ; Sw_WriteHandle( w, 5, st[ "handle" ] ) ; Sw_WriteHandle( w, 330, st[ "owner_handle" ] )
+   Sw_WriteSubclass( w, "AcDbMLeaderStyle" )
+   Sw_WriteI16( w, 170, st[ "content_type" ] ) ; Sw_WriteI16( w, 171, st[ "multileader_draw_order" ] ) ; Sw_WriteI16( w, 172, st[ "leader_draw_order" ] )
+   Sw_WriteI32( w, 90, st[ "max_leader_points" ] ) ; Sw_WriteDouble( w, 40, st[ "first_segment_angle" ] ) ; Sw_WriteDouble( w, 41, st[ "second_segment_angle" ] )
+   Sw_WriteI16( w, 173, st[ "path_type" ] ) ; Dxo_WriteColorI32( w, 91, st[ "line_color" ] )
+   IF h == NIL .OR. Hd_IsNull( h )
+      lt := Tb_Get( d[ "line_types" ], "ByLayer" )
+      h := IIf( lt != NIL, lt[ "handle" ], Hd_Null() )
+   ENDIF
+   IF ! Hd_IsNull( h ) ; Sw_WriteHandle( w, 340, h ) ; ENDIF
+   Sw_WriteI32( w, 92, Lw_GetValue( st[ "line_weight" ] ) ) ; Sw_WriteBool( w, 290, st[ "enable_landing" ] ) ; Sw_WriteDouble( w, 42, st[ "landing_gap" ] )
+   Sw_WriteBool( w, 291, st[ "enable_dogleg" ] ) ; Sw_WriteDouble( w, 43, st[ "landing_distance" ] ) ; Sw_WriteString( w, 3, st[ "name" ] )
+   IF st[ "arrowhead_handle" ] != NIL ; Sw_WriteHandle( w, 341, st[ "arrowhead_handle" ] ) ; ENDIF
+   Sw_WriteDouble( w, 44, st[ "arrowhead_size" ] ) ; Sw_WriteString( w, 300, st[ "default_text" ] )
+   IF st[ "text_style_handle" ] != NIL ; Sw_WriteHandle( w, 342, st[ "text_style_handle" ] ) ; ENDIF
+   Sw_WriteI16( w, 174, st[ "text_left_attachment" ] ) ; Sw_WriteI16( w, 175, st[ "text_angle_type" ] ) ; Sw_WriteI16( w, 176, st[ "text_alignment" ] )
+   Sw_WriteI16( w, 178, st[ "text_right_attachment" ] ) ; Dxo_WriteColorI32( w, 93, st[ "text_color" ] ) ; Sw_WriteDouble( w, 45, st[ "text_height" ] )
+   Sw_WriteBool( w, 292, st[ "text_frame" ] ) ; Sw_WriteBool( w, 297, st[ "text_always_left" ] ) ; Sw_WriteDouble( w, 46, st[ "align_space" ] )
+   IF st[ "block_content_handle" ] != NIL ; Sw_WriteHandle( w, 343, st[ "block_content_handle" ] ) ; ENDIF
+   Dxo_WriteColorI32( w, 94, st[ "block_content_color" ] ) ; Sw_WriteDouble( w, 47, st[ "block_content_scale_x" ] ) ; Sw_WriteDouble( w, 49, st[ "block_content_scale_y" ] )
+   Sw_WriteDouble( w, 140, st[ "block_content_scale_z" ] ) ; Sw_WriteBool( w, 293, st[ "enable_block_scale" ] ) ; Sw_WriteDouble( w, 141, st[ "block_content_rotation" ] )
+   Sw_WriteBool( w, 294, st[ "enable_block_rotation" ] ) ; Sw_WriteI16( w, 177, st[ "block_content_connection" ] ) ; Sw_WriteDouble( w, 142, st[ "scale_factor" ] )
+   Sw_WriteBool( w, 295, st[ "property_changed" ] ) ; Sw_WriteBool( w, 296, st[ "is_annotative" ] ) ; Sw_WriteDouble( w, 143, st[ "break_gap_size" ] )
+RETURN
+
 STATIC PROCEDURE Dxo_WriteGroup( w, g )
    LOCAL h
    Sw_WriteString( w, 0, "GROUP" ) ; Sw_WriteHandle( w, 5, g[ "handle" ] ) ; Sw_WriteHandle( w, 330, g[ "owner" ] )
@@ -253,6 +307,8 @@ PROCEDURE Dxo_WriteObjects( w, d, nVer )
          CASE o[ "_type" ] == "MLineStyle" ; Dxo_WriteMLineStyle( w, o )
          CASE o[ "_type" ] == "SortEntitiesTable" ; Dxo_WriteSortEnts( w, d, o, nVer )
          CASE o[ "_type" ] == "ImageDefinition" ; Dxo_WriteImageDef( w, o )
+         CASE o[ "_type" ] == "UnderlayDefinition" ; Dxo_WriteUnderlayDef( w, o )
+         CASE o[ "_type" ] == "MultiLeaderStyle" ; Dxo_WriteMLeaderStyle( w, d, o )
          CASE o[ "_type" ] == "Scale" ; Dxo_WriteScale( w, o )
          CASE o[ "_type" ] == "DictionaryVariable" ; Dxo_WriteDictVar( w, o )
          CASE o[ "_type" ] == "Group" ; Dxo_WriteGroup( w, o )
