@@ -98,4 +98,18 @@
 #define PZ_UNIFORM 0
 #define PZ_CENTRIPETAL 1
 #define PZ_CHORD 2
+#define IK_COINCIDENT 1
+#define IK_COLLINEAR 2
+#define IK_PARALLEL 3
+#define IK_PERPENDICULAR 4
+#define IK_TANGENT 5
+#define IK_CONCENTRIC 6
+#define IK_HORIZONTAL 7
+#define IK_VERTICAL 8
+#define IK_EQUAL 9
+#define IC_KIND 1
+#define IC_FIRST 2
+#define IC_SECOND 3
+#define IC_FIRSTEP 4
+#define IC_SECONDEP 5
 #endif
