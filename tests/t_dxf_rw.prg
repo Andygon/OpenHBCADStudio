@@ -313,6 +313,14 @@ PROCEDURE T_DxfRw()
          u := IIf( ValType( d5 ) == "H", hb_HGetDef( d5[ "objects" ], x[ "handle" ], NIL ), NIL )
          Chk( u != NIL .AND. u[ "name" ] == "Mio" .AND. Cl_Eq( u[ "line_color" ], Cl_FromIndex( 5 ) ) .AND. Near( u[ "text_height" ], 2.5, 0.000000001 ) .AND. u[ "text_frame" ] ;
             .AND. u[ "content_type" ] == MST_CT_BLOCK .AND. Lw_Eq( u[ "line_weight" ], Lw_Value( 50 ) ) .AND. u[ "text_style_handle" ] == 42, "[extra] OBJECTS: MLEADERSTYLE escribir y releer" )
+         x := Pls_New( "Hoja A3" ) ; x[ "_type" ] := "PlotSettings" ; x[ "handle" ] := Doc_AllocateHandle( d ) ; x[ "owner" ] := d[ "header" ][ "named_objects_dict_handle" ]
+         x[ "paper_size" ] := "ISO_A3" ; x[ "paper_width" ] := 420.0 ; x[ "paper_height" ] := 297.0 ; x[ "margins" ][ "left" ] := 7.5 ; x[ "paper_units" ] := PPU_MILLIMETERS
+         x[ "plot_window" ][ "upper_right_x" ] := 400.0 ; x[ "scale_denominator" ] := 50.0 ; x[ "shade_plot_dpi" ] := 600
+         d[ "objects" ][ x[ "handle" ] ] := x
+         d5 := Dxr_ReadString( Dxw_WriteString( d ) )
+         u := IIf( ValType( d5 ) == "H", hb_HGetDef( d5[ "objects" ], x[ "handle" ], NIL ), NIL )
+         Chk( u != NIL .AND. u[ "page_name" ] == "Hoja A3" .AND. u[ "paper_size" ] == "ISO_A3" .AND. Near( u[ "paper_width" ], 420.0, 0.000000001 ) .AND. Near( u[ "margins" ][ "left" ], 7.5, 0.000000001 ) ;
+            .AND. u[ "paper_units" ] == PPU_MILLIMETERS .AND. Near( u[ "plot_window" ][ "upper_right_x" ], 400.0, 0.000000001 ) .AND. Near( u[ "scale_denominator" ], 50.0, 0.000000001 ) .AND. u[ "shade_plot_dpi" ] == 600, "[extra] OBJECTS: PLOTSETTINGS escribir y releer" )
       ENDIF
       x := NIL
       IF ValType( d2 ) == "H"
