@@ -14,6 +14,7 @@ PROCEDURE Main()
    T_Bounds()
    T_Intersect()
    T_Arclength()
+   T_Deviation()
    ? "RESULTADO:", LTrim( Str( s_nOk ) ), "ok,", LTrim( Str( s_nFail ) ), "fallos"
    IF s_nFail == 0 ; ? "OCX-ALL-OK" ; ENDIF
    ErrorLevel( IIF( s_nFail == 0, 0, 1 ) )
