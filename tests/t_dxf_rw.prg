@@ -445,4 +445,11 @@ PROCEDURE T_DxfRw()
    Chk( Len( es ) == 1 .AND. es[ 1 ][ "_type" ] == "MULTILEADER" .AND. es[ 1 ][ "context" ][ "text_string" ] == "Hola" .AND. es[ 1 ][ "context" ][ "text_color" ][ 1 ] == CK_RGB .AND. es[ 1 ][ "context" ][ "text_color" ][ 3 ] == 20 .AND. es[ 1 ][ "line_color" ][ 2 ] == 5 .AND. es[ 1 ][ "text_frame" ] .AND. es[ 1 ][ "dogleg_length" ] == 0.5 .AND. es[ 1 ][ "scale_factor" ] == 2.0 ;
       .AND. Len( es[ 1 ][ "context" ][ "leader_roots" ] ) == 1 .AND. Len( es[ 1 ][ "context" ][ "leader_roots" ][ 1 ][ "lines" ][ 1 ][ "points" ] ) == 2 .AND. es[ 1 ][ "context" ][ "leader_roots" ][ 1 ][ "lines" ][ 1 ][ "points" ][ 2 ][ 2 ] == 3.0 .AND. es[ 1 ][ "context" ][ "leader_roots" ][ 1 ][ "lines" ][ 1 ][ "segment_index" ] == 1 ;
       .AND. Len( es[ 1 ][ "context" ][ "leader_roots" ][ 1 ][ "lines" ][ 1 ][ "break_infos" ][ 1 ][ "break_points" ] ) == 1 .AND. Len( es[ 1 ][ "block_attributes" ] ) == 1 .AND. es[ 1 ][ "block_attributes" ][ 1 ][ "text" ] == "ATT" .AND. es[ 1 ][ "block_attributes" ][ 1 ][ "attribute_definition_handle" ] == 99 .AND. es[ 1 ][ "block_attributes" ][ 1 ][ "width" ] == 1.25 )
+   /* [extra] MESH (cubo con una arista con crease, subdivision 2) */
+   d2 := Doc_New()
+   x := Emh_CreateUnitCube() ; x[ "subdivision_level" ] := 2 ; x[ "blend_crease" ] := .F. ; Emh_SetEdgeCrease( x, 3, 1.5 ) ; x[ "common" ][ "layer" ] := "MALLA" ; Doc_AddEntity( d2, x )
+   d2 := RT( d2 )
+   es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
+   Chk( Len( es ) == 1 .AND. es[ 1 ][ "_type" ] == "MESH" .AND. es[ 1 ][ "common" ][ "layer" ] == "MALLA" .AND. es[ 1 ][ "subdivision_level" ] == 2 .AND. ! es[ 1 ][ "blend_crease" ] .AND. Len( es[ 1 ][ "vertices" ] ) == 8 .AND. Len( es[ 1 ][ "faces" ] ) == 6 ;
+      .AND. Len( es[ 1 ][ "faces" ][ 6 ][ "vertices" ] ) == 4 .AND. es[ 1 ][ "faces" ][ 6 ][ "vertices" ][ 3 ] == 6 .AND. Len( es[ 1 ][ "edges" ] ) == 12 .AND. es[ 1 ][ "edges" ][ 4 ][ "crease" ] == 1.5 .AND. es[ 1 ][ "edges" ][ 1 ][ "crease" ] == NIL, "dxf_rw: [extra] MESH roundtrip" )
 RETURN
