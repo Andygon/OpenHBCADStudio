@@ -1600,8 +1600,13 @@ PROCEDURE Swr_Entities( st, d )
 RETURN
 
 /* DxfWriter::write_dxf (texto). Devuelve el texto DXF. */
-FUNCTION Dxw_WriteString( d )
-   LOCAL w := TxW_New( NIL ), st
+FUNCTION Dxw_WriteString( d ) ; RETURN Dxw_WriteWith( d, TxW_New( NIL ) )
+
+/* DxfWriter::new_binary + write_to_vec: devuelve los bytes del DXF binario */
+FUNCTION Dxw_WriteBinaryString( d ) ; RETURN Dxw_WriteWith( d, BnW_New( NIL ) )
+
+STATIC FUNCTION Dxw_WriteWith( d, w )
+   LOCAL st
    Doc_SynchronizeHandleAllocator( d )
    st := { w, d[ "version" ], d[ "next_handle" ] + 1, .F., d }
    Swr_Header( st, d )
