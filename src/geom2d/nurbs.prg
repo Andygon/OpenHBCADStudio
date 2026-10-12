@@ -4,8 +4,9 @@
    Estado: PARCIAL - traducido: new, new_strict, accesores, is_rational, domain,
    point_at_knot, derivative_at_knot, derivative_at, point_at, parameter_at,
    tessellate, is_closed.
-   Pendiente: insert_knot, reversed, elevated, bezier_segments, split_at, trimmed,
-   fit_polyline, interpolate, interpolate_periodic y los tests correspondientes.
+   + insert_knot, reversed, elevated, bezier_segments, split_at, trimmed, span_containing
+   (tests en tests/t_nurbs_edit.prg).
+   Pendiente: fit_polyline, interpolate, interpolate_periodic y sus tests.
    NurbsCurve = { nDegree, aKnots, aCtrl, aWeights } (indices NC_*). Option -> NIL.
 ----------------------------------------------------------------------------*/
 #include "ocx.ch"
@@ -206,3 +207,200 @@ FUNCTION NC_Tessellate( c, nPerSpan )
    NEXT
    AAdd( aOut, NC_PointAtKnot( c, aD[ 2 ] ) )
 RETURN aOut
+
+// ---- edicion: insert_knot / reversed / elevated / split / trim ----------------
+// Index of the knot span holding u (base 0, como Rust)
+STATIC FUNCTION NC_SpanContaining( c, u )
+   LOCAL nLast := Len( c[ NC_CTRL ] ) - 1, nLow := c[ NC_DEGREE ], nHigh := nLast + 1, nMid
+   IF u >= c[ NC_KNOTS ][ nLast + 1 + 1 ] ; RETURN nLast ; ENDIF
+   DO WHILE nHigh - nLow > 1
+      nMid := Int( ( nLow + nHigh ) / 2 )
+      IF u < c[ NC_KNOTS ][ nMid + 1 ]
+         nHigh := nMid
+      ELSE
+         nLow := nMid
+      ENDIF
+   ENDDO
+RETURN nLow
+
+// Modifica c en sitio (como &mut self)
+FUNCTION NC_InsertKnot( c, u )
+   LOCAL aD := NC_Domain( c ), nSpan, nDeg := c[ NC_DEGREE ], aH := {}, i, aUpd := {}, nLower, nUpper, nAlpha, aKn, aNewKn, hp, hi
+   IF u <= aD[ 1 ] .OR. u >= aD[ 2 ] ; RETURN NIL ; ENDIF
+   nSpan := NC_SpanContaining( c, u )
+   FOR i := 0 TO Len( c[ NC_CTRL ] ) - 1 ; AAdd( aH, NC_Homog( c, i ) ) ; NEXT
+   FOR i := 0 TO nSpan - nDeg ; AAdd( aUpd, aH[ i + 1 ] ) ; NEXT
+   aKn := c[ NC_KNOTS ]
+   FOR i := nSpan - nDeg + 1 TO nSpan
+      nLower := aKn[ i + 1 ] ; nUpper := aKn[ i + nDeg + 1 ]
+      nAlpha := IIF( Abs( nUpper - nLower ) < 0.000000000000001, 0.0, ( u - nLower ) / ( nUpper - nLower ) )
+      hp := aH[ i ] ; hi := aH[ i + 1 ]
+      AAdd( aUpd, { ( 1.0 - nAlpha ) * hp[1] + nAlpha * hi[1], ( 1.0 - nAlpha ) * hp[2] + nAlpha * hi[2], ( 1.0 - nAlpha ) * hp[3] + nAlpha * hi[3] } )
+   NEXT
+   FOR i := nSpan TO Len( aH ) - 1 ; AAdd( aUpd, aH[ i + 1 ] ) ; NEXT
+   aNewKn := {}
+   FOR i := 1 TO Len( aKn )
+      IF i == nSpan + 2 ; AAdd( aNewKn, u ) ; ENDIF
+      AAdd( aNewKn, aKn[ i ] )
+   NEXT
+   IF nSpan + 2 > Len( aKn ) ; AAdd( aNewKn, u ) ; ENDIF
+   c[ NC_KNOTS ] := aNewKn
+   c[ NC_CTRL ] := {}
+   c[ NC_WEIGHTS ] := {}
+   FOR EACH hi IN aUpd
+      IF Abs( hi[3] ) < 0.000000000000001
+         AAdd( c[ NC_CTRL ], { hi[1], hi[2] } )
+      ELSE
+         AAdd( c[ NC_CTRL ], { hi[1] / hi[3], hi[2] / hi[3] } )
+      ENDIF
+      AAdd( c[ NC_WEIGHTS ], hi[3] )
+   NEXT
+RETURN NIL
+
+STATIC FUNCTION NC_Clone( c )
+RETURN { c[ NC_DEGREE ], AClone( c[ NC_KNOTS ] ), AClone( c[ NC_CTRL ] ), AClone( c[ NC_WEIGHTS ] ) }
+
+FUNCTION NC_Reversed( c )
+   LOCAL aKn := c[ NC_KNOTS ], nTotal := aKn[ 1 ] + aKn[ Len( aKn ) ], aK := {}, aP := {}, aW := {}, i
+   FOR i := Len( aKn ) TO 1 STEP -1 ; AAdd( aK, nTotal - aKn[ i ] ) ; NEXT
+   FOR i := Len( c[ NC_CTRL ] ) TO 1 STEP -1
+      AAdd( aP, c[ NC_CTRL ][ i ] ) ; AAdd( aW, c[ NC_WEIGHTS ][ i ] )
+   NEXT
+RETURN { c[ NC_DEGREE ], aK, aP, aW }
+
+FUNCTION NC_Elevated( c, nBy )
+   LOCAL cur, i
+   IF nBy == 0 ; RETURN NIL ; ENDIF
+   cur := NC_ElevatedOnce( c )
+   IF cur == NIL ; RETURN NIL ; ENDIF
+   FOR i := 2 TO nBy
+      cur := NC_ElevatedOnce( cur )
+      IF cur == NIL ; RETURN NIL ; ENDIF
+   NEXT
+RETURN cur
+
+STATIC FUNCTION NC_ElevatedOnce( c )
+   LOCAL nDeg := c[ NC_DEGREE ], nRaised := nDeg + 1, aBz, aSegs, aBreaks, aCtrl := {}, aW := {}, aSeg, aEl, i, nAlpha, aBefore, aAfter
+   LOCAL nSkip, w, aD, aKn, nAt, k, aPt
+   aBz := NC_BezierSegments( c )
+   aSegs := aBz[ 1 ] ; aBreaks := aBz[ 2 ]
+   IF Len( aSegs ) == 0 ; RETURN NIL ; ENDIF
+   FOR EACH aSeg IN aSegs
+      aEl := {}
+      FOR i := 0 TO nRaised
+         nAlpha := i / nRaised
+         aBefore := IIF( i == 0, { 0.0, 0.0, 0.0 }, aSeg[ i ] )
+         aAfter := IIF( i > nDeg, { 0.0, 0.0, 0.0 }, aSeg[ i + 1 ] )
+         AAdd( aEl, { aBefore[1] * nAlpha + aAfter[1] * ( 1.0 - nAlpha ), aBefore[2] * nAlpha + aAfter[2] * ( 1.0 - nAlpha ), aBefore[3] * nAlpha + aAfter[3] * ( 1.0 - nAlpha ) } )
+      NEXT
+      nSkip := IIF( Len( aCtrl ) > 0, 1, 0 )
+      FOR i := nSkip TO Len( aEl ) - 1
+         aPt := aEl[ i + 1 ]
+         w := IIF( Abs( aPt[3] ) < 0.000000000000001, 1.0, aPt[3] )
+         AAdd( aCtrl, { aPt[1] / w, aPt[2] / w } ) ; AAdd( aW, w )
+      NEXT
+   NEXT
+   aD := NC_Domain( c )
+   aKn := {}
+   FOR i := 1 TO nRaised + 1 ; AAdd( aKn, aD[ 1 ] ) ; NEXT
+   FOR EACH nAt IN aBreaks
+      FOR k := 1 TO nRaised ; AAdd( aKn, nAt ) ; NEXT
+   NEXT
+   FOR i := 1 TO nRaised + 1 ; AAdd( aKn, aD[ 2 ] ) ; NEXT
+RETURN { nRaised, aKn, aCtrl, aW }
+
+// { aSegments(cada una array de {x,y,w}), aBreaks }
+STATIC FUNCTION NC_BezierSegments( c )
+   LOCAL aD := NC_Domain( c ), aWork := NC_Clone( c ), aBreaks, aSeen, nKnot, lFound, e, nCount, aSegs := {}, aH := {}, nFrom, i, nDeg
+   LOCAL aSeg, j
+   DO WHILE .T.
+      aSeen := {}
+      FOR EACH nKnot IN aWork[ NC_KNOTS ]
+         IF nKnot <= aD[1] + 0.000000000001 .OR. nKnot >= aD[2] - 0.000000000001 ; LOOP ; ENDIF
+         lFound := .F.
+         FOR EACH e IN aSeen
+            IF Abs( e[1] - nKnot ) < 0.000000000001 ; e[2]++ ; lFound := .T. ; EXIT ; ENDIF
+         NEXT
+         IF ! lFound ; AAdd( aSeen, { nKnot, 1 } ) ; ENDIF
+      NEXT
+      aBreaks := {}
+      FOR EACH e IN aSeen
+         IF e[2] < aWork[ NC_DEGREE ] ; AAdd( aBreaks, e[1] ) ; ENDIF
+      NEXT
+      IF Len( aBreaks ) == 0 ; EXIT ; ENDIF
+      FOR EACH nKnot IN aBreaks
+         NC_InsertKnot( aWork, nKnot )
+      NEXT
+   ENDDO
+   aBreaks := {}
+   FOR EACH nKnot IN aWork[ NC_KNOTS ]
+      IF nKnot <= aD[1] + 0.000000000001 .OR. nKnot >= aD[2] - 0.000000000001 ; LOOP ; ENDIF
+      IF Len( aBreaks ) == 0 .OR. Abs( ATail( aBreaks ) - nKnot ) > 0.000000000001
+         AAdd( aBreaks, nKnot )
+      ENDIF
+   NEXT
+   nDeg := aWork[ NC_DEGREE ]
+   FOR i := 0 TO Len( aWork[ NC_CTRL ] ) - 1 ; AAdd( aH, NC_Homog( aWork, i ) ) ; NEXT
+   nCount := Len( aH )
+   nFrom := 0
+   DO WHILE nFrom < nCount .AND. nFrom + nDeg < nCount + nDeg
+      IF nFrom + nDeg <= nCount - 1
+         aSeg := {}
+         FOR j := nFrom TO nFrom + nDeg ; AAdd( aSeg, aH[ j + 1 ] ) ; NEXT
+         AAdd( aSegs, aSeg )
+      ENDIF
+      nFrom += nDeg
+   ENDDO
+RETURN { aSegs, aBreaks }
+
+FUNCTION NC_SplitAt( c, t )
+   LOCAL aD := NC_Domain( c ), u, aWork, nExisting := 0, k, i, nCut := NIL, nDeg := c[ NC_DEGREE ], nLeft, aLK := {}, aRK := {}, aL, aR
+   u := aD[1] + Max( 0.0, Min( 1.0, t ) ) * ( aD[2] - aD[1] )
+   IF u <= aD[1] + 0.000000000001 .OR. u >= aD[2] - 0.000000000001 ; RETURN NIL ; ENDIF
+   aWork := NC_Clone( c )
+   FOR EACH k IN aWork[ NC_KNOTS ]
+      IF Abs( k - u ) < 0.000000000001 ; nExisting++ ; ENDIF
+   NEXT
+   FOR i := nExisting TO nDeg - 1
+      NC_InsertKnot( aWork, u )
+   NEXT
+   FOR i := Len( aWork[ NC_KNOTS ] ) TO 1 STEP -1
+      IF Abs( aWork[ NC_KNOTS ][ i ] - u ) < 0.000000000001 ; nCut := i - 1 ; EXIT ; ENDIF
+   NEXT
+   IF nCut == NIL ; RETURN NIL ; ENDIF
+   nLeft := nCut - nDeg + 1
+   FOR i := 0 TO nCut ; AAdd( aLK, aWork[ NC_KNOTS ][ i + 1 ] ) ; NEXT
+   AAdd( aLK, u )
+   AAdd( aRK, u )
+   FOR i := nCut - nDeg + 1 TO Len( aWork[ NC_KNOTS ] ) - 1 ; AAdd( aRK, aWork[ NC_KNOTS ][ i + 1 ] ) ; NEXT
+   aL := { nDeg, aLK, ArrSlice( aWork[ NC_CTRL ], 0, nLeft ), ArrSlice( aWork[ NC_WEIGHTS ], 0, nLeft ) }
+   aR := { nDeg, aRK, ArrSlice( aWork[ NC_CTRL ], nLeft - 1, Len( aWork[ NC_CTRL ] ) ), ArrSlice( aWork[ NC_WEIGHTS ], nLeft - 1, Len( aWork[ NC_WEIGHTS ] ) ) }
+   IF Len( aL[ NC_CTRL ] ) > nDeg .AND. Len( aR[ NC_CTRL ] ) > nDeg
+      RETURN { aL, aR }
+   ENDIF
+RETURN NIL
+
+FUNCTION NC_Trimmed( c, nFrom, nTo )
+   LOCAL aSp, aLeft, nLocal, r
+   IF ! OCX_ISFINITE( nFrom ) .OR. ! OCX_ISFINITE( nTo ) ; RETURN NIL ; ENDIF
+   nFrom := Max( 0.0, Min( 1.0, nFrom ) ) ; nTo := Max( 0.0, Min( 1.0, nTo ) )
+   IF Abs( nFrom - nTo ) <= 0.000000000001 ; RETURN NIL ; ENDIF
+   IF nFrom > nTo
+      r := NC_Trimmed( c, nTo, nFrom )
+      IF r == NIL ; RETURN NIL ; ENDIF
+      RETURN NC_Reversed( r )
+   ENDIF
+   IF nFrom <= 0.000000000001 .AND. nTo >= 1.0 - 0.000000000001 ; RETURN NC_Clone( c ) ; ENDIF
+   IF nTo < 1.0 - 0.000000000001
+      aSp := NC_SplitAt( c, nTo )
+      IF aSp == NIL ; RETURN NIL ; ENDIF
+      aLeft := aSp[ 1 ]
+   ELSE
+      aLeft := NC_Clone( c )
+   ENDIF
+   IF nFrom <= 0.000000000001 ; RETURN aLeft ; ENDIF
+   IF ! ( nTo > 0.000000000001 ) ; RETURN NIL ; ENDIF
+   nLocal := nFrom / nTo
+   aSp := NC_SplitAt( aLeft, nLocal )
+   IF aSp == NIL ; RETURN NIL ; ENDIF
+RETURN aSp[ 2 ]
