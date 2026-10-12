@@ -542,3 +542,13 @@
 #define PRK_HARD_OWNERSHIP 2
 #define PRK_SOFT_POINTER   3
 #define PRK_HARD_POINTER   4
+
+#define DLT_SYMBOL   1
+#define DLT_COMPOUND 2
+#define DLT_STROKE   3
+#define DLT_POINT    4
+#define DLT_INTERNAL 6
+#define DLP_DISTANCE 0
+#define DLP_FRACTION 1
+#define DLP_CENTERED 2
+#define DLP_RESERVED 3
