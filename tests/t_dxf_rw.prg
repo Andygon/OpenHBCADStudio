@@ -101,6 +101,34 @@ PROCEDURE T_DxfRw()
       Chk( es[ 1 ][ "_type" ] == "ATTDEF" .AND. es[ 1 ][ "tag" ] == "NOMBRE" .AND. es[ 1 ][ "prompt" ] == "Nombre:" .AND. es[ 1 ][ "default_value" ] == "def" .AND. es[ 1 ][ "flags" ][ "constant" ] .AND. Near( es[ 1 ][ "rotation" ], OCX_PI / 2.0, 0.000000001 ) .AND. Near( es[ 1 ][ "height" ], 3.0, 0.000000001 ), "[extra] roundtrip attdef" )
       Chk( es[ 2 ][ "_type" ] == "INSERT" .AND. Len( es[ 2 ][ "attributes" ] ) == 1 .AND. es[ 2 ][ "attributes" ][ 1 ][ "tag" ] == "NOMBRE" .AND. es[ 2 ][ "attributes" ][ 1 ][ "value" ] == "Pedro" .AND. es[ 2 ][ "attributes" ][ 1 ][ "lock_position" ] .AND. Near( es[ 2 ][ "attributes" ][ 1 ][ "height" ], 1.5, 0.000000001 ), "[extra] roundtrip insert con attrib" )
    ENDIF
+   /* [extra] MTEXT: texto largo (trozos de 250), saltos de linea, fondo y columnas */
+   d := Doc_New()
+   e := Emt_WithValue( Replicate( "ab", 200 ) + Chr( 10 ) + "fin", Vc3_New( 2.0, 3.0, 0.0 ) ) ; e[ "height" ] := 0.5 ; e[ "rectangle_width" ] := 20.0 ; e[ "rotation" ] := OCX_PI / 2.0 ; e[ "attachment_point" ] := MTA_MIDDLECENTER
+   e[ "background_fill_flags" ] := 1 ; e[ "background_color" ] := Cl_FromRgb( 255, 136, 0 ) ; e[ "rectangle_height" ] := 7.0
+   e[ "column_data" ][ "column_type" ] := 1 ; e[ "column_data" ][ "column_count" ] := 3 ; e[ "column_data" ][ "width" ] := 6.0 ; e[ "column_data" ][ "gutter" ] := 1.0
+   Doc_AddEntity( d, e )
+   s1 := Dxw_WriteString( d ) ; d2 := Dxr_ReadString( s1 )
+   es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
+   Chk( Len( es ) == 1 .AND. es[ 1 ][ "_type" ] == "MTEXT", "[extra] roundtrip mtext presente" )
+   IF Len( es ) == 1
+      e := es[ 1 ]
+      Chk( e[ "value" ] == Replicate( "ab", 200 ) + "\Pfin", "[extra] mtext: valor largo troceado y salto -> \P" )
+      Chk( Near( e[ "rotation" ], OCX_PI / 2.0, 0.000000001 ) .AND. e[ "attachment_point" ] == MTA_MIDDLECENTER .AND. Near( e[ "rectangle_height" ], 7.0, 0.000000001 ) .AND. Near( e[ "rectangle_width" ], 20.0, 0.000000001 ), "[extra] mtext: rotacion, anclaje y rectangulo" )
+      Chk( e[ "background_fill_flags" ] == 1 .AND. Cl_Eq( e[ "background_color" ], Cl_FromRgb( 255, 136, 0 ) ), "[extra] mtext: fondo con color verdadero" )
+      Chk( e[ "column_data" ][ "column_type" ] == 1 .AND. e[ "column_data" ][ "column_count" ] == 3 .AND. Near( e[ "column_data" ][ "width" ], 6.0, 0.000000001 ), "[extra] mtext: columnas estandar" )
+   ENDIF
+   /* [extra] SPLINE con puntos de control, pesos, nudos y puntos de ajuste */
+   d := Doc_New() ; e := Esp_New() ; e[ "degree" ] := 3 ; e[ "flags" ][ "rational" ] := .T.
+   e[ "knots" ] := { 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0 }
+   e[ "control_points" ] := { Vc3_New( 0.0, 0.0, 0.0 ), Vc3_New( 1.0, 2.0, 0.0 ), Vc3_New( 3.0, 2.0, 0.0 ), Vc3_New( 4.0, 0.0, 0.0 ) }
+   e[ "weights" ] := { 1.0, 0.5, 0.5, 1.0 } ; e[ "fit_points" ] := { Vc3_New( 0.0, 0.0, 0.0 ), Vc3_New( 4.0, 0.0, 0.0 ) } ; e[ "begin_tangent" ] := Vc3_New( 1.0, 1.0, 0.0 )
+   Doc_AddEntity( d, e )
+   es := Doc_ModelSpaceEntities( RT( d ) )
+   Chk( Len( es ) == 1 .AND. es[ 1 ][ "_type" ] == "SPLINE", "[extra] roundtrip spline presente" )
+   IF Len( es ) == 1
+      e := es[ 1 ]
+      Chk( e[ "degree" ] == 3 .AND. Len( e[ "knots" ] ) == 8 .AND. Len( e[ "control_points" ] ) == 4 .AND. Len( e[ "fit_points" ] ) == 2 .AND. e[ "flags" ][ "rational" ] .AND. Near( e[ "weights" ][ 2 ], 0.5, 0.000000001 ) .AND. Near( e[ "control_points" ][ 3 ][ 1 ], 3.0, 0.000000001 ) .AND. Near( e[ "begin_tangent" ][ 2 ], 1.0, 0.000000001 ), "[extra] roundtrip spline" )
+   ENDIF
    /* lwpolyline / text / insert / point / bloque */
    d := Doc_New()
    e := Elw_New() ; AAdd( e[ "vertices" ], Elv_FromCoords( 0.0, 0.0 ) ) ; AAdd( e[ "vertices" ], Elv_WithBulge( Vc2_New( 4.0, 0.0 ), 0.5 ) ) ; e[ "is_closed" ] := .T. ; Doc_AddEntity( d, e )
@@ -150,8 +178,8 @@ PROCEDURE T_DxfRw()
       l := Tb_Get( d[ "layers" ], "Muros" )
       Chk( Tb_Len( d[ "layers" ] ) >= 2 .AND. l != NIL .AND. l[ "flags" ][ "off" ] .AND. l[ "flags" ][ "locked" ] .AND. Cl_Eq( l[ "color" ], Cl_Index( 3 ) ) .AND. Lw_GetValue( l[ "line_weight" ] ) == 50, "[extra] muestra: capa Muros (apagada, bloqueada, color 3, grosor 50)" )
       es := Doc_ModelSpaceEntities( d )
-      Chk( Len( es ) == 7, "[extra] muestra: 7 entidades en modelo (SPLINE no portada se salta) = " + hb_ntos( Len( es ) ) )
-      IF Len( es ) == 7
+      Chk( Len( es ) == 8, "[extra] muestra: 8 entidades en modelo (7 + SPLINE minima) = " + hb_ntos( Len( es ) ) )
+      IF Len( es ) == 8
          Chk( es[ 1 ][ "_type" ] == "LINE" .AND. Near( es[ 1 ][ "end" ][ 2 ], 5.0, 0.000000001 ) .AND. es[ 1 ][ "common" ][ "layer" ] == "Muros" .AND. Ent_Handle( es[ 1 ] ) == 112, "[extra] muestra: LINE con capa y handle 0x70" )
          Chk( es[ 2 ][ "_type" ] == "CIRCLE" .AND. Near( es[ 2 ][ "radius" ], 1.25, 0.000000001 ) .AND. Cl_Eq( es[ 2 ][ "common" ][ "color" ], Cl_Index( 1 ) ), "[extra] muestra: CIRCLE" )
          Chk( es[ 3 ][ "_type" ] == "ARC" .AND. Near( es[ 3 ][ "end_angle" ], OCX_PI / 2.0, 0.000000001 ), "[extra] muestra: ARC 90 grados -> pi/2" )
@@ -162,6 +190,6 @@ PROCEDURE T_DxfRw()
       x := Tb_Get( d[ "block_records" ], "CAJA" )
       Chk( x != NIL .AND. Len( x[ "entity_handles" ] ) == 1 .AND. x[ "block_entity_handle" ] == 97 .AND. x[ "block_end_handle" ] == 99, "[extra] muestra: bloque CAJA (LINE, handles BLOCK/ENDBLK)" )
       s1 := Dxw_WriteString( d ) ; d2 := Dxr_ReadString( s1 )
-      Chk( ValType( d2 ) == "H" .AND. Len( Doc_ModelSpaceEntities( d2 ) ) == 7 .AND. s1 == Dxw_WriteString( d2 ), "[extra] muestra: escribir y releer conserva 7 entidades y es estable" )
+      Chk( ValType( d2 ) == "H" .AND. Len( Doc_ModelSpaceEntities( d2 ) ) == 8 .AND. s1 == Dxw_WriteString( d2 ), "[extra] muestra: escribir y releer conserva 8 entidades y es estable" )
    ENDIF
 RETURN
