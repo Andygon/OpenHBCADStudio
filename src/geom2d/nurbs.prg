@@ -404,3 +404,85 @@ FUNCTION NC_Trimmed( c, nFrom, nTo )
    aSp := NC_SplitAt( aLeft, nLocal )
    IF aSp == NIL ; RETURN NIL ; ENDIF
 RETURN aSp[ 2 ]
+
+// ---- interpolate (nurbs.rs ~684): spline cubico por puntos de ajuste ----
+// nParam: PZ_UNIFORM / PZ_CENTRIPETAL / PZ_CHORD. aT0/aT1: tangentes o NIL.
+STATIC FUNCTION NC_SolveTri( aSub, aMain, aSup, aD )   // modifica aD en sitio
+   LOCAL n := Len( aD ), aS := Array( n ), i, m
+   aS[1] := aSup[1] / aMain[1]
+   aD[1] := aD[1] / aMain[1]
+   FOR i := 2 TO n
+      m := aMain[i] - aSub[i] * aS[i-1]
+      aS[i] := aSup[i] / m
+      aD[i] := ( aD[i] - aSub[i] * aD[i-1] ) / m
+   NEXT
+   FOR i := n - 1 TO 1 STEP -1
+      aD[i] := aD[i] - aS[i] * aD[i+1]
+   NEXT
+RETURN NIL
+
+STATIC FUNCTION NC_UsableTan( t )
+   IF t == NIL ; RETURN NIL ; ENDIF
+   IF t[1]*t[1] + t[2]*t[2] > 0.000000000000000001 ; RETURN t ; ENDIF
+RETURN NIL
+
+FUNCTION NC_Interpolate( aPts, aT0, aT1, nParam )
+   LOCAL n := Len( aPts ), aK, aSp, i, nChord, nStep
+   LOCAL aSl := { Array( n ), Array( n ) }, ax, aSub, aMain, aSup, aRhs, aCtrl, aKn, h, m0, m1, aFrom, aTo, aW
+   IF n < 2 ; RETURN NIL ; ENDIF
+   aK := Array( n ) ; aSp := Array( n - 1 )
+   aK[1] := 0.0
+   FOR i := 2 TO n
+      nChord := Max( V2_Distance( aPts[i-1], aPts[i] ), 0.000000001 )
+      DO CASE
+      CASE nParam == PZ_UNIFORM    ; nStep := 1.0
+      CASE nParam == PZ_CENTRIPETAL ; nStep := Sqrt( nChord )
+      OTHERWISE                    ; nStep := nChord
+      ENDCASE
+      aK[i] := aK[i-1] + nStep
+   NEXT
+   FOR i := 1 TO n - 1
+      aSp[i] := Max( aK[i+1] - aK[i], 0.000000001 )
+   NEXT
+   aT0 := NC_UsableTan( aT0 )
+   aT1 := NC_UsableTan( aT1 )
+   FOR ax := 1 TO 2
+      aSub := Array( n ) ; aMain := Array( n ) ; aSup := Array( n ) ; aRhs := Array( n )
+      AFill( aSub, 0.0 ) ; AFill( aMain, 0.0 ) ; AFill( aSup, 0.0 ) ; AFill( aRhs, 0.0 )
+      IF aT0 != NIL
+         aMain[1] := 1.0 ; aRhs[1] := aT0[ax]
+      ELSE
+         aMain[1] := 2.0 ; aSup[1] := 1.0
+         aRhs[1] := 3.0 * ( aPts[2][ax] - aPts[1][ax] ) / aSp[1]
+      ENDIF
+      FOR i := 2 TO n - 1
+         aSub[i] := aSp[i]
+         aMain[i] := 2.0 * ( aSp[i-1] + aSp[i] )
+         aSup[i] := aSp[i-1]
+         aRhs[i] := 3.0 * ( aSp[i] * ( aPts[i][ax] - aPts[i-1][ax] ) / aSp[i-1] + aSp[i-1] * ( aPts[i+1][ax] - aPts[i][ax] ) / aSp[i] )
+      NEXT
+      IF aT1 != NIL
+         aMain[n] := 1.0 ; aRhs[n] := aT1[ax]
+      ELSE
+         aSub[n] := 1.0 ; aMain[n] := 2.0
+         aRhs[n] := 3.0 * ( aPts[n][ax] - aPts[n-1][ax] ) / aSp[n-1]
+      ENDIF
+      NC_SolveTri( aSub, aMain, aSup, aRhs )
+      aSl[ax] := aRhs
+   NEXT
+   aCtrl := { aPts[1] }
+   FOR i := 1 TO n - 1
+      h := aSp[i] ; aFrom := aPts[i] ; aTo := aPts[i+1]
+      m0 := { aSl[1][i] * h, aSl[2][i] * h }
+      m1 := { aSl[1][i+1] * h, aSl[2][i+1] * h }
+      AAdd( aCtrl, { aFrom[1] + m0[1] / 3.0, aFrom[2] + m0[2] / 3.0 } )
+      AAdd( aCtrl, { aTo[1] - m1[1] / 3.0, aTo[2] - m1[2] / 3.0 } )
+      AAdd( aCtrl, aTo )
+   NEXT
+   aKn := { aK[1], aK[1], aK[1], aK[1] }
+   FOR i := 2 TO n - 1
+      AAdd( aKn, aK[i] ) ; AAdd( aKn, aK[i] ) ; AAdd( aKn, aK[i] )
+   NEXT
+   AAdd( aKn, aK[n] ) ; AAdd( aKn, aK[n] ) ; AAdd( aKn, aK[n] ) ; AAdd( aKn, aK[n] )
+   aW := Array( Len( aCtrl ) ) ; AFill( aW, 1.0 )
+RETURN { 3, aKn, aCtrl, aW }
