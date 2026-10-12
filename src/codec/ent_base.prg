@@ -73,6 +73,9 @@ FUNCTION Ent_BoundingBox( e )
    CASE e[ "_type" ] == "POLYLINE2D" ; RETURN Pl2_BoundingBox( e )
    CASE e[ "_type" ] == "POLYLINE" ; RETURN Plh_BoundingBox( e )
    CASE e[ "_type" ] == "POLYLINE3D" ; RETURN P3d_BoundingBox( e )
+   CASE e[ "_type" ] == "BLOCK" ; RETURN Ebk_BoundingBox( e )
+   CASE e[ "_type" ] == "ENDBLK" ; RETURN Ebe_BoundingBox( e )
+   CASE e[ "_type" ] == "SEQEND" ; RETURN Esq_BoundingBox( e )
    ENDCASE
 RETURN NIL
 
@@ -94,6 +97,7 @@ FUNCTION Ent_Translate( e, vOffset )
    CASE e[ "_type" ] == "POLYLINE2D" ; Pl2_Translate( e, vOffset )
    CASE e[ "_type" ] == "POLYLINE" ; Plh_Translate( e, vOffset )
    CASE e[ "_type" ] == "POLYLINE3D" ; P3d_Translate( e, vOffset )
+   CASE e[ "_type" ] == "BLOCK" ; Ebk_Translate( e, vOffset )
    ENDCASE
 RETURN NIL
 
@@ -116,6 +120,8 @@ FUNCTION Ent_ApplyTransform( e, t )
    CASE e[ "_type" ] == "POLYLINE2D" ; Pl2_Transform( e, t )
    CASE e[ "_type" ] == "POLYLINE" ; Plh_Transform( e, t )
    CASE e[ "_type" ] == "POLYLINE3D" ; P3d_Transform( e, t )
+   CASE e[ "_type" ] == "BLOCK" ; Ebk_Transform( e, t )
+   CASE e[ "_type" ] == "ENDBLK" .OR. e[ "_type" ] == "SEQEND" ; HB_SYMBOL_UNUSED( e )
    OTHERWISE ; Ent_Translate( e, Tf_Apply( t, Vc3_Zero() ) )
    ENDCASE
 RETURN NIL
