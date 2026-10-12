@@ -133,4 +133,34 @@ PROCEDURE T_DxfReader()
    d := Rt( d )
    Chk( ValType( d ) == "H" .AND. hb_HHasKey( d[ "object_xdata" ], 180 ) .AND. Len( Xd_Records( d[ "object_xdata" ][ 180 ] ) ) == 1 ;
       .AND. Xr_ApplicationName( Xd_Records( d[ "object_xdata" ][ 180 ] )[ 1 ] ) == "MIAPP" .AND. Len( Xr_Values( Xd_Records( d[ "object_xdata" ][ 180 ] )[ 1 ] ) ) == 2, "dxf_reader: [extra] object_xdata roundtrip" )
+   /* [extra] LIGHT roundtrip (con datos fotometricos). Fiel al Rust: los codigos 43/53/63 no son un grupo de coordenadas (web_rotation vuelve a (1,1,1)) y el 53 se lo queda web_rotation, no web_angles[3]. */
+   d := Doc_New() ; e := Elt_New() ; e[ "name" ] := "L1" ; e[ "light_type" ] := 3 ; e[ "position" ] := Vc3_New( 1.0, 2.0, 3.0 ) ; e[ "target" ] := Vc3_New( 4.0, 5.0, 6.0 )
+   e[ "intensity" ] := 2.5 ; e[ "light_color" ] := Cl_FromRgb( 10, 20, 30 ) ; e[ "cast_shadows" ] := .T. ; e[ "hotspot_angle" ] := 12.0 ; e[ "photometric_mode" ] := .T.
+   m := Lpd_New() ; m[ "web_file" ] := "x.ies" ; m[ "has_web_file" ] := .T. ; m[ "physical_intensity" ] := 1500.0 ; m[ "web_angles" ] := { 1.0, 2.0, 3.0, 4.0, 5.0 } ; m[ "web_rotation" ] := Vc3_New( 7.0, 8.0, 9.0 )
+   e[ "photometric_data" ] := m ; Doc_AddEntity( d, e ) ; d := Rt( d ) ; es := IIf( ValType( d ) == "H", Doc_Entities( d ), {} )
+   Chk( Len( es ) == 1 .AND. es[ 1 ][ "_type" ] == "LIGHT" .AND. es[ 1 ][ "name" ] == "L1" .AND. es[ 1 ][ "light_type" ] == 3 .AND. Nr( es[ 1 ][ "position" ][ 2 ], 2.0 ) .AND. Nr( es[ 1 ][ "target" ][ 3 ], 6.0 ) ;
+      .AND. Nr( es[ 1 ][ "intensity" ], 2.5 ) .AND. es[ 1 ][ "cast_shadows" ] .AND. Nr( es[ 1 ][ "hotspot_angle" ], 12.0 ) .AND. es[ 1 ][ "photometric_data" ] != NIL ;
+      .AND. es[ 1 ][ "photometric_data" ][ "web_file" ] == "x.ies" .AND. Nr( es[ 1 ][ "photometric_data" ][ "physical_intensity" ], 1500.0 ) .AND. Nr( es[ 1 ][ "photometric_data" ][ "web_angles" ][ 5 ], 5.0 ) ;
+      .AND. Nr( es[ 1 ][ "photometric_data" ][ "web_rotation" ][ 1 ], 1.0 ) .AND. Nr( es[ 1 ][ "photometric_data" ][ "web_angles" ][ 4 ], 0.0 ) .AND. es[ 1 ][ "light_color" ][ 1 ] == CK_RGB, "dxf_reader: [extra] light roundtrip" )
+   /* [extra] entidad desconocida: se conserva con sus codigos */
+   dx := Cr( { "  0", "SECTION", "  2", "ENTITIES", "  0", "ZZUNKNOWN", "  5", "2A", "  8", "CAPA", "100", "AcDbZz", " 10", "1.5", "  1", "texto", "  0", "ENDSEC", "  0", "EOF" } )
+   d := Dxr_ReadString( dx ) ; es := IIf( ValType( d ) == "H", Doc_Entities( d ), {} )
+   Chk( Len( es ) == 1 .AND. es[ 1 ][ "_type" ] == "UNKNOWN" .AND. es[ 1 ][ "dxf_name" ] == "ZZUNKNOWN" .AND. es[ 1 ][ "common" ][ "layer" ] == "CAPA" .AND. Len( es[ 1 ][ "raw_dxf_codes" ] ) == 3, "dxf_reader: [extra] unknown entity leida" )
+   d := Rt( d ) ; es := IIf( ValType( d ) == "H", Doc_Entities( d ), {} )
+   Chk( Len( es ) == 1 .AND. es[ 1 ][ "_type" ] == "UNKNOWN" .AND. ATail( es[ 1 ][ "raw_dxf_codes" ] )[ 2 ] == "texto", "dxf_reader: [extra] unknown entity roundtrip" )
+   /* [extra] SECTIONLINE y DRAWINGVIEW roundtrip */
+   d := Doc_New() ; e := Esy_New() ; e[ "symbol_scale" ] := 2.0 ; e[ "version" ] := 3 ; a := Ssp_New() ; a[ "point" ] := Vc3_New( 1.0, 2.0, 0.0 ) ; a[ "label" ] := "A" ; a[ "label_offset" ] := Vc3_New( 0.0, 0.5, 0.0 ) ; a[ "raw_flag_280" ] := 1
+   AAdd( e[ "points" ], a ) ; a := Ssp_New() ; a[ "point" ] := Vc3_New( 5.0, 6.0, 0.0 ) ; AAdd( e[ "points" ], a ) ; Doc_AddEntity( d, e )
+   e := Evb_New() ; e[ "version" ] := 1 ; e[ "min" ] := { 1.0, 2.0 } ; e[ "max" ] := { 3.0, 4.0 } ; e[ "scale" ] := 0.5 ; e[ "rotation_angle" ] := 0.25 ; e[ "center" ] := { 7.0, 8.0 } ; Doc_AddEntity( d, e )
+   d := Rt( d ) ; es := IIf( ValType( d ) == "H", Doc_Entities( d ), {} )
+   Chk( Len( es ) == 2 .AND. es[ 1 ][ "_type" ] == "SECTIONLINE" .AND. Len( es[ 1 ][ "points" ] ) == 2 .AND. Nr( es[ 1 ][ "symbol_scale" ], 2.0 ) .AND. es[ 1 ][ "version" ] == 3 .AND. es[ 1 ][ "points" ][ 1 ][ "label" ] == "A" ;
+      .AND. Nr( es[ 1 ][ "points" ][ 2 ][ "point" ][ 1 ], 5.0 ) .AND. es[ 1 ][ "points" ][ 1 ][ "raw_flag_280" ] == 1 .AND. es[ 1 ][ "label" ] == "A" .AND. Nr( es[ 1 ][ "tick_a" ], 0.5 ) ;
+      .AND. es[ 2 ][ "_type" ] == "DRAWINGVIEW" .AND. es[ 2 ][ "version" ] == 1 .AND. Nr( es[ 2 ][ "max" ][ 2 ], 4.0 ) .AND. Nr( es[ 2 ][ "scale" ], 0.5 ) .AND. Nr( es[ 2 ][ "rotation_angle" ], 0.25 ) .AND. Nr( es[ 2 ][ "center" ][ 2 ], 8.0 ), "dxf_reader: [extra] sectionline y drawingview roundtrip" )
+   /* [extra] objeto desconocido: se conserva (roundtrip) y si es "no restaurable" se descarta */
+   dx := Cr( { "  0", "SECTION", "  2", "OBJECTS", "  0", "DICTIONARY", "  5", "C", "330", "0", "100", "AcDbDictionary", "  3", "ZZ", "350", "7F", "  0", "ZZOBJ", "  5", "7F", "330", "C", "100", "AcDbZz", " 90", "42", ;
+      "  0", "ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION", "  5", "80", "330", "C", " 70", "1", "  0", "ENDSEC", "  0", "EOF" } )
+   d := Dxr_ReadString( dx )
+   Chk( ValType( d ) == "H" .AND. hb_HHasKey( d[ "objects" ], 127 ) .AND. d[ "objects" ][ 127 ][ "_type" ] == "Unknown" .AND. d[ "objects" ][ 127 ][ "type_name" ] == "ZZOBJ" .AND. d[ "objects" ][ 127 ][ "owner" ] == 12 .AND. Len( d[ "objects" ][ 127 ][ "raw_dxf_codes" ] ) == 2, "dxf_reader: [extra] unknown object leido" )
+   d := Rt( d )
+   Chk( ValType( d ) == "H" .AND. hb_HHasKey( d[ "objects" ], 127 ) .AND. d[ "objects" ][ 127 ][ "type_name" ] == "ZZOBJ" .AND. ATail( d[ "objects" ][ 127 ][ "raw_dxf_codes" ] )[ 2 ] == "42" .AND. ! hb_HHasKey( d[ "objects" ], 128 ), "dxf_reader: [extra] unknown object roundtrip y no restaurable" )
 RETURN
