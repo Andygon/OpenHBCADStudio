@@ -20,7 +20,7 @@ STATIC FUNCTION Dxo_FindRootDictHandle( d )
 RETURN nBest
 
 /* tipos de objeto que este escritor emite: las entradas de diccionario a otros tipos se omiten (equivale al filtro valid_handles de Rust) */
-STATIC FUNCTION Dxo_IsWritten( o ) ; RETURN o[ "_type" ] == "Dictionary" .OR. o[ "_type" ] == "Layout" .OR. o[ "_type" ] == "XRecord" .OR. o[ "_type" ] == "Group" .OR. o[ "_type" ] == "MLineStyle" .OR. o[ "_type" ] == "SortEntitiesTable" .OR. o[ "_type" ] == "Scale" .OR. o[ "_type" ] == "DictionaryVariable"
+STATIC FUNCTION Dxo_IsWritten( o ) ; RETURN o[ "_type" ] == "Dictionary" .OR. o[ "_type" ] == "Layout" .OR. o[ "_type" ] == "XRecord" .OR. o[ "_type" ] == "Group" .OR. o[ "_type" ] == "MLineStyle" .OR. o[ "_type" ] == "SortEntitiesTable" .OR. o[ "_type" ] == "ImageDefinition" .OR. o[ "_type" ] == "Scale" .OR. o[ "_type" ] == "DictionaryVariable"
 
 STATIC PROCEDURE Dxo_WriteDictionary( w, d, dic )
    LOCAL aR := dic[ "reactors" ], hX, e, lForced
@@ -216,6 +216,14 @@ STATIC PROCEDURE Dxo_WriteSortEnts( w, d, t, nVer )
    NEXT
 RETURN
 
+STATIC PROCEDURE Dxo_WriteImageDef( w, df )
+   Sw_WriteString( w, 0, "IMAGEDEF" ) ; Sw_WriteHandle( w, 5, df[ "handle" ] ) ; Sw_WriteHandle( w, 330, df[ "owner" ] )
+   Sw_WriteSubclass( w, "AcDbRasterImageDef" ) ; Sw_WriteI32( w, 90, df[ "class_version" ] ) ; Sw_WriteString( w, 1, df[ "file_name" ] )
+   Sw_WriteDouble( w, 10, df[ "size_in_pixels" ][ 1 ] + 0.0 ) ; Sw_WriteDouble( w, 20, df[ "size_in_pixels" ][ 2 ] + 0.0 )
+   Sw_WriteDouble( w, 11, df[ "pixel_size" ][ 1 ] ) ; Sw_WriteDouble( w, 21, df[ "pixel_size" ][ 2 ] )
+   Sw_WriteByte( w, 280, IIf( df[ "is_loaded" ], 1, 0 ) ) ; Sw_WriteByte( w, 281, Rsu_ToCode( df[ "resolution_unit" ] ) )
+RETURN
+
 STATIC PROCEDURE Dxo_WriteGroup( w, g )
    LOCAL h
    Sw_WriteString( w, 0, "GROUP" ) ; Sw_WriteHandle( w, 5, g[ "handle" ] ) ; Sw_WriteHandle( w, 330, g[ "owner" ] )
@@ -244,6 +252,7 @@ PROCEDURE Dxo_WriteObjects( w, d, nVer )
          CASE o[ "_type" ] == "XRecord" ; Dxo_WriteXRecord( w, o )
          CASE o[ "_type" ] == "MLineStyle" ; Dxo_WriteMLineStyle( w, o )
          CASE o[ "_type" ] == "SortEntitiesTable" ; Dxo_WriteSortEnts( w, d, o, nVer )
+         CASE o[ "_type" ] == "ImageDefinition" ; Dxo_WriteImageDef( w, o )
          CASE o[ "_type" ] == "Scale" ; Dxo_WriteScale( w, o )
          CASE o[ "_type" ] == "DictionaryVariable" ; Dxo_WriteDictVar( w, o )
          CASE o[ "_type" ] == "Group" ; Dxo_WriteGroup( w, o )
