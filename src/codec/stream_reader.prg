@@ -20,7 +20,7 @@
 #define DPK_BOOL   3
 
 /* str::parse::<i64>() sobre texto ya recortado: NIL si no valido o fuera de rango */
-STATIC FUNCTION Dp_ParseI64( c )
+FUNCTION Dp_ParseI64( c )
    LOCAL cDig := c, lNeg := .F., i
    IF Len( c ) == 0 ; RETURN NIL ; ENDIF
    IF Left( c, 1 ) $ "+-"
