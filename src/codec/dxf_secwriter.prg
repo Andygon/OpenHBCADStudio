@@ -1080,6 +1080,109 @@ STATIC PROCEDURE Swr_SplineBody( w, sp )
       FOR EACH v IN sp[ "fit_points" ] ; Sw_WritePoint3d( w, 11, v ) ; NEXT
 RETURN
 
+STATIC PROCEDURE Swr_HatchEdge( w, nVer, g )
+   LOCAL v, lB, k := g[ "kind" ]
+   DO CASE
+   CASE k == "Line"
+      Sw_WriteI16( w, 72, 1 ) ; Sw_WriteDouble( w, 10, g[ "start" ][ 1 ] ) ; Sw_WriteDouble( w, 20, g[ "start" ][ 2 ] )
+      Sw_WriteDouble( w, 11, g[ "end" ][ 1 ] ) ; Sw_WriteDouble( w, 21, g[ "end" ][ 2 ] )
+   CASE k == "CircularArc"
+      Sw_WriteI16( w, 72, 2 ) ; Sw_WriteDouble( w, 10, g[ "center" ][ 1 ] ) ; Sw_WriteDouble( w, 20, g[ "center" ][ 2 ] ) ; Sw_WriteDouble( w, 40, g[ "radius" ] )
+      Sw_WriteDouble( w, 50, Swr_Deg( g[ "start_angle" ] ) ) ; Sw_WriteDouble( w, 51, Swr_Deg( g[ "end_angle" ] ) ) ; Sw_WriteI16( w, 73, IIf( g[ "counter_clockwise" ], 1, 0 ) )
+   CASE k == "EllipticArc"
+      Sw_WriteI16( w, 72, 3 ) ; Sw_WriteDouble( w, 10, g[ "center" ][ 1 ] ) ; Sw_WriteDouble( w, 20, g[ "center" ][ 2 ] )
+      Sw_WriteDouble( w, 11, g[ "major_axis_endpoint" ][ 1 ] ) ; Sw_WriteDouble( w, 21, g[ "major_axis_endpoint" ][ 2 ] ) ; Sw_WriteDouble( w, 40, g[ "minor_axis_ratio" ] )
+      Sw_WriteDouble( w, 50, g[ "start_angle" ] ) ; Sw_WriteDouble( w, 51, g[ "end_angle" ] ) ; Sw_WriteI16( w, 73, IIf( g[ "counter_clockwise" ], 1, 0 ) )
+   CASE k == "Spline"
+      Sw_WriteI16( w, 72, 4 ) ; Sw_WriteI32( w, 94, g[ "degree" ] ) ; Sw_WriteI16( w, 73, IIf( g[ "rational" ], 1, 0 ) ) ; Sw_WriteI16( w, 74, IIf( g[ "periodic" ], 1, 0 ) )
+      Sw_WriteI32( w, 95, Len( g[ "knots" ] ) ) ; Sw_WriteI32( w, 96, Len( g[ "control_points" ] ) )
+      FOR EACH v IN g[ "knots" ] ; Sw_WriteDouble( w, 40, v ) ; NEXT
+      FOR EACH v IN g[ "control_points" ]
+         Sw_WriteDouble( w, 10, v[ 1 ] ) ; Sw_WriteDouble( w, 20, v[ 2 ] )
+         IF g[ "rational" ] ; Sw_WriteDouble( w, 42, v[ 3 ] ) ; ENDIF
+      NEXT
+      IF nVer >= Dxv_FromVersionString( "AC1024" )
+         Sw_WriteI32( w, 97, Len( g[ "fit_points" ] ) )
+         FOR EACH v IN g[ "fit_points" ] ; Sw_WriteDouble( w, 11, v[ 1 ] ) ; Sw_WriteDouble( w, 21, v[ 2 ] ) ; NEXT
+         IF Len( g[ "fit_points" ] ) > 0
+            Sw_WriteDouble( w, 12, g[ "start_tangent" ][ 1 ] ) ; Sw_WriteDouble( w, 22, g[ "start_tangent" ][ 2 ] )
+            Sw_WriteDouble( w, 13, g[ "end_tangent" ][ 1 ] ) ; Sw_WriteDouble( w, 23, g[ "end_tangent" ][ 2 ] )
+         ENDIF
+      ENDIF
+   CASE k == "Polyline"
+      lB := Bed_HasBulge( g )
+      Sw_WriteI16( w, 72, IIf( lB, 1, 0 ) ) ; Sw_WriteI16( w, 73, IIf( g[ "is_closed" ], 1, 0 ) ) ; Sw_WriteI32( w, 93, Len( g[ "vertices" ] ) )
+      FOR EACH v IN g[ "vertices" ]
+         Sw_WriteDouble( w, 10, v[ 1 ] ) ; Sw_WriteDouble( w, 20, v[ 2 ] )
+         IF lB ; Sw_WriteDouble( w, 42, v[ 3 ] ) ; ENDIF
+      NEXT
+   ENDCASE
+RETURN
+
+/* valid_handles (estado del escritor) pendiente: se trata como vacio (no filtra) */
+STATIC PROCEDURE Swr_HatchPath( w, nVer, pa )
+   LOCAL g, h
+   Sw_WriteI32( w, 92, pa[ "flags" ] )
+   IF ! Bpf_IsPolyline( pa[ "flags" ] ) ; Sw_WriteI32( w, 93, Len( pa[ "edges" ] ) ) ; ENDIF
+   FOR EACH g IN pa[ "edges" ] ; Swr_HatchEdge( w, nVer, g ) ; NEXT
+   Sw_WriteI32( w, 97, Len( pa[ "boundary_handles" ] ) )
+   FOR EACH h IN pa[ "boundary_handles" ] ; Sw_WriteHandle( w, 330, h ) ; NEXT
+RETURN
+
+STATIC PROCEDURE Swr_HatchGradient( w, e )
+   LOCAL g := e[ "gradient_color" ], en, c
+   IF ! g[ "enabled" ] ; RETURN ; ENDIF
+   Sw_WriteI32( w, 450, 1 ) ; Sw_WriteI32( w, 451, g[ "reserved" ] ) ; Sw_WriteDouble( w, 460, g[ "angle" ] ) ; Sw_WriteDouble( w, 461, g[ "shift" ] )
+   Sw_WriteI32( w, 452, IIf( g[ "is_single_color" ], 1, 0 ) ) ; Sw_WriteDouble( w, 462, g[ "color_tint" ] ) ; Sw_WriteI32( w, 453, Len( g[ "colors" ] ) )
+   FOR EACH en IN g[ "colors" ]
+      c := en[ "color" ]
+      Sw_WriteDouble( w, 463, en[ "value" ] ) ; Sw_WriteColor( w, 63, c )
+      IF c[ 1 ] == CK_RGB ; Sw_WriteI32( w, 421, hb_bitOr( hb_bitOr( hb_bitShift( c[ 2 ], 16 ), hb_bitShift( c[ 3 ], 8 ) ), c[ 4 ] ) ) ; ENDIF
+   NEXT
+   Sw_WriteString( w, 470, g[ "name" ] )
+RETURN
+
+STATIC PROCEDURE Swr_HatchPattern( w, e )
+   LOCAL l, d
+   Sw_WriteDouble( w, 52, Swr_Deg( e[ "pattern_angle" ] ) ) ; Sw_WriteDouble( w, 41, e[ "pattern_scale" ] ) ; Sw_WriteI16( w, 77, IIf( e[ "is_double" ], 1, 0 ) )
+   Sw_WriteI16( w, 78, Len( e[ "pattern" ][ "lines" ] ) )
+   FOR EACH l IN e[ "pattern" ][ "lines" ]
+      Sw_WriteDouble( w, 53, Swr_Deg( l[ "angle" ] ) ) ; Sw_WriteDouble( w, 43, l[ "base_point" ][ 1 ] ) ; Sw_WriteDouble( w, 44, l[ "base_point" ][ 2 ] )
+      Sw_WriteDouble( w, 45, l[ "offset" ][ 1 ] ) ; Sw_WriteDouble( w, 46, l[ "offset" ][ 2 ] ) ; Sw_WriteI16( w, 79, Len( l[ "dash_lengths" ] ) )
+      FOR EACH d IN l[ "dash_lengths" ] ; Sw_WriteDouble( w, 49, d ) ; NEXT
+   NEXT
+RETURN
+
+STATIC PROCEDURE Swr_Hatch( st, e, hOwner )
+   LOCAL w := st[ 1 ], c := e[ "common" ], pa, lAs := .F., lDer := .F., sd
+   FOR EACH pa IN e[ "paths" ]
+      IF Len( pa[ "boundary_handles" ] ) > 0 ; lAs := .T. ; ENDIF
+      IF Bpf_IsDerived( pa[ "flags" ] ) ; lDer := .T. ; ENDIF
+   NEXT
+   lAs := lAs .AND. e[ "is_associative" ]
+   IF e[ "is_mpolygon" ]
+      Sw_WriteEntityType( w, "MPOLYGON" ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbMPolygon" ) ; Sw_WriteI16( w, 75, e[ "style" ] )
+   ELSE
+      Sw_WriteEntityType( w, "HATCH" ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbHatch" )
+   ENDIF
+   Sw_WriteDouble( w, 10, 0.0 ) ; Sw_WriteDouble( w, 20, 0.0 ) ; Sw_WriteDouble( w, 30, e[ "elevation" ] )
+   Sw_WriteDouble( w, 210, e[ "normal" ][ 1 ] ) ; Sw_WriteDouble( w, 220, e[ "normal" ][ 2 ] ) ; Sw_WriteDouble( w, 230, e[ "normal" ][ 3 ] )
+   Sw_WriteString( w, 2, e[ "pattern" ][ "name" ] ) ; Sw_WriteI16( w, 70, IIf( e[ "is_solid" ], 1, 0 ) ) ; Sw_WriteI16( w, 71, IIf( lAs, 1, 0 ) )
+   Sw_WriteI32( w, 91, Len( e[ "paths" ] ) )
+   FOR EACH pa IN e[ "paths" ] ; Swr_HatchPath( w, st[ 2 ], pa ) ; NEXT
+   Sw_WriteI16( w, 75, e[ "style" ] ) ; Sw_WriteI16( w, 76, e[ "pattern_type" ] )
+   IF ! e[ "is_solid" ] ; Swr_HatchPattern( w, e ) ; ENDIF
+   IF e[ "is_mpolygon" ]
+      Sw_WriteColor( w, 62, e[ "mpolygon_hatch_color" ] ) ; Sw_WriteDouble( w, 11, e[ "mpolygon_x_direction" ][ 1 ] ) ; Sw_WriteDouble( w, 21, e[ "mpolygon_x_direction" ][ 2 ] )
+      Sw_WriteI32( w, 99, 0 )
+   ELSE
+      IF lDer ; Sw_WriteDouble( w, 47, e[ "pixel_size" ] ) ; ENDIF
+      Sw_WriteI32( w, 98, Len( e[ "seed_points" ] ) )
+      FOR EACH sd IN e[ "seed_points" ] ; Sw_WriteDouble( w, 10, sd[ 1 ] ) ; Sw_WriteDouble( w, 20, sd[ 2 ] ) ; NEXT
+   ENDIF
+   Swr_HatchGradient( w, e )
+RETURN
+
 STATIC PROCEDURE Swr_WriteEntity( st, e, hOwner )
    LOCAL w := st[ 1 ], c := e[ "common" ], t := e[ "_type" ], v, hSeq, att, nI, g, q
    DO CASE
@@ -1131,6 +1234,8 @@ STATIC PROCEDURE Swr_WriteEntity( st, e, hOwner )
       Sw_WriteSubclass( w, "AcDbText" ) ; Sw_WriteI16( w, 73, e[ "vertical_alignment" ] )
    CASE t == "MTEXT"
       Swr_MTextBody( st, e, hOwner )
+   CASE t == "HATCH" .OR. t == "MPOLYGON"
+      Swr_Hatch( st, e, hOwner )
    CASE t == "SPLINE"
       Sw_WriteEntityType( w, "SPLINE" ) ; Swr_CommonEntity( st, c, hOwner ) ; Swr_SplineBody( w, e )
    CASE t == "HELIX"
