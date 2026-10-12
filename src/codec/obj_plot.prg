@@ -13,7 +13,7 @@ FUNCTION Ppu_ToCode( n ) ; RETURN n
 FUNCTION Prt_FromCode( n ) ; RETURN iif( n >= 1 .AND. n <= 3, n, PRT_NONE )
 FUNCTION Prt_ToCode( n ) ; RETURN n
 FUNCTION Prt_ToDegrees( n ) ; RETURN n * 90.0
-FUNCTION Prt_ToRadians( n ) ; RETURN Prt_ToDegrees( n ) * OCX_PI / 180.0
+FUNCTION Prt_ToRadians( n ) ; RETURN Prt_ToDegrees( n ) * ( OCX_PI / 180.0 )
 
 FUNCTION Plt_FromCode( n ) ; RETURN iif( n == 0 .OR. n == 1 .OR. n == 2 .OR. n == 3 .OR. n == 5, n, PLT_WINDOW )
 FUNCTION Plt_ToCode( n ) ; RETURN n
