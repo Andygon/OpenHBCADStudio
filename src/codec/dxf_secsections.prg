@@ -1095,7 +1095,7 @@ RETURN n
    pero no se interpreta: PENDIENTE (read_attrib_embedded_mtext). */
 STATIC FUNCTION Sr_ReadAttdefAttrib( s, lDef )
    LOCAL e := IIf( lDef, Ead_New( "", "", "" ), Eat_New( "", "" ) ), ip := PR_New(), al := PR_New(), nor := PR_New()
-   LOCAL p, v, n, pt, lSub := .F., lSeen := .F., cV := IIf( lDef, "default_value", "value" ), lEmb := .F.
+   LOCAL p, v, n, pt, lSub := .F., lSeen := .F., cV := IIf( lDef, "default_value", "value" ), lEmb := .F., mt
    DO WHILE ( p := Sr_Next( s ) ) != NIL
       IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
       n := p[ DP_CODE ]
@@ -1144,10 +1144,9 @@ STATIC FUNCTION Sr_ReadAttdefAttrib( s, lDef )
             v := Dp_AsI16( p ) ; IF v != NIL ; e[ "lock_position" ] := ( v != 0 ) ; ENDIF
          ENDIF
       CASE n == 101
-         lEmb := .T.
-         DO WHILE ( p := Sr_Next( s ) ) != NIL
-            IF p[ DP_CODE ] == 0 .OR. p[ DP_CODE ] >= 1000 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
-         ENDDO
+         lEmb := .T. ; mt := Sr_ReadAttribEmbMtext( s )
+         IF Len( mt[ "value" ] ) > 0 ; e[ cV ] := mt[ "value" ] ; ENDIF
+         e[ "embedded_mtext" ] := mt
       OTHERWISE ; Sr_EntBase( s, p, e )
       ENDCASE
    ENDDO
