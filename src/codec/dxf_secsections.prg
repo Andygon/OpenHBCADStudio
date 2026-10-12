@@ -415,6 +415,39 @@ STATIC FUNCTION Sr_AppIdEntry( s )
    ENDDO
 RETURN a
 
+STATIC FUNCTION Sr_UcsEntry( s )
+   LOCAL u := Ucs_New( "World" ), p, v, o := PR_New(), xa := PR_New(), ya := PR_New(), pt
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      DO CASE
+      CASE p[ DP_CODE ] == 5
+         v := Sr_HexVal( p ) ; IF v != NIL ; u[ "handle" ] := v ; ENDIF
+      CASE p[ DP_CODE ] == 2 ; u[ "name" ] := p[ DP_VALUE ]
+      CASE p[ DP_CODE ] == 10 .OR. p[ DP_CODE ] == 20 .OR. p[ DP_CODE ] == 30 ; PR_AddCoordinate( o, p )
+      CASE p[ DP_CODE ] == 11 .OR. p[ DP_CODE ] == 21 .OR. p[ DP_CODE ] == 31 ; PR_AddCoordinate( xa, p )
+      CASE p[ DP_CODE ] == 12 .OR. p[ DP_CODE ] == 22 .OR. p[ DP_CODE ] == 32 ; PR_AddCoordinate( ya, p )
+      CASE p[ DP_CODE ] == 70
+         v := Dp_AsI16( p )
+         IF v != NIL
+            u[ "xref_dependent" ] := hb_bitAnd( v, 16 ) != 0 ; u[ "xref_resolved" ] := hb_bitAnd( v, 32 ) != 0 ; u[ "xref_reference" ] := hb_bitAnd( v, 64 ) != 0
+         ENDIF
+      CASE p[ DP_CODE ] == 71
+         v := Dp_AsI16( p ) ; IF v != NIL ; u[ "ortho_type" ] := v ; ENDIF
+      CASE p[ DP_CODE ] == 79
+         v := Dp_AsI16( p ) ; IF v != NIL ; u[ "ortho_view_type" ] := v ; ENDIF
+      CASE p[ DP_CODE ] == 146
+         v := Dp_AsDouble( p ) ; IF v != NIL ; u[ "elevation" ] := v ; ENDIF
+      CASE p[ DP_CODE ] == 345
+         v := Sr_HexVal( p ) ; IF v != NIL ; u[ "named_ucs_handle" ] := v ; ENDIF
+      CASE p[ DP_CODE ] == 346
+         v := Sr_HexVal( p ) ; IF v != NIL ; u[ "base_ucs_handle" ] := v ; ENDIF
+      ENDCASE
+   ENDDO
+   pt := PR_GetPoint( o ) ; IF pt != NIL ; u[ "origin" ] := pt ; ENDIF
+   pt := PR_GetPoint( xa ) ; IF pt != NIL ; u[ "x_axis" ] := pt ; ENDIF
+   pt := PR_GetPoint( ya ) ; IF pt != NIL ; u[ "y_axis" ] := pt ; ENDIF
+RETURN u
+
 /* Parte de read_block_record_entry: sin xdata de DesignCenter extra ni 310 (preview): PENDIENTE */
 STATIC FUNCTION Sr_BlockRecordEntry( s, aReactors )
    LOCAL br := Blk_New( "*Model_Space" ), p, v, n, cGroup := "", lUnitsSeen := .F., aDc := NIL
@@ -515,7 +548,8 @@ PROCEDURE Sr_ReadTables( s, d )
             CASE cN == "STYLE" ; Sr_TableGeneric( s, d, "text_styles", "STYLE", "style_control_handle", {|| Sr_StyleEntry( s ) }, .T. )
             CASE cN == "BLOCK_RECORD" ; Sr_ReadBlockRecordTable( s, d )
             CASE cN == "APPID" ; Sr_TableGeneric( s, d, "app_ids", "APPID", "appid_control_handle", {|| Sr_AppIdEntry( s ) }, .F. )
-            OTHERWISE ; Sr_SkipToEndTab( s ) /* DIMSTYLE/VIEW/VPORT/UCS: PENDIENTE (se saltan) */
+            CASE cN == "UCS" ; Sr_TableGeneric( s, d, "ucss", "UCS", "ucs_control_handle", {|| Sr_UcsEntry( s ) }, .F. )
+            OTHERWISE ; Sr_SkipToEndTab( s ) /* DIMSTYLE/VIEW/VPORT: PENDIENTE (se saltan) */
             ENDCASE
          ENDIF
       ENDIF
