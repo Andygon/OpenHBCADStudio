@@ -2,8 +2,7 @@
    OpenHBCADStudio - src/geom2d/curve.prg
    Origen Rust: opencadkernel/src/geom2d/curve.rs (718 lineas) + parte de
    deviation.rs (Curve::tessellate_angle / polyline_angle).
-   Estado: TRADUCIDO curve.rs. tessellate_angle: Line/Ray/XLine/Circle/Arc/Polyline;
-   Ellipse y NURBS (angular_curve) PENDIENTES hasta traducir deviation.rs.
+   Estado: TRADUCIDO curve.rs + tessellate_angle (Ellipse/NURBS en deviation.prg).
    Representacion: Curve = { nKind, aData } (CV_*). Formas:
      Line {aStart,aEnd}  Circle {aCentre,nRadius}  Arc {aCentre,nRadius,nStart,nEnd}
      EllipseArc {aEllipse,nStart,nEnd}  Polyline (ver polyline.prg)  Nurbs (nurbs.prg)
@@ -280,9 +279,11 @@ FUNCTION Cv_TessellateAngle( c, nMaxAngle )
    CASE c[ CV_KIND ] == CV_POLYLINE
       RETURN PolylineAngle( c, nMaxAngle )
    ENDCASE
-   // PENDIENTE: Ellipse y Nurbs (angular_curve / subdivide_angle en deviation.rs)
-   IF .T. ; Break( OcxError( "Cv_TessellateAngle: Ellipse/Nurbs pendiente (deviation.rs)" ) ) ; ENDIF
-RETURN NIL
+   IF c[ CV_KIND ] == CV_ELLIPSE
+      RETURN Dv_AngularCurve( c, { 0.0, 1.0 }, nMaxAngle, 0 )
+   ENDIF
+   // Nurbs
+RETURN Dv_AngularCurve( c, Dv_SpanBoundaries( c[ CV_DATA ] ), nMaxAngle, 2 )
 
 FUNCTION OcxError( cMsg )
    LOCAL oErr := ErrorNew()
