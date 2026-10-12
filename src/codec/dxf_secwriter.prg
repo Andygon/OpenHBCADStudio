@@ -1064,6 +1064,22 @@ STATIC PROCEDURE Swr_PolyEntity( st, e, hOwner )
    Swr_SeqEnd( st, Doc_AllocateHandle( st[ 5 ] ), hP, c[ "layer" ] )
 RETURN
 
+STATIC PROCEDURE Swr_SplineBody( w, sp )
+   LOCAL v, nI
+   Sw_WriteSubclass( w, "AcDbSpline" )
+      Swr_Normal( w, sp[ "normal" ] ) ; Sw_WriteI16( w, 70, Spf_Write( sp ) ) ; Sw_WriteI16( w, 71, sp[ "degree" ] )
+      Sw_WriteI16( w, 72, Len( sp[ "knots" ] ) ) ; Sw_WriteI16( w, 73, Len( sp[ "control_points" ] ) ) ; Sw_WriteI16( w, 74, Len( sp[ "fit_points" ] ) )
+      Sw_WriteDouble( w, 42, sp[ "knot_tolerance" ] ) ; Sw_WriteDouble( w, 43, sp[ "control_tolerance" ] ) ; Sw_WriteDouble( w, 44, sp[ "fit_tolerance" ] )
+      IF ! Vc3_Eq( sp[ "begin_tangent" ], Vc3_Zero() ) ; Sw_WritePoint3d( w, 12, sp[ "begin_tangent" ] ) ; ENDIF
+      IF ! Vc3_Eq( sp[ "end_tangent" ], Vc3_Zero() ) ; Sw_WritePoint3d( w, 13, sp[ "end_tangent" ] ) ; ENDIF
+      FOR EACH v IN sp[ "knots" ] ; Sw_WriteDouble( w, 40, v ) ; NEXT
+      FOR nI := 1 TO Len( sp[ "control_points" ] )
+         Sw_WritePoint3d( w, 10, sp[ "control_points" ][ nI ] )
+         IF sp[ "flags" ][ "rational" ] ; Sw_WriteDouble( w, 41, IIf( nI <= Len( sp[ "weights" ] ), sp[ "weights" ][ nI ], 1.0 ) ) ; ENDIF
+      NEXT
+      FOR EACH v IN sp[ "fit_points" ] ; Sw_WritePoint3d( w, 11, v ) ; NEXT
+RETURN
+
 STATIC PROCEDURE Swr_WriteEntity( st, e, hOwner )
    LOCAL w := st[ 1 ], c := e[ "common" ], t := e[ "_type" ], v, hSeq, att, nI, g, q
    DO CASE
@@ -1116,18 +1132,13 @@ STATIC PROCEDURE Swr_WriteEntity( st, e, hOwner )
    CASE t == "MTEXT"
       Swr_MTextBody( st, e, hOwner )
    CASE t == "SPLINE"
-      Sw_WriteEntityType( w, "SPLINE" ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbSpline" )
-      Swr_Normal( w, e[ "normal" ] ) ; Sw_WriteI16( w, 70, Spf_Write( e ) ) ; Sw_WriteI16( w, 71, e[ "degree" ] )
-      Sw_WriteI16( w, 72, Len( e[ "knots" ] ) ) ; Sw_WriteI16( w, 73, Len( e[ "control_points" ] ) ) ; Sw_WriteI16( w, 74, Len( e[ "fit_points" ] ) )
-      Sw_WriteDouble( w, 42, e[ "knot_tolerance" ] ) ; Sw_WriteDouble( w, 43, e[ "control_tolerance" ] ) ; Sw_WriteDouble( w, 44, e[ "fit_tolerance" ] )
-      IF ! Vc3_Eq( e[ "begin_tangent" ], Vc3_Zero() ) ; Sw_WritePoint3d( w, 12, e[ "begin_tangent" ] ) ; ENDIF
-      IF ! Vc3_Eq( e[ "end_tangent" ], Vc3_Zero() ) ; Sw_WritePoint3d( w, 13, e[ "end_tangent" ] ) ; ENDIF
-      FOR EACH v IN e[ "knots" ] ; Sw_WriteDouble( w, 40, v ) ; NEXT
-      FOR nI := 1 TO Len( e[ "control_points" ] )
-         Sw_WritePoint3d( w, 10, e[ "control_points" ][ nI ] )
-         IF e[ "flags" ][ "rational" ] ; Sw_WriteDouble( w, 41, IIf( nI <= Len( e[ "weights" ] ), e[ "weights" ][ nI ], 1.0 ) ) ; ENDIF
-      NEXT
-      FOR EACH v IN e[ "fit_points" ] ; Sw_WritePoint3d( w, 11, v ) ; NEXT
+      Sw_WriteEntityType( w, "SPLINE" ) ; Swr_CommonEntity( st, c, hOwner ) ; Swr_SplineBody( w, e )
+   CASE t == "HELIX"
+      Sw_WriteEntityType( w, "HELIX" ) ; Swr_CommonEntity( st, c, hOwner ) ; Swr_SplineBody( w, e[ "spline" ] )
+      Sw_WriteSubclass( w, "AcDbHelix" ) ; Sw_WriteI32( w, 90, e[ "major_version" ] ) ; Sw_WriteI32( w, 91, e[ "maintenance_version" ] )
+      Sw_WritePoint3d( w, 10, e[ "axis_base_point" ] ) ; Sw_WritePoint3d( w, 11, e[ "start_point" ] ) ; Sw_WritePoint3d( w, 12, e[ "axis_vector" ] )
+      Sw_WriteDouble( w, 40, e[ "radius" ] ) ; Sw_WriteDouble( w, 41, e[ "turns" ] ) ; Sw_WriteDouble( w, 42, e[ "turn_height" ] )
+      Sw_WriteBool( w, 290, e[ "handedness" ] ) ; Sw_WriteByte( w, 280, Hxc_ToCode( e[ "constraint" ] ) )
    CASE t == "POLYLINE" .OR. t == "POLYLINE2D" .OR. t == "POLYLINE3D" .OR. t == "POLYFACE_MESH" .OR. t == "POLYGON_MESH"
       Swr_PolyEntity( st, e, hOwner )
       RETURN
