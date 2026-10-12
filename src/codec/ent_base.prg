@@ -66,6 +66,8 @@ FUNCTION Ent_BoundingBox( e )
    CASE e[ "_type" ] == "XLINE" ; RETURN Exl_BoundingBox( e )
    CASE e[ "_type" ] == "SOLID" ; RETURN Eso_BoundingBox( e )
    CASE e[ "_type" ] == "3DFACE" ; RETURN Ef3_BoundingBox( e )
+   CASE e[ "_type" ] == "TEXT" ; RETURN Etx_BoundingBox( e )
+   CASE e[ "_type" ] == "MTEXT" ; RETURN Emt_BoundingBox( e )
    ENDCASE
 RETURN NIL
 
@@ -80,6 +82,8 @@ FUNCTION Ent_Translate( e, vOffset )
    CASE e[ "_type" ] == "XLINE" ; Exl_Translate( e, vOffset )
    CASE e[ "_type" ] == "SOLID" ; Eso_Translate( e, vOffset )
    CASE e[ "_type" ] == "3DFACE" ; Ef3_Translate( e, vOffset )
+   CASE e[ "_type" ] == "TEXT" ; Etx_Translate( e, vOffset )
+   CASE e[ "_type" ] == "MTEXT" ; Emt_Translate( e, vOffset )
    ENDCASE
 RETURN NIL
 
@@ -95,6 +99,8 @@ FUNCTION Ent_ApplyTransform( e, t )
    CASE e[ "_type" ] == "XLINE" ; Exl_Transform( e, t )
    CASE e[ "_type" ] == "SOLID" ; Eso_Transform( e, t )
    CASE e[ "_type" ] == "3DFACE" ; Ef3_Transform( e, t )
+   CASE e[ "_type" ] == "TEXT" ; Etx_Transform( e, t )
+   CASE e[ "_type" ] == "MTEXT" ; Emt_Transform( e, t )
    OTHERWISE ; Ent_Translate( e, Tf_Apply( t, Vc3_Zero() ) )
    ENDCASE
 RETURN NIL
@@ -106,6 +112,8 @@ FUNCTION Ent_ApplyMirror( e, t )
    CASE e[ "_type" ] == "ELLIPSE" ; Eel_Mirror( e, t )
    CASE e[ "_type" ] == "SOLID" ; Eso_Mirror( e, t )
    CASE e[ "_type" ] == "3DFACE" ; Ef3_Mirror( e, t )
+   CASE e[ "_type" ] == "TEXT" ; Etx_Mirror( e, t )
+   CASE e[ "_type" ] == "MTEXT" ; Emt_Mirror( e, t )
    OTHERWISE ; Ent_ApplyTransform( e, t )
    ENDCASE
 RETURN NIL
