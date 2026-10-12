@@ -320,7 +320,7 @@ PROCEDURE Xrc_SetSection( x, cName, aEntries )
    FOR i := 0 TO Len( x[ "entries" ] ) - 1
       e := x[ "entries" ][ i + 1 ]
       v := e[ "value" ]
-      IF e[ "code" ] != 102 .OR. v[ "_kind" ] != "String"
+      IF e[ "code" ] != 102 .OR. ! ( v[ "_kind" ] == "String" )
          LOOP
       ENDIF
       IF Lower( v[ "value" ] ) == Lower( cStart )
