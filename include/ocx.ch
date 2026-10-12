@@ -95,4 +95,7 @@
 #define SP_KIND 1
 #define SP_POINT 2
 #define SP_T 3
+#define PZ_UNIFORM 0
+#define PZ_CENTRIPETAL 1
+#define PZ_CHORD 2
 #endif
