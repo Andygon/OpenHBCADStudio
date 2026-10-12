@@ -1572,6 +1572,73 @@ STATIC FUNCTION Sr_ReadDimension( s )
    IF nTy == DMT_ORDINATE ; Dor_RefreshMeasurement( e ) ; ENDIF
 RETURN e
 
+/* read_extended_dimension: ARC_DIMENSION / LARGE_RADIAL_DIMENSION */
+STATIC FUNCTION Sr_ReadExtDimension( s, lArc )
+   LOCAL e := IIf( lArc, Dar_Default(), Dlr_Default() ), b := e[ "base" ], p, n, v, cSub := "", nF
+   LOCAL rDef := PR_New(), rMid := PR_New(), r1 := PR_New(), r2 := PR_New(), r3 := PR_New(), r4 := PR_New(), r5 := PR_New(), nV1 := 0.0, nV2 := 0.0
+   LOCAL lPartial := .F., lLeader := .F., pt, tmp := hb_Hash( "common", b[ "common" ] )
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      n := p[ DP_CODE ]
+      DO CASE
+      CASE n == 100 ; cSub := p[ DP_VALUE ]
+      CASE n == 8 ; b[ "common" ][ "layer" ] := p[ DP_VALUE ]
+      CASE n == 1 .AND. cSub == "AcDbDimension" ; b[ "text" ] := p[ DP_VALUE ]
+      CASE n == 2 ; b[ "block_name" ] := p[ DP_VALUE ]
+      CASE n == 3 ; b[ "style_name" ] := p[ DP_VALUE ]
+      CASE n == 10 .OR. n == 20 .OR. n == 30 ; PR_AddCoordinate( rDef, p )
+      CASE n == 11 .OR. n == 21 .OR. n == 31 ; PR_AddCoordinate( rMid, p )
+      CASE n == 13 .OR. n == 23 .OR. n == 33 ; PR_AddCoordinate( r1, p )
+      CASE n == 14 .OR. n == 24 .OR. n == 34 ; PR_AddCoordinate( r2, p )
+      CASE n == 15 .OR. n == 25 .OR. n == 35 ; PR_AddCoordinate( r3, p )
+      CASE n == 16 .OR. n == 26 .OR. n == 36 ; PR_AddCoordinate( r4, p )
+      CASE n == 17 .OR. n == 27 .OR. n == 37 ; PR_AddCoordinate( r5, p )
+      CASE n == 40 .AND. ( cSub == "AcDbArcDimension" .OR. cSub == "AcDbRadialDimensionLarge" )
+         v := Dp_AsDouble( p ) ; nV1 := IIf( v == NIL, 0.0, v )
+      CASE n == 41 .AND. cSub == "AcDbArcDimension"
+         v := Dp_AsDouble( p ) ; nV2 := IIf( v == NIL, 0.0, v )
+      CASE n == 42 .AND. cSub == "AcDbDimension"
+         v := Dp_AsDouble( p ) ; b[ "actual_measurement" ] := IIf( v == NIL, 0.0, v )
+      CASE n == 44 .AND. cSub == "AcDbDimension"
+         v := Dp_AsDouble( p ) ; b[ "line_spacing_factor" ] := IIf( v == NIL, 1.0, v )
+      CASE n == 53 .AND. cSub == "AcDbDimension"
+         v := Dp_AsDouble( p ) ; b[ "text_rotation" ] := Sr_ToRadians( IIf( v == NIL, 0.0, v ) )
+      CASE n == 70 .AND. cSub == "AcDbArcDimension"
+         v := Dp_AsI16( p ) ; lPartial := ( IIf( v == NIL, 0, v ) != 0 )
+      CASE n == 70 .AND. cSub == "AcDbDimension"
+         v := Dp_AsI16( p ) ; nF := IIf( v == NIL, 0, v ) ; b[ "text_user_positioned" ] := hb_bitAnd( nF, 128 ) != 0
+      CASE n == 71 .AND. cSub == "AcDbArcDimension"
+         v := Dp_AsI16( p ) ; lLeader := ( IIf( v == NIL, 0, v ) != 0 )
+      CASE n == 71 .AND. cSub == "AcDbDimension"
+         v := Dp_AsI16( p ) ; IF v == NIL ; v := 5 ; ENDIF
+         b[ "attachment_point" ] := IIf( v >= 1 .AND. v <= 9, v, DAP_MIDDLECENTER )
+      CASE n == 72 .AND. cSub == "AcDbDimension"
+         v := Dp_AsI16( p ) ; b[ "line_spacing_style" ] := IIf( v == NIL, 1, v )
+      CASE n == 210
+         v := Dp_AsDouble( p ) ; b[ "normal" ] := Vc3_New( IIf( v == NIL, 0.0, v ), b[ "normal" ][ 2 ], b[ "normal" ][ 3 ] )
+      CASE n == 220
+         v := Dp_AsDouble( p ) ; b[ "normal" ] := Vc3_New( b[ "normal" ][ 1 ], IIf( v == NIL, 0.0, v ), b[ "normal" ][ 3 ] )
+      CASE n == 230
+         v := Dp_AsDouble( p ) ; b[ "normal" ] := Vc3_New( b[ "normal" ][ 1 ], b[ "normal" ][ 2 ], IIf( v == NIL, 1.0, v ) )
+      OTHERWISE ; Sr_EntBase( s, p, tmp )
+      ENDCASE
+   ENDDO
+   pt := PR_GetPoint( rDef ) ; IF pt != NIL ; b[ "definition_point" ] := pt ; ENDIF
+   pt := PR_GetPoint( rMid ) ; IF pt != NIL ; b[ "text_middle_point" ] := pt ; ENDIF
+   e[ "definition_point" ] := b[ "definition_point" ]
+   IF lArc
+      e[ "first_extension_point" ] := Sr_PtOrZero( r1 ) ; e[ "second_extension_point" ] := Sr_PtOrZero( r2 ) ; e[ "center_point" ] := Sr_PtOrZero( r3 )
+      e[ "is_partial" ] := lPartial ; e[ "arc_start_parameter" ] := nV1 ; e[ "arc_end_parameter" ] := nV2 ; e[ "has_leader" ] := lLeader
+      e[ "first_leader_point" ] := Sr_PtOrZero( r4 ) ; e[ "second_leader_point" ] := Sr_PtOrZero( r5 )
+   ELSE
+      e[ "jog_point" ] := Sr_PtOrZero( r1 ) ; e[ "override_center" ] := Sr_PtOrZero( r2 ) ; e[ "chord_point" ] := Sr_PtOrZero( r3 ) ; e[ "jog_angle" ] := nV1
+   ENDIF
+RETURN e
+
+STATIC FUNCTION Sr_PtOrZero( r )
+   LOCAL pt := PR_GetPoint( r )
+RETURN IIf( pt == NIL, Vc3_Zero(), pt )
+
 STATIC FUNCTION Sr_ReadEntityOfType( s, cT )
    LOCAL p
    DO CASE
@@ -1594,6 +1661,8 @@ STATIC FUNCTION Sr_ReadEntityOfType( s, cT )
    CASE cT == "RAY" ; RETURN Sr_ReadRayXline( s, .T. )
    CASE cT == "XLINE" ; RETURN Sr_ReadRayXline( s, .F. )
    CASE cT == "DIMENSION" ; RETURN Sr_ReadDimension( s )
+   CASE cT == "ARC_DIMENSION" ; RETURN Sr_ReadExtDimension( s, .T. )
+   CASE cT == "LARGE_RADIAL_DIMENSION" ; RETURN Sr_ReadExtDimension( s, .F. )
    ENDCASE
    Sr_SkipEntity( s ) /* PENDIENTE: resto de tipos (original: read_unknown_entity / lectores propios) */
 RETURN NIL
