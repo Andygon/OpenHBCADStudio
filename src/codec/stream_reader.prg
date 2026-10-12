@@ -36,7 +36,7 @@ FUNCTION Dp_ParseI64( c )
 RETURN IIf( lNeg, -Val( cDig ), Val( cDig ) )
 
 /* str::parse::<f64>(): NIL si no valido */
-STATIC FUNCTION Dp_ParseF64( c )
+FUNCTION Dp_ParseF64( c )
    LOCAL cL := Lower( c ), lNeg := .F., cM, cE, nE := 0, nP
    IF Len( cL ) == 0 ; RETURN NIL ; ENDIF
    IF Left( cL, 1 ) $ "+-"
