@@ -1471,6 +1471,22 @@ STATIC PROCEDURE Swr_WriteEntity( st, e, hOwner )
       FOR EACH v IN e[ "clip_boundary" ][ "vertices" ] ; Sw_WriteDouble( w, 14, v[ 1 ] ) ; Sw_WriteDouble( w, 24, v[ 2 ] ) ; NEXT
    CASE t == "MULTILEADER"
       Swr_Multileader( st, e, hOwner )
+   CASE t == "MESH"
+      Sw_WriteEntityType( w, "MESH" ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbSubDMesh" )
+      Sw_WriteI16( w, 71, e[ "version" ] ) ; Sw_WriteI16( w, 72, IIf( e[ "blend_crease" ], 1, 0 ) ) ; Sw_WriteI32( w, 91, e[ "subdivision_level" ] )
+      Sw_WriteI32( w, 92, Len( e[ "vertices" ] ) )
+      FOR EACH v IN e[ "vertices" ] ; Sw_WritePoint3d( w, 10, v ) ; NEXT
+      nI := 0 ; FOR EACH v IN e[ "faces" ] ; nI += 1 + Len( v[ "vertices" ] ) ; NEXT
+      Sw_WriteI32( w, 93, nI )
+      FOR EACH v IN e[ "faces" ]
+         Sw_WriteI32( w, 90, Len( v[ "vertices" ] ) )
+         FOR EACH nI IN v[ "vertices" ] ; Sw_WriteI32( w, 90, nI ) ; NEXT
+      NEXT
+      Sw_WriteI32( w, 94, Len( e[ "edges" ] ) )
+      FOR EACH v IN e[ "edges" ] ; Sw_WriteI32( w, 90, v[ "start" ] ) ; Sw_WriteI32( w, 90, v[ "end" ] ) ; NEXT
+      Sw_WriteI32( w, 95, Len( e[ "edges" ] ) )
+      FOR EACH v IN e[ "edges" ] ; Sw_WriteDouble( w, 140, Mge_CreaseValue( v ) ) ; NEXT
+      Sw_WriteI32( w, 90, 0 )
    CASE t == "UNDERLAY"
       Sw_WriteEntityType( w, Eul_EntityName( e ) ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbUnderlayReference" ) ; Sw_WriteHandle( w, 340, e[ "definition_handle" ] )
       Sw_WriteDouble( w, 10, e[ "insertion_point" ][ 1 ] ) ; Sw_WriteDouble( w, 20, e[ "insertion_point" ][ 2 ] ) ; Sw_WriteDouble( w, 30, e[ "insertion_point" ][ 3 ] )
