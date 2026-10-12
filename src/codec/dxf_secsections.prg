@@ -2576,9 +2576,19 @@ RETURN
 
 /* reader.rs: bucle de secciones. Devuelve documento, o cadena de error */
 FUNCTION Dxr_ReadString( cData )
-   LOCAL s, d := Doc_New(), p, np, cSec, aDef
+   LOCAL s, cErr
+   /* is_binary: sentinel "AutoCAD Binary DXF" al inicio */
+   IF hb_BLeft( cData, 18 ) == "AutoCAD Binary DXF"
+      s := BnR_New( cData, @cErr )
+      IF s == NIL ; RETURN cErr ; ENDIF
+      RETURN Dxr_ReadStream( { s, .T. } )
+   ENDIF
+RETURN Dxr_ReadStream( Sr_NewText( cData ) )
+
+/* bucle de secciones sobre un lector ya creado (texto o binario) */
+FUNCTION Dxr_ReadStream( s )
+   LOCAL d := Doc_New(), p, np, cSec, aDef
    aDef := Dxp_SnapshotDefaults( d )
-   s := Sr_NewText( cData )
    DO WHILE ( p := Sr_Next( s ) ) != NIL
       IF p[ DP_CODE ] == 0 .AND. p[ DP_VALUE ] == "EOF" ; EXIT ; ENDIF
       IF p[ DP_CODE ] == 0 .AND. p[ DP_VALUE ] == "SECTION"
