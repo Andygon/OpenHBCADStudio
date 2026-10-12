@@ -185,3 +185,24 @@
 #define MTD_BYSTYLE 5
 #define LSS_ATLEAST 1
 #define LSS_EXACTLY 2
+
+/* entities/polyline.rs: PolylineFlags (u16), VertexFlags (u8), SmoothSurfaceType (discriminantes Rust) */
+#define PF_CLOSED 1
+#define PF_CURVE_FIT 2
+#define PF_SPLINE_FIT 4
+#define PF_POLYLINE_3D 8
+#define PF_POLYGON_MESH 16
+#define PF_CLOSED_N 32
+#define PF_POLYFACE_MESH 64
+#define PF_LINETYPE_CONTINUOUS 128
+#define VF_EXTRA_VERTEX 1
+#define VF_CURVE_FIT_TANGENT 2
+#define VF_SPLINE_VERTEX 8
+#define VF_SPLINE_CONTROL 16
+#define VF_POLYLINE_3D 32
+#define VF_POLYGON_MESH 64
+#define VF_POLYFACE_FACE 128
+#define SST_NONE 0
+#define SST_QUADRATIC_BSPLINE 5
+#define SST_CUBIC_BSPLINE 6
+#define SST_BEZIER 8
