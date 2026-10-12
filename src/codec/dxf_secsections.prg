@@ -878,6 +878,7 @@ RETURN Sr_CommonCode( s, p, e[ "common" ] )
 
 /* envoltorio publico para dxf_secmleader.prg */
 FUNCTION Sr_EntBaseP( s, p, e ) ; RETURN Sr_EntBase( s, p, e )
+FUNCTION Sr_ReadExtendedDataP( s ) ; RETURN Sr_ReadExtendedData( s )   /* envoltorio publico (xdata de objetos) */
 FUNCTION Sr_TrueColorBitsP( c ) ; RETURN Sr_TrueColorBits( c )   /* envoltorio publico para las pruebas */
 
 STATIC FUNCTION Sr_ReadPoint( s )
