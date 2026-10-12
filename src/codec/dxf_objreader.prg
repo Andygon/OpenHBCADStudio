@@ -2,7 +2,7 @@
    OpenHBCADStudio - src/codec/dxf_objreader.prg
    Origen Rust: opencadcodec/src/io/dxf/reader/section_reader.rs (read_objects, read_dictionary, read_layout).
    Licencia del original: MPL-2.0. Prefijo Dxo_.
-   PENDIENTE: el resto de tipos de objeto (MLINESTYLE, IMAGEDEF, MLEADERSTYLE, PLOTSETTINGS, TABLESTYLE, SCALE,
+   PENDIENTE: el resto de tipos de objeto (IMAGEDEF, MLEADERSTYLE, PLOTSETTINGS, TABLESTYLE, SCALE,
    SORTENTSTABLE, DICTIONARYVAR, VISUALSTYLE, MATERIAL, ...) se saltan; xdata de objetos tampoco.
    El original no tiene #[test] para estas funciones; los tests [extra] estan en t_dxf_rw.prg.
 ----------------------------------------------------------------------------*/
@@ -209,6 +209,35 @@ STATIC FUNCTION Dxo_ReadGroup( s )
    ENDDO
 RETURN g
 
+STATIC FUNCTION Dxo_ReadMLineStyle( s )
+   LOCAL st := Mlsy_New( "" ), p, v, nL
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      nL := Len( st[ "elements" ] )
+      DO CASE
+      CASE p[ DP_CODE ] == 5
+         v := Sr_HexVal( p ) ; IF v != NIL ; st[ "handle" ] := v ; ENDIF
+      CASE p[ DP_CODE ] == 330
+         v := Sr_HexVal( p ) ; IF v != NIL ; st[ "owner" ] := v ; ENDIF
+      CASE p[ DP_CODE ] == 2 ; st[ "name" ] := p[ DP_VALUE ]
+      CASE p[ DP_CODE ] == 3 ; st[ "description" ] := p[ DP_VALUE ]
+      CASE p[ DP_CODE ] == 51
+         v := Dp_AsDouble( p ) ; IF v != NIL ; st[ "start_angle" ] := v * OCX_PI / 180.0 ; ENDIF
+      CASE p[ DP_CODE ] == 52
+         v := Dp_AsDouble( p ) ; IF v != NIL ; st[ "end_angle" ] := v * OCX_PI / 180.0 ; ENDIF
+      CASE p[ DP_CODE ] == 62
+         v := Dp_AsI16( p )
+         IF v != NIL
+            IF nL > 0 ; st[ "elements" ][ nL ][ "color" ] := Cl_FromIndex( v ) ; ELSE ; st[ "fill_color" ] := Cl_FromIndex( v ) ; ENDIF
+         ENDIF
+      CASE p[ DP_CODE ] == 49
+         v := Dp_AsDouble( p ) ; IF v != NIL ; AAdd( st[ "elements" ], Mlse_New( v ) ) ; ENDIF
+      CASE p[ DP_CODE ] == 6
+         IF nL > 0 ; st[ "elements" ][ nL ][ "linetype" ] := p[ DP_VALUE ] ; ENDIF
+      ENDCASE
+   ENDDO
+RETURN st
+
 STATIC FUNCTION Dxo_ReadDictionary( s )
    LOCAL d := Dic_New(), p, cKey := NIL, v
    DO WHILE ( p := Sr_Next( s ) ) != NIL
@@ -348,6 +377,8 @@ PROCEDURE Dxo_ReadObjects( s, d )
             o := Dxo_ReadLayout( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
          CASE p[ DP_VALUE ] == "XRECORD"
             o := Dxo_ReadXRecord( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
+         CASE p[ DP_VALUE ] == "MLINESTYLE"
+            o := Dxo_ReadMLineStyle( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
          CASE p[ DP_VALUE ] == "GROUP"
             o := Dxo_ReadGroup( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
          OTHERWISE
