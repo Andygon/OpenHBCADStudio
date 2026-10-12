@@ -1183,6 +1183,123 @@ STATIC PROCEDURE Swr_Hatch( st, e, hOwner )
    Swr_HatchGradient( w, e )
 RETURN
 
+/* write_color_i32 */
+STATIC PROCEDURE Swr_McColor( w, nCode, c )
+   LOCAL u
+   DO CASE
+   CASE c[ 1 ] == CK_BYLAYER ; u := 3221225472
+   CASE c[ 1 ] == CK_BYBLOCK ; u := 3238002688
+   CASE c[ 1 ] == CK_RGB ; u := 3254779904 + c[ 2 ] * 65536 + c[ 3 ] * 256 + c[ 4 ]
+   CASE c[ 1 ] == CK_INDEX ; u := 3271557120 + c[ 2 ]
+   OTHERWISE ; u := 3355443200
+   ENDCASE
+   Sw_WriteI32( w, nCode, IIf( u >= 2147483648, u - 4294967296, u ) )
+RETURN
+
+STATIC FUNCTION Swr_McH( h ) ; RETURN IIf( h == NIL, 0, h )
+
+/* write_mleader_line_breaks */
+STATIC PROCEDURE Swr_MlBreaks( w, l )
+   LOCAL b, bi
+   IF Len( l[ "break_infos" ] ) == 0
+      IF Len( l[ "break_points" ] ) > 0
+         Sw_WriteI32( w, 90, l[ "segment_index" ] )
+         FOR EACH b IN l[ "break_points" ] ; Sw_WritePoint3d( w, 11, b[ "start_point" ] ) ; Sw_WritePoint3d( w, 12, b[ "end_point" ] ) ; NEXT
+      ENDIF
+   ELSE
+      FOR EACH bi IN l[ "break_infos" ]
+         Sw_WriteI32( w, 90, bi[ "segment_index" ] )
+         FOR EACH b IN bi[ "break_points" ] ; Sw_WritePoint3d( w, 11, b[ "start_point" ] ) ; Sw_WritePoint3d( w, 12, b[ "end_point" ] ) ; NEXT
+      NEXT
+   ENDIF
+RETURN
+
+/* write_multileader. bylayer/byblock linetype handles: se buscan en d["line_types"] (Rust los guarda al preparar) */
+STATIC PROCEDURE Swr_Multileader( st, e, hOwner )
+   LOCAL w := st[ 1 ], nVer := st[ 2 ], c := e[ "context" ], r, l, b, a, h, hBl := 0, hBy := 0, lt, nV24 := Dxv_FromVersionString( "AC1024" )
+   lt := Tb_Get( st[ 5 ][ "line_types" ], "ByLayer" ) ; IF lt != NIL ; hBy := lt[ "handle" ] ; ENDIF
+   lt := Tb_Get( st[ 5 ][ "line_types" ], "ByBlock" ) ; IF lt != NIL ; hBl := lt[ "handle" ] ; ENDIF
+   Sw_WriteEntityType( w, "MULTILEADER" ) ; Swr_CommonEntity( st, e[ "common" ], hOwner ) ; Sw_WriteSubclass( w, "AcDbMLeader" )
+   IF nVer >= nV24 ; Sw_WriteI16( w, 270, e[ "dwg_version" ] ) ; ENDIF
+   Sw_WriteString( w, 300, "CONTEXT_DATA{" )
+   Sw_WriteDouble( w, 40, c[ "scale_factor" ] ) ; Sw_WritePoint3d( w, 10, c[ "content_base_point" ] ) ; Sw_WriteDouble( w, 41, c[ "text_height" ] )
+   Sw_WriteDouble( w, 140, c[ "arrowhead_size" ] ) ; Sw_WriteDouble( w, 145, c[ "landing_gap" ] )
+   Sw_WriteI16( w, 174, c[ "text_left_attachment" ] ) ; Sw_WriteI16( w, 175, c[ "text_right_attachment" ] )
+   Sw_WriteI16( w, 176, c[ "text_alignment" ] ) ; Sw_WriteI16( w, 177, c[ "block_connection_type" ] )
+   Sw_WriteBool( w, 290, c[ "has_text_contents" ] )
+   IF c[ "has_text_contents" ]
+      Sw_WriteString( w, 304, c[ "text_string" ] ) ; Sw_WritePoint3d( w, 11, c[ "text_normal" ] )
+      IF c[ "text_style_handle" ] != NIL ; Sw_WriteHandle( w, 340, c[ "text_style_handle" ] ) ; ENDIF
+      Sw_WritePoint3d( w, 12, c[ "text_location" ] ) ; Sw_WritePoint3d( w, 13, c[ "text_direction" ] )
+      Sw_WriteDouble( w, 42, c[ "text_rotation" ] ) ; Sw_WriteDouble( w, 43, c[ "text_width" ] ) ; Sw_WriteDouble( w, 44, c[ "text_boundary_height" ] )
+      Sw_WriteDouble( w, 45, c[ "line_spacing_factor" ] ) ; Sw_WriteI16( w, 170, c[ "line_spacing_style" ] ) ; Swr_McColor( w, 90, c[ "text_color" ] )
+      Sw_WriteI16( w, 171, c[ "text_attachment_point" ] ) ; Sw_WriteI16( w, 172, c[ "text_flow_direction" ] ) ; Swr_McColor( w, 91, c[ "background_fill_color" ] )
+      Sw_WriteDouble( w, 141, c[ "background_scale_factor" ] ) ; Sw_WriteI32( w, 92, c[ "background_transparency" ] )
+      Sw_WriteBool( w, 291, c[ "background_fill_enabled" ] ) ; Sw_WriteBool( w, 292, c[ "background_mask_fill_on" ] )
+      Sw_WriteI16( w, 173, c[ "column_type" ] ) ; Sw_WriteBool( w, 293, c[ "text_height_automatic" ] )
+      Sw_WriteDouble( w, 142, c[ "column_width" ] ) ; Sw_WriteDouble( w, 143, c[ "column_gutter" ] ) ; Sw_WriteBool( w, 294, c[ "column_flow_reversed" ] )
+      FOR EACH a IN c[ "column_sizes" ] ; Sw_WriteDouble( w, 144, a ) ; NEXT
+      IF nVer >= Dxv_FromVersionString( "AC1027" ) ; Sw_WriteBool( w, 295, c[ "word_break" ] ) ; ENDIF
+   ENDIF
+   Sw_WriteBool( w, 296, c[ "has_block_contents" ] )
+   IF c[ "has_block_contents" ]
+      IF c[ "block_content_handle" ] != NIL ; Sw_WriteHandle( w, 341, c[ "block_content_handle" ] ) ; ENDIF
+      Sw_WritePoint3d( w, 14, c[ "block_content_normal" ] ) ; Sw_WritePoint3d( w, 15, c[ "block_content_location" ] ) ; Sw_WritePoint3d( w, 16, c[ "block_content_scale" ] )
+      Sw_WriteDouble( w, 46, c[ "block_rotation" ] ) ; Swr_McColor( w, 93, c[ "block_content_color" ] )
+      FOR EACH a IN c[ "transform_matrix" ] ; Sw_WriteDouble( w, 47, a ) ; NEXT
+   ENDIF
+   Sw_WritePoint3d( w, 110, c[ "base_point" ] ) ; Sw_WritePoint3d( w, 111, c[ "base_direction" ] ) ; Sw_WritePoint3d( w, 112, c[ "base_vertical" ] )
+   Sw_WriteBool( w, 297, c[ "normal_reversed" ] )
+   FOR EACH r IN c[ "leader_roots" ]
+      Sw_WriteString( w, 302, "LEADER{" ) ; Sw_WriteBool( w, 290, r[ "content_valid" ] ) ; Sw_WriteBool( w, 291, r[ "unknown" ] )
+      Sw_WritePoint3d( w, 10, r[ "connection_point" ] ) ; Sw_WritePoint3d( w, 11, r[ "direction" ] ) ; Sw_WriteI32( w, 90, r[ "leader_index" ] )
+      FOR EACH b IN r[ "break_points" ] ; Sw_WritePoint3d( w, 12, b[ "start_point" ] ) ; Sw_WritePoint3d( w, 13, b[ "end_point" ] ) ; NEXT
+      Sw_WriteDouble( w, 40, r[ "landing_distance" ] )
+      FOR EACH l IN r[ "lines" ]
+         Sw_WriteString( w, 304, "LEADER_LINE{" )
+         FOR EACH a IN l[ "points" ] ; Sw_WritePoint3d( w, 10, a ) ; NEXT
+         Swr_MlBreaks( w, l )
+         Sw_WriteI32( w, 91, l[ "index" ] ) ; Sw_WriteI16( w, 170, l[ "path_type" ] ) ; Swr_McColor( w, 92, l[ "line_color" ] )
+         Sw_WriteHandle( w, 340, Swr_McH( l[ "line_type_handle" ] ) ) ; Sw_WriteI16( w, 171, Lw_GetValue( l[ "line_weight" ] ) )
+         Sw_WriteDouble( w, 40, l[ "arrowhead_size" ] ) ; Sw_WriteHandle( w, 341, Swr_McH( l[ "arrowhead_handle" ] ) )
+         Sw_WriteI32( w, 93, IIf( l[ "override_flags" ] >= 2147483648, l[ "override_flags" ] - 4294967296, l[ "override_flags" ] ) )
+         Sw_WriteString( w, 305, "}" )
+      NEXT
+      IF nVer >= nV24 ; Sw_WriteI16( w, 271, r[ "text_attachment_direction" ] ) ; ENDIF
+      Sw_WriteString( w, 303, "}" )
+   NEXT
+   IF nVer >= nV24 ; Sw_WriteI16( w, 272, c[ "text_bottom_attachment" ] ) ; Sw_WriteI16( w, 273, c[ "text_top_attachment" ] ) ; ENDIF
+   Sw_WriteString( w, 301, "}" )
+   IF e[ "style_handle" ] != NIL ; Sw_WriteHandle( w, 340, e[ "style_handle" ] ) ; ENDIF
+   Sw_WriteI32( w, 90, IIf( e[ "property_override_flags" ] >= 2147483648, e[ "property_override_flags" ] - 4294967296, e[ "property_override_flags" ] ) )
+   Sw_WriteI16( w, 170, e[ "path_type" ] ) ; Swr_McColor( w, 91, e[ "line_color" ] )
+   h := e[ "line_type_handle" ]
+   IF h == NIL .OR. h == 0 .OR. h == hBl ; h := hBy ; ENDIF
+   IF h != 0 ; Sw_WriteHandle( w, 341, h ) ; ENDIF
+   Sw_WriteI16( w, 171, Lw_GetValue( e[ "line_weight" ] ) ) ; Sw_WriteBool( w, 290, e[ "enable_landing" ] ) ; Sw_WriteBool( w, 291, e[ "enable_dogleg" ] )
+   Sw_WriteDouble( w, 41, e[ "dogleg_length" ] )
+   IF e[ "arrowhead_handle" ] != NIL .AND. e[ "arrowhead_handle" ] != 0 ; Sw_WriteHandle( w, 342, e[ "arrowhead_handle" ] ) ; ENDIF
+   Sw_WriteDouble( w, 42, e[ "arrowhead_size" ] ) ; Sw_WriteI16( w, 172, e[ "content_type" ] )
+   IF e[ "text_style_handle" ] != NIL ; Sw_WriteHandle( w, 343, e[ "text_style_handle" ] ) ; ENDIF
+   Sw_WriteI16( w, 173, e[ "text_left_attachment" ] ) ; Sw_WriteI32( w, 95, e[ "text_right_attachment" ] ) ; Sw_WriteI16( w, 174, e[ "text_angle_type" ] )
+   Sw_WriteI16( w, 175, e[ "text_alignment" ] ) ; Swr_McColor( w, 92, e[ "text_color" ] ) ; Sw_WriteBool( w, 292, e[ "text_frame" ] )
+   IF e[ "block_content_handle" ] != NIL ; Sw_WriteHandle( w, 344, e[ "block_content_handle" ] ) ; ENDIF
+   Swr_McColor( w, 93, e[ "block_content_color" ] ) ; Sw_WritePoint3d( w, 10, e[ "block_scale" ] ) ; Sw_WriteDouble( w, 43, e[ "block_rotation" ] )
+   Sw_WriteDouble( w, 45, e[ "scale_factor" ] ) ; Sw_WriteI16( w, 176, e[ "block_connection_type" ] ) ; Sw_WriteBool( w, 293, e[ "enable_annotation_scale" ] )
+   FOR EACH a IN e[ "arrowhead_overrides" ]
+      Sw_WriteI32( w, 94, a[ "index" ] ) ; Sw_WriteHandle( w, 345, Swr_McH( a[ "arrowhead_handle" ] ) )
+   NEXT
+   FOR EACH a IN e[ "block_attributes" ]
+      Sw_WriteHandle( w, 330, Swr_McH( a[ "attribute_definition_handle" ] ) ) ; Sw_WriteI16( w, 177, a[ "index" ] )
+      Sw_WriteDouble( w, 44, a[ "width" ] ) ; Sw_WriteString( w, 302, a[ "text" ] )
+   NEXT
+   Sw_WriteBool( w, 294, e[ "text_direction_negative" ] ) ; Sw_WriteI16( w, 178, e[ "text_align_in_ipe" ] ) ; Sw_WriteI16( w, 179, e[ "text_attachment_point" ] )
+   IF nVer >= nV24
+      Sw_WriteI16( w, 271, e[ "text_attachment_direction" ] ) ; Sw_WriteI16( w, 272, e[ "text_bottom_attachment" ] ) ; Sw_WriteI16( w, 273, e[ "text_top_attachment" ] )
+   ENDIF
+   IF nVer >= Dxv_FromVersionString( "AC1027" ) ; Sw_WriteBool( w, 295, e[ "extend_leader_to_text" ] ) ; ENDIF
+RETURN
+
 STATIC PROCEDURE Swr_WriteEntity( st, e, hOwner )
    LOCAL w := st[ 1 ], c := e[ "common" ], t := e[ "_type" ], v, hSeq, att, nI, g, q
    DO CASE
@@ -1352,6 +1469,8 @@ STATIC PROCEDURE Swr_WriteEntity( st, e, hOwner )
       IF e[ "definition_reactor_handle" ] != NIL ; Sw_WriteHandle( w, 360, e[ "definition_reactor_handle" ] ) ; ENDIF
       Sw_WriteI16( w, 71, e[ "clip_boundary" ][ "clip_type" ] ) ; Sw_WriteI32( w, 91, Len( e[ "clip_boundary" ][ "vertices" ] ) )
       FOR EACH v IN e[ "clip_boundary" ][ "vertices" ] ; Sw_WriteDouble( w, 14, v[ 1 ] ) ; Sw_WriteDouble( w, 24, v[ 2 ] ) ; NEXT
+   CASE t == "MULTILEADER"
+      Swr_Multileader( st, e, hOwner )
    CASE t == "UNDERLAY"
       Sw_WriteEntityType( w, Eul_EntityName( e ) ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbUnderlayReference" ) ; Sw_WriteHandle( w, 340, e[ "definition_handle" ] )
       Sw_WriteDouble( w, 10, e[ "insertion_point" ][ 1 ] ) ; Sw_WriteDouble( w, 20, e[ "insertion_point" ][ 2 ] ) ; Sw_WriteDouble( w, 30, e[ "insertion_point" ][ 3 ] )
