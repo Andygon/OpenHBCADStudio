@@ -433,4 +433,16 @@ PROCEDURE T_DxfRw()
    d2 := RT( d2 )
    es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
    Chk( Len( es ) == 1 .AND. es[ 1 ][ "_type" ] == "UNDERLAY" .AND. es[ 1 ][ "underlay_type" ] == UTY_DWF .AND. es[ 1 ][ "x_scale" ] == 2.0 .AND. Abs( es[ 1 ][ "rotation" ] - OCX_PI ) < 0.000000000001 .AND. es[ 1 ][ "clip_inverted" ] .AND. es[ 1 ][ "definition_handle" ] == 88 .AND. es[ 1 ][ "contrast" ] == 70 .AND. Len( es[ 1 ][ "clip_boundary_vertices" ] ) == 2 .AND. es[ 1 ][ "clip_boundary_vertices" ][ 2 ][ 2 ] == 4.0, "[extra] UNDERLAY entidad releido" )
+   /* [extra] MULTILEADER (texto + 1 raiz con 1 linea + atributo de bloque) */
+   d2 := Doc_New()
+   x := Emu_WithText( "Hola", Vc3_New( 5.0, 6.0, 0.0 ), { Vc3_New( 0.0, 0.0, 0.0 ), Vc3_New( 2.0, 3.0, 0.0 ) } )
+   x[ "context" ][ "text_color" ] := Cl_FromRgb( 10, 20, 30 ) ; x[ "line_color" ] := Cl_FromIndex( 5 ) ; x[ "text_frame" ] := .T. ; x[ "dogleg_length" ] := 0.5 ; x[ "scale_factor" ] := 2.0
+   x[ "context" ][ "leader_roots" ][ 1 ][ "lines" ][ 1 ][ "break_infos" ] := { hb_Hash( "segment_index", 1, "break_points", { Sep_New( Vc3_New( 1.0, 1.0, 0.0 ), Vc3_New( 1.5, 1.5, 0.0 ) ) } ) }
+   AAdd( x[ "block_attributes" ], Bat_New( "ATT" ) ) ; x[ "block_attributes" ][ 1 ][ "attribute_definition_handle" ] := 99 ; x[ "block_attributes" ][ 1 ][ "width" ] := 1.25
+   Doc_AddEntity( d2, x )
+   d2 := RT( d2 )
+   es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
+   Chk( Len( es ) == 1 .AND. es[ 1 ][ "_type" ] == "MULTILEADER" .AND. es[ 1 ][ "context" ][ "text_string" ] == "Hola" .AND. es[ 1 ][ "context" ][ "text_color" ][ 1 ] == CK_RGB .AND. es[ 1 ][ "context" ][ "text_color" ][ 3 ] == 20 .AND. es[ 1 ][ "line_color" ][ 2 ] == 5 .AND. es[ 1 ][ "text_frame" ] .AND. es[ 1 ][ "dogleg_length" ] == 0.5 .AND. es[ 1 ][ "scale_factor" ] == 2.0 ;
+      .AND. Len( es[ 1 ][ "context" ][ "leader_roots" ] ) == 1 .AND. Len( es[ 1 ][ "context" ][ "leader_roots" ][ 1 ][ "lines" ][ 1 ][ "points" ] ) == 2 .AND. es[ 1 ][ "context" ][ "leader_roots" ][ 1 ][ "lines" ][ 1 ][ "points" ][ 2 ][ 2 ] == 3.0 .AND. es[ 1 ][ "context" ][ "leader_roots" ][ 1 ][ "lines" ][ 1 ][ "segment_index" ] == 1 ;
+      .AND. Len( es[ 1 ][ "context" ][ "leader_roots" ][ 1 ][ "lines" ][ 1 ][ "break_infos" ][ 1 ][ "break_points" ] ) == 1 .AND. Len( es[ 1 ][ "block_attributes" ] ) == 1 .AND. es[ 1 ][ "block_attributes" ][ 1 ][ "text" ] == "ATT" .AND. es[ 1 ][ "block_attributes" ][ 1 ][ "attribute_definition_handle" ] == 99 .AND. es[ 1 ][ "block_attributes" ][ 1 ][ "width" ] == 1.25 )
 RETURN
