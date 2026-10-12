@@ -217,11 +217,21 @@ PROCEDURE T_DxfRw()
       x := Viw_New( "Vista1" ) ; x[ "handle" ] := Doc_AllocateHandle( d ) ; x[ "height" ] := 12.5 ; x[ "width" ] := 20.0 ; x[ "twist_angle" ] := OCX_PI / 2.0
       x[ "center" ] := Vc3_New( 3.0, 4.0, 0.0 ) ; x[ "perspective" ] := .T. ; x[ "ucs_associated" ] := .T. ; x[ "ucs_origin" ] := Vc3_New( 5.0, 6.0, 7.0 )
       Tb_AddOrReplace( d[ "views" ], x )
+      x := Vpt_New( "*Active" ) ; x[ "handle" ] := Doc_AllocateHandle( d ) ; x[ "view_height" ] := 33.5 ; x[ "view_center" ] := Vc2_New( 8.0, 9.0 ) ; x[ "snap_rotation" ] := OCX_PI
+      x[ "grid_on" ] := .T. ; x[ "ucsfollow" ] := .T. ; x[ "ucs_origin" ] := Vc3_New( 1.0, 2.0, 3.0 ) ; x[ "grid_major" ] := 7
+      Tb_AddAllowDuplicate( d[ "vports" ], x )
       s1 := Dxw_WriteString( d ) ; d2 := Dxr_ReadString( s1 )
       u := IIf( ValType( d2 ) == "H", Tb_Get( d2[ "ucss" ], "Plano" ), NIL )
       Chk( u != NIL .AND. Near( u[ "origin" ][ 3 ], 3.0, 0.000000001 ) .AND. Near( u[ "y_axis" ][ 1 ], -1.0, 0.000000001 ) .AND. Near( u[ "elevation" ], 2.5, 0.000000001 ) .AND. u[ "ortho_type" ] == 3 .AND. u[ "xref_dependent" ] .AND. ! u[ "xref_resolved" ], "[extra] tabla UCS: escribir y releer" )
       x := IIf( ValType( d2 ) == "H", Tb_Get( d2[ "views" ], "Vista1" ), NIL )
       Chk( x != NIL .AND. Near( x[ "height" ], 12.5, 0.000000001 ) .AND. Near( x[ "twist_angle" ], OCX_PI / 2.0, 0.000000001 ) .AND. Near( x[ "center" ][ 2 ], 4.0, 0.000000001 ) .AND. x[ "perspective" ] .AND. ! x[ "front_clipping" ] .AND. x[ "ucs_associated" ] .AND. Near( x[ "ucs_origin" ][ 3 ], 7.0, 0.000000001 ), "[extra] tabla VIEW: escribir y releer" )
+      x := NIL
+      IF ValType( d2 ) == "H"
+         FOR EACH e IN Tb_Values( d2[ "vports" ] )
+            IF Near( e[ "view_height" ], 33.5, 0.000000001 ) ; x := e ; ENDIF
+         NEXT
+      ENDIF
+      Chk( x != NIL .AND. Near( x[ "view_height" ], 33.5, 0.000000001 ) .AND. Near( x[ "view_center" ][ 2 ], 9.0, 0.000000001 ) .AND. Near( x[ "snap_rotation" ], OCX_PI, 0.000000001 ) .AND. x[ "grid_on" ] .AND. x[ "ucsfollow" ] .AND. ! x[ "snap_on" ] .AND. Near( x[ "ucs_origin" ][ 3 ], 3.0, 0.000000001 ), "[extra] tabla VPORT: escribir y releer" )
       Chk( ValType( d2 ) == "H" .AND. Len( Doc_ModelSpaceEntities( d2 ) ) == 8 .AND. Len( s1 ) == Len( Dxw_WriteString( d2 ) ), "[extra] muestra: escribir y releer conserva 8 entidades y es estable (HANDSEED puede subir)" )
    ENDIF
 RETURN
