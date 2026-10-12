@@ -452,4 +452,13 @@ PROCEDURE T_DxfRw()
    es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
    Chk( Len( es ) == 1 .AND. es[ 1 ][ "_type" ] == "MESH" .AND. es[ 1 ][ "common" ][ "layer" ] == "MALLA" .AND. es[ 1 ][ "subdivision_level" ] == 2 .AND. ! es[ 1 ][ "blend_crease" ] .AND. Len( es[ 1 ][ "vertices" ] ) == 8 .AND. Len( es[ 1 ][ "faces" ] ) == 6 ;
       .AND. Len( es[ 1 ][ "faces" ][ 6 ][ "vertices" ] ) == 4 .AND. es[ 1 ][ "faces" ][ 6 ][ "vertices" ][ 3 ] == 6 .AND. Len( es[ 1 ][ "edges" ] ) == 12 .AND. es[ 1 ][ "edges" ][ 4 ][ "crease" ] == 1.5 .AND. es[ 1 ][ "edges" ][ 1 ][ "crease" ] == NIL, "dxf_rw: [extra] MESH roundtrip" )
+   /* [extra] DXF binario: escribir con Dxw_WriteBinaryString y leer con Dxr_ReadString (deteccion de sentinel); mismo contenido que el texto */
+   d2 := Doc_New()
+   x := Emh_CreateUnitCube() ; Emh_SetEdgeCrease( x, 3, 1.5 ) ; Doc_AddEntity( d2, x )
+   x := Emu_WithText( "Hola", Vc3_New( 5.0, 6.0, 0.0 ), { Vc3_New( 0.0, 0.0, 0.0 ), Vc3_New( 2.0, 3.0, 0.0 ) } ) ; Doc_AddEntity( d2, x )
+   x := Dxw_WriteBinaryString( d2 )
+   d2 := Dxr_ReadString( x )
+   es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
+   Chk( hb_BLeft( x, 18 ) == "AutoCAD Binary DXF" .AND. Len( es ) == 2 .AND. es[ 1 ][ "_type" ] == "MESH" .AND. es[ 1 ][ "edges" ][ 4 ][ "crease" ] == 1.5 .AND. es[ 2 ][ "_type" ] == "MULTILEADER" .AND. es[ 2 ][ "context" ][ "text_string" ] == "Hola", "dxf_rw: [extra] DXF binario roundtrip" )
+   Chk( ValType( Dxr_ReadString( "AutoCAD Binary DXF" ) ) == "C", "dxf_rw: [extra] sentinel binario truncado da error" )
 RETURN
