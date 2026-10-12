@@ -2,7 +2,7 @@
    OpenHBCADStudio - src/codec/dxf_objreader.prg
    Origen Rust: opencadcodec/src/io/dxf/reader/section_reader.rs (read_objects, read_dictionary, read_layout).
    Licencia del original: MPL-2.0. Prefijo Dxo_.
-   PENDIENTE: el resto de tipos de objeto (XRECORD, GROUP, MLINESTYLE, IMAGEDEF, MLEADERSTYLE, PLOTSETTINGS, TABLESTYLE, SCALE,
+   PENDIENTE: el resto de tipos de objeto (MLINESTYLE, IMAGEDEF, MLEADERSTYLE, PLOTSETTINGS, TABLESTYLE, SCALE,
    SORTENTSTABLE, DICTIONARYVAR, VISUALSTYLE, MATERIAL, ...) se saltan; xdata de objetos tampoco.
    El original no tiene #[test] para estas funciones; los tests [extra] estan en t_dxf_rw.prg.
 ----------------------------------------------------------------------------*/
@@ -89,6 +89,125 @@ STATIC FUNCTION Dxo_Hex( c )
       IF ! ( SubStr( t, i, 1 ) $ "0123456789abcdefABCDEF" ) ; RETURN NIL ; ENDIF
    NEXT
 RETURN hb_HexToNum( t )
+
+STATIC FUNCTION Dxo_IntIn( c, nLo, nHi )
+   LOCAL t := AllTrim( c ), i, ch
+   IF Len( t ) == 0 ; RETURN NIL ; ENDIF
+   FOR i := 1 TO Len( t )
+      ch := SubStr( t, i, 1 )
+      IF ! ( ch $ "0123456789" .OR. ( i == 1 .AND. ch $ "+-" .AND. Len( t ) > 1 ) ) ; RETURN NIL ; ENDIF
+   NEXT
+   IF Val( t ) < nLo .OR. Val( t ) > nHi ; RETURN NIL ; ENDIF
+RETURN Int( Val( t ) )
+
+STATIC FUNCTION Dxo_ReadXRecord( s )
+   LOCAL x := Xrc_New(), p, v, cGroup := "", lOwner := .F., lClone := .F., n, nT, xv, q, q2, nY, nZ, hx, cBytes, i, hi, lo, nKind
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      n := p[ DP_CODE ]
+      DO CASE
+      CASE n == 5
+         v := Sr_HexVal( p ) ; IF v != NIL ; x[ "handle" ] := v ; ENDIF
+      CASE n == 100 .AND. p[ DP_VALUE ] == "AcDbXrecord"
+      CASE n == 102 .AND. ( p[ DP_VALUE ] == "{ACAD_REACTORS" .OR. p[ DP_VALUE ] == "{ACAD_XDICTIONARY" )
+         cGroup := p[ DP_VALUE ]
+      CASE n == 102 .AND. Len( cGroup ) > 0 .AND. p[ DP_VALUE ] == "}"
+         cGroup := ""
+      CASE n == 330 .AND. cGroup == "{ACAD_REACTORS"
+         v := Dxo_Hex( p[ DP_VALUE ] ) ; AAdd( x[ "reactors" ], IIf( v == NIL, 0, v ) )
+      CASE n == 360 .AND. cGroup == "{ACAD_XDICTIONARY"
+         v := Dxo_Hex( p[ DP_VALUE ] ) ; x[ "xdictionary_handle" ] := IIf( v == NIL, 0, v )
+      CASE n == 330 .AND. ! lOwner .AND. Len( cGroup ) == 0
+         v := Dxo_Hex( p[ DP_VALUE ] ) ; x[ "owner" ] := IIf( v == NIL, 0, v ) ; lOwner := .T.
+      CASE n == 280 .AND. ! lClone
+         lClone := .T.
+         v := Dp_AsI16( p ) ; IF v != NIL ; x[ "cloning_flags" ] := Dcf_FromValue( v ) ; ENDIF
+      OTHERWISE
+         nT := Xvt_FromCode( n )
+         DO CASE
+         CASE nT == XVT_STRING ; xv := Xrv_New( "String", p[ DP_VALUE ] )
+         CASE nT == XVT_POINT3D
+            v := Dxo_Num( p[ DP_VALUE ] ) ; IF v == NIL ; v := 0.0 ; ENDIF
+            nY := 0.0 ; nZ := 0.0
+            q := Sr_Next( s )
+            IF q != NIL
+               IF q[ DP_CODE ] == n + 10
+                  nY := Dxo_Num( q[ DP_VALUE ] ) ; IF nY == NIL ; nY := 0.0 ; ENDIF
+                  q2 := Sr_Next( s )
+                  IF q2 != NIL
+                     IF q2[ DP_CODE ] == n + 20
+                        nZ := Dxo_Num( q2[ DP_VALUE ] ) ; IF nZ == NIL ; nZ := 0.0 ; ENDIF
+                     ELSE
+                        Sr_PushBack( s, q2 )
+                     ENDIF
+                  ENDIF
+               ELSE
+                  Sr_PushBack( s, q )
+               ENDIF
+            ENDIF
+            xv := Xrv_New( "Point3D", { v, nY, nZ } )
+         CASE nT == XVT_DOUBLE
+            v := Dxo_Num( p[ DP_VALUE ] ) ; xv := IIf( v != NIL, Xrv_New( "Double", v ), Xrv_New( "String", p[ DP_VALUE ] ) )
+         CASE nT == XVT_INT16
+            v := Dxo_IntIn( p[ DP_VALUE ], -32768, 32767 ) ; xv := IIf( v != NIL, Xrv_New( "Int16", v ), Xrv_New( "String", p[ DP_VALUE ] ) )
+         CASE nT == XVT_INT32
+            v := Dxo_IntIn( p[ DP_VALUE ], -2147483648, 2147483647 ) ; xv := IIf( v != NIL, Xrv_New( "Int32", v ), Xrv_New( "String", p[ DP_VALUE ] ) )
+         CASE nT == XVT_INT64
+            v := Dxo_IntIn( p[ DP_VALUE ], -9223372036854775807, 9223372036854775807 ) ; xv := IIf( v != NIL, Xrv_New( "Int64", v ), Xrv_New( "String", p[ DP_VALUE ] ) )
+         CASE nT == XVT_BYTE
+            v := Dxo_IntIn( p[ DP_VALUE ], 0, 255 ) ; xv := IIf( v != NIL, Xrv_New( "Byte", v ), Xrv_New( "String", p[ DP_VALUE ] ) )
+         CASE nT == XVT_BOOL
+            v := Dxo_IntIn( p[ DP_VALUE ], -2147483648, 2147483647 ) ; xv := IIf( v != NIL, Xrv_New( "Bool", v != 0 ), Xrv_New( "String", p[ DP_VALUE ] ) )
+         CASE nT == XVT_HANDLE .OR. nT == XVT_OBJECT_ID
+            v := Dxo_Hex( p[ DP_VALUE ] ) ; xv := IIf( v != NIL, Xrv_New( "Handle", v ), Xrv_New( "String", p[ DP_VALUE ] ) )
+         CASE nT == XVT_CHUNK
+            hx := AllTrim( p[ DP_VALUE ] ) ; cBytes := "" ; i := 1
+            DO WHILE i + 1 <= Len( hx )
+               hi := SubStr( hx, i, 1 ) ; lo := SubStr( hx, i + 1, 1 )
+               IF hi $ "0123456789abcdefABCDEF" .AND. lo $ "0123456789abcdefABCDEF"
+                  cBytes += Chr( hb_HexToNum( hi + lo ) )
+               ENDIF
+               i += 2
+            ENDDO
+            x[ "raw_data" ] += cBytes
+            xv := Xrv_New( "Chunk", cBytes )
+         OTHERWISE
+            x[ "entries_complete" ] := .F.
+            xv := Xrv_New( "String", p[ DP_VALUE ] )
+         ENDCASE
+         IF n >= 330 .AND. n <= 369 .AND. xv[ "_kind" ] == "Handle"
+            DO CASE
+            CASE n <= 339 ; nKind := PRK_SOFT_POINTER
+            CASE n <= 349 ; nKind := PRK_HARD_POINTER
+            CASE n <= 359 ; nKind := PRK_SOFT_OWNERSHIP
+            OTHERWISE ; nKind := PRK_HARD_OWNERSHIP
+            ENDCASE
+            AAdd( x[ "object_references" ], Ppr_NewRef( xv[ "value" ], nKind ) )
+         ENDIF
+         AAdd( x[ "entries" ], Xre_New( n, xv ) )
+      ENDCASE
+   ENDDO
+RETURN x
+
+STATIC FUNCTION Dxo_ReadGroup( s )
+   LOCAL g := Grp_New( "" ), p, v
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      DO CASE
+      CASE p[ DP_CODE ] == 5
+         v := Sr_HexVal( p ) ; IF v != NIL ; g[ "handle" ] := v ; ENDIF
+      CASE p[ DP_CODE ] == 330
+         v := Sr_HexVal( p ) ; IF v != NIL ; g[ "owner" ] := v ; ENDIF
+      CASE p[ DP_CODE ] == 300 ; g[ "description" ] := p[ DP_VALUE ]
+      CASE p[ DP_CODE ] == 70
+         v := Dp_AsI16( p ) ; IF v != NIL ; g[ "unnamed" ] := v != 0 ; ENDIF
+      CASE p[ DP_CODE ] == 71
+         v := Dp_AsI16( p ) ; IF v != NIL ; g[ "selectable" ] := v != 0 ; ENDIF
+      CASE p[ DP_CODE ] == 340
+         v := Sr_HexVal( p ) ; IF v != NIL ; AAdd( g[ "entities" ], v ) ; ENDIF
+      ENDCASE
+   ENDDO
+RETURN g
 
 STATIC FUNCTION Dxo_ReadDictionary( s )
    LOCAL d := Dic_New(), p, cKey := NIL, v
@@ -227,6 +346,10 @@ PROCEDURE Dxo_ReadObjects( s, d )
             o := Dxo_ReadDictionary( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
          CASE p[ DP_VALUE ] == "LAYOUT"
             o := Dxo_ReadLayout( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
+         CASE p[ DP_VALUE ] == "XRECORD"
+            o := Dxo_ReadXRecord( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
+         CASE p[ DP_VALUE ] == "GROUP"
+            o := Dxo_ReadGroup( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
          OTHERWISE
             Sr_SkipEntity( s )
          ENDCASE
