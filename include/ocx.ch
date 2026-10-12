@@ -419,3 +419,14 @@
 #define LLO_LINE_WEIGHT 8
 #define LLO_ARROWHEAD_SIZE 16
 #define LLO_ARROWHEAD 32
+
+/* entities/helix.rs HelixConstraint, polygon_mesh.rs SurfaceSmoothType y PolygonMeshFlags */
+#define HXC_TURN_HEIGHT 0
+#define HXC_TURNS       1
+#define HXC_HEIGHT      2
+#define PMF_CLOSED_M    1
+#define PMF_CURVE_FIT   2
+#define PMF_SPLINE_FIT  4
+#define PMF_POLYGON_MESH 16
+#define PMF_CLOSED_N    32
+#define PMF_CONTINUOUS_LINETYPE 128
