@@ -25,7 +25,7 @@ STATIC FUNCTION Dxo_FindRootDictHandle( d )
 RETURN nBest
 
 /* tipos de objeto que este escritor emite: las entradas de diccionario a otros tipos se omiten (equivale al filtro valid_handles de Rust) */
-STATIC FUNCTION Dxo_IsWritten( o ) ; RETURN o[ "_type" ] == "Dictionary" .OR. o[ "_type" ] == "Layout" .OR. o[ "_type" ] == "XRecord" .OR. o[ "_type" ] == "Group" .OR. o[ "_type" ] == "MLineStyle" .OR. o[ "_type" ] == "SortEntitiesTable" .OR. o[ "_type" ] == "ImageDefinition" .OR. o[ "_type" ] == "UnderlayDefinition" .OR. o[ "_type" ] == "MultiLeaderStyle" .OR. o[ "_type" ] == "PlotSettings" .OR. o[ "_type" ] == "Scale" .OR. o[ "_type" ] == "DictionaryVariable" .OR. o[ "_type" ] == "DictionaryWithDefault" .OR. o[ "_type" ] == "PlaceHolder"
+STATIC FUNCTION Dxo_IsWritten( o ) ; RETURN o[ "_type" ] == "Dictionary" .OR. o[ "_type" ] == "Layout" .OR. o[ "_type" ] == "XRecord" .OR. o[ "_type" ] == "Group" .OR. o[ "_type" ] == "MLineStyle" .OR. o[ "_type" ] == "SortEntitiesTable" .OR. o[ "_type" ] == "ImageDefinition" .OR. o[ "_type" ] == "UnderlayDefinition" .OR. o[ "_type" ] == "MultiLeaderStyle" .OR. o[ "_type" ] == "PlotSettings" .OR. o[ "_type" ] == "Scale" .OR. o[ "_type" ] == "DictionaryVariable" .OR. o[ "_type" ] == "DictionaryWithDefault" .OR. o[ "_type" ] == "PlaceHolder" .OR. o[ "_type" ] == "SpatialFilter"
 
 STATIC PROCEDURE Dxo_WriteDictionary( w, d, dic )
    LOCAL aR := dic[ "reactors" ], hX, e, lForced, aV, hO
@@ -68,6 +68,31 @@ STATIC PROCEDURE Dxo_WritePlaceHolder( w, o, nVer )
    Sw_WriteString( w, 102, "{ACAD_REACTORS" ) ; Sw_WriteHandle( w, 330, o[ "owner" ] ) ; Sw_WriteString( w, 102, "}" )
    Sw_WriteHandle( w, 330, o[ "owner" ] )
    IF nVer < Dxv_FromVersionString( "AC1015" ) ; Sw_WriteSubclass( w, "AcDbPlaceHolder" ) ; ENDIF
+RETURN
+
+/* write_spatial_filter + write_matrix_column_major */
+STATIC PROCEDURE Dxo_WriteSpatialFilter( w, d, o )
+   LOCAL pt, hX, nC, nR, a
+   Sw_WriteString( w, 0, "SPATIAL_FILTER" ) ; Sw_WriteHandle( w, 5, o[ "handle" ] )
+   hX := Doc_ExtensionDictionaryHandle( d, o[ "handle" ] )
+   IF hX != NIL .AND. ! Hd_IsNull( hX ) .AND. Dxo_Valid( hX )
+      Sw_WriteString( w, 102, "{ACAD_XDICTIONARY" ) ; Sw_WriteHandle( w, 360, hX ) ; Sw_WriteString( w, 102, "}" )
+   ENDIF
+   Sw_WriteHandle( w, 330, o[ "owner" ] )
+   Sw_WriteSubclass( w, "AcDbFilter" ) ; Sw_WriteSubclass( w, "AcDbSpatialFilter" )
+   Sw_WriteI16( w, 70, Len( o[ "boundary_points" ] ) )
+   FOR EACH pt IN o[ "boundary_points" ] ; Sw_WritePoint2d( w, 10, pt ) ; NEXT
+   Sw_WritePoint3d( w, 210, o[ "normal" ] ) ; Sw_WritePoint3d( w, 11, o[ "origin" ] )
+   Sw_WriteI16( w, 71, IIf( o[ "display_enabled" ], 1, 0 ) )
+   Sw_WriteI16( w, 72, IIf( o[ "front_clip" ] != NIL, 1, 0 ) )
+   IF o[ "front_clip" ] != NIL ; Sw_WriteDouble( w, 40, o[ "front_clip" ] ) ; ENDIF
+   Sw_WriteI16( w, 73, IIf( o[ "back_clip" ] != NIL, 1, 0 ) )
+   IF o[ "back_clip" ] != NIL ; Sw_WriteDouble( w, 41, o[ "back_clip" ] ) ; ENDIF
+   FOR EACH a IN { o[ "inverse_block_transform" ], o[ "clip_bound_transform" ] }
+      FOR nC := 1 TO 4
+         FOR nR := 1 TO 3 ; Sw_WriteDouble( w, 40, a[ nR ][ nC ] ) ; NEXT
+      NEXT
+   NEXT
 RETURN
 
 /* write_dict_with_default (sin 280: BricsCAD issue #51) */
@@ -381,6 +406,7 @@ PROCEDURE Dxo_WriteObjects( w, d, nVer, hValid )
          CASE o[ "_type" ] == "Group" ; Dxo_WriteGroup( w, o )
          CASE o[ "_type" ] == "PlaceHolder" ; Dxo_WritePlaceHolder( w, o, nVer )
          CASE o[ "_type" ] == "DictionaryWithDefault" ; Dxo_WriteDictWithDefault( w, d, o )
+         CASE o[ "_type" ] == "SpatialFilter" ; Dxo_WriteSpatialFilter( w, d, o )
          ENDCASE
       ENDIF
    NEXT
