@@ -427,6 +427,49 @@ STATIC PROCEDURE Swr_AppIdEntry( st, d, a, hOwner )
    Sw_WriteString( w, 2, a[ "name" ] ) ; Sw_WriteI16( w, 70, 0 )
 RETURN
 
+STATIC PROCEDURE Swr_ViewEntry( st, d, vw, hOwner )
+   LOCAL w := st[ 1 ], nF := 0, nM := 0, rgb
+   Sw_WriteString( w, 0, "VIEW" )
+   Swr_CommonTable( w, d, vw[ "handle" ], hOwner )
+   Sw_WriteSubclass( w, "AcDbSymbolTableRecord" ) ; Sw_WriteSubclass( w, "AcDbViewTableRecord" )
+   Sw_WriteString( w, 2, vw[ "name" ] )
+   IF vw[ "paper_space" ] ; nF := hb_bitOr( nF, 1 ) ; ENDIF
+   IF vw[ "xref_dependent" ] ; nF := hb_bitOr( nF, 16 ) ; ENDIF
+   IF vw[ "xref_resolved" ] ; nF := hb_bitOr( nF, 32 ) ; ENDIF
+   IF vw[ "xref_reference" ] ; nF := hb_bitOr( nF, 64 ) ; ENDIF
+   Sw_WriteI16( w, 70, nF )
+   Sw_WriteDouble( w, 40, vw[ "height" ] ) ; Sw_WriteDouble( w, 10, vw[ "center" ][ 1 ] ) ; Sw_WriteDouble( w, 20, vw[ "center" ][ 2 ] )
+   Sw_WriteDouble( w, 41, vw[ "width" ] ) ; Sw_WritePoint3d( w, 11, vw[ "direction" ] ) ; Sw_WritePoint3d( w, 12, vw[ "target" ] )
+   Sw_WriteDouble( w, 42, vw[ "lens_length" ] ) ; Sw_WriteDouble( w, 43, vw[ "front_clip" ] ) ; Sw_WriteDouble( w, 44, vw[ "back_clip" ] )
+   Sw_WriteDouble( w, 50, vw[ "twist_angle" ] * 180.0 / OCX_PI )
+   IF vw[ "perspective" ] ; nM := hb_bitOr( nM, 1 ) ; ENDIF
+   IF vw[ "front_clipping" ] ; nM := hb_bitOr( nM, 2 ) ; ENDIF
+   IF vw[ "back_clipping" ] ; nM := hb_bitOr( nM, 4 ) ; ENDIF
+   IF vw[ "front_clip_at_eye" ] ; nM := hb_bitOr( nM, 16 ) ; ENDIF
+   Sw_WriteI16( w, 71, nM )
+   IF st[ 2 ] >= Dxv_FromVersionString( "AC1015" )
+      Sw_WriteI16( w, 72, IIf( vw[ "ucs_associated" ], 1, 0 ) ) ; Sw_WriteI16( w, 281, Vrm_ToValue( vw[ "render_mode" ] ) )
+      IF vw[ "ucs_associated" ]
+         Sw_WritePoint3d( w, 110, vw[ "ucs_origin" ] ) ; Sw_WritePoint3d( w, 111, vw[ "ucs_x_axis" ] ) ; Sw_WritePoint3d( w, 112, vw[ "ucs_y_axis" ] )
+         Sw_WriteDouble( w, 146, vw[ "ucs_elevation" ] ) ; Sw_WriteI16( w, 79, vw[ "ucs_ortho_type" ] )
+         IF ! Hd_IsNull( vw[ "named_ucs_handle" ] ) ; Sw_WriteHandle( w, 345, vw[ "named_ucs_handle" ] ) ; ENDIF
+         IF ! Hd_IsNull( vw[ "base_ucs_handle" ] ) ; Sw_WriteHandle( w, 346, vw[ "base_ucs_handle" ] ) ; ENDIF
+      ENDIF
+   ENDIF
+   IF st[ 2 ] >= Dxv_FromVersionString( "AC1021" )
+      Sw_WriteI16( w, 73, IIf( vw[ "camera_plottable" ], 1, 0 ) )
+      IF ! Hd_IsNull( vw[ "background_handle" ] ) ; Sw_WriteHandle( w, 332, vw[ "background_handle" ] ) ; ENDIF
+      IF ! Hd_IsNull( vw[ "live_section_handle" ] ) ; Sw_WriteHandle( w, 334, vw[ "live_section_handle" ] ) ; ENDIF
+      IF ! Hd_IsNull( vw[ "visual_style_handle" ] ) ; Sw_WriteHandle( w, 348, vw[ "visual_style_handle" ] ) ; ENDIF
+      IF ! Hd_IsNull( vw[ "sun_handle" ] ) ; Sw_WriteHandle( w, 361, vw[ "sun_handle" ] ) ; ENDIF
+      Sw_WriteBool( w, 292, vw[ "use_default_lights" ] ) ; Sw_WriteI16( w, 282, vw[ "default_lighting_type" ] )
+      Sw_WriteDouble( w, 141, vw[ "brightness" ] ) ; Sw_WriteDouble( w, 142, vw[ "contrast" ] )
+      Sw_WriteColor( w, 63, vw[ "ambient_color" ] )
+      rgb := Cl_ToTrueColorValue( vw[ "ambient_color" ] )
+      IF rgb != NIL ; Sw_WriteI32( w, 421, rgb ) ; ENDIF
+   ENDIF
+RETURN
+
 STATIC PROCEDURE Swr_UcsEntry( st, d, u, hOwner )
    LOCAL w := st[ 1 ], nF := 0
    Sw_WriteString( w, 0, "UCS" )
@@ -489,6 +532,10 @@ PROCEDURE Swr_Tables( st, d )
    t := d[ "text_styles" ]
    Swr_TableHeader( w, d, "STYLE", Tb_Len( t ), Tb_Handle( t ) )
    FOR EACH e IN Tb_Values( t ) ; Swr_StyleEntry( st, d, e, Tb_Handle( t ) ) ; NEXT
+   Sw_WriteString( w, 0, "ENDTAB" )
+   t := d[ "views" ]
+   Swr_TableHeader( w, d, "VIEW", Tb_Len( t ), Tb_Handle( t ) )
+   FOR EACH e IN Tb_Values( t ) ; Swr_ViewEntry( st, d, e, Tb_Handle( t ) ) ; NEXT
    Sw_WriteString( w, 0, "ENDTAB" )
    t := d[ "ucss" ]
    Swr_TableHeader( w, d, "UCS", Tb_Len( t ), Tb_Handle( t ) )
