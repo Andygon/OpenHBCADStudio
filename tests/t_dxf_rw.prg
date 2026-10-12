@@ -294,6 +294,12 @@ PROCEDURE T_DxfRw()
          d5 := Dxr_ReadString( Dxw_WriteString( d5 ) )
          u := IIf( ValType( d5 ) == "H", hb_HGetDef( d5[ "objects" ], x[ "handle" ], NIL ), NIL )
          Chk( u != NIL .AND. Sot_Len( u ) == 2 .AND. Sot_GetSortHandle( u, 100 ) > Sot_GetSortHandle( u, 101 ), "[extra] OBJECTS: SORTENTSTABLE sin codigos crudos reasigna handles en orden" )
+         x := Imd_New( "foto.png" ) ; x[ "handle" ] := Doc_AllocateHandle( d ) ; x[ "owner" ] := d[ "header" ][ "named_objects_dict_handle" ]
+         x[ "size_in_pixels" ] := { 640, 480 } ; x[ "pixel_size" ] := { 0.5, 0.25 } ; x[ "is_loaded" ] := .T.
+         d[ "objects" ][ x[ "handle" ] ] := x
+         d5 := Dxr_ReadString( Dxw_WriteString( d ) )
+         u := IIf( ValType( d5 ) == "H", hb_HGetDef( d5[ "objects" ], x[ "handle" ], NIL ), NIL )
+         Chk( u != NIL .AND. u[ "file_name" ] == "foto.png" .AND. u[ "size_in_pixels" ][ 1 ] == 640 .AND. u[ "size_in_pixels" ][ 2 ] == 480 .AND. Near( u[ "pixel_size" ][ 2 ], 0.25, 0.000000001 ) .AND. u[ "is_loaded" ], "[extra] OBJECTS: IMAGEDEF escribir y releer" )
       ENDIF
       x := NIL
       IF ValType( d2 ) == "H"
