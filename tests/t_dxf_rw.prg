@@ -395,4 +395,10 @@ PROCEDURE T_DxfRw()
    d2 := RT( d2 )
    es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
    Chk( Len( es ) == 1 .AND. es[ 1 ][ "_type" ] == "VIEWPORT" .AND. es[ 1 ][ "width" ] == 200.0 .AND. es[ 1 ][ "id" ] == 3 .AND. Abs( es[ 1 ][ "snap_angle" ] - OCX_PI / 2.0 ) < 0.000000000001 .AND. Abs( es[ 1 ][ "twist_angle" ] - OCX_PI ) < 0.000000000001 .AND. es[ 1 ][ "elevation" ] == 1.5 .AND. es[ 1 ][ "ucs_per_viewport" ] .AND. es[ 1 ][ "ucs_origin" ][ 3 ] == 3.0 .AND. es[ 1 ][ "view_center" ][ 1 ] == 7.0 .AND. Len( es[ 1 ][ "frozen_layers" ] ) == 1 .AND. Evp_IsOn( es[ 1 ] ), "[extra] VIEWPORT releido" )
+   /* [extra] IMAGE */
+   d2 := Doc_New()
+   x := Eri_WithSize( "a.png", Vc3_New( 1.0, 2.0, 0.0 ), 100.0, 50.0, 10.0, 5.0 ) ; x[ "brightness" ] := 60 ; x[ "definition_handle" ] := 55 ; x[ "clipping_enabled" ] := .T. ; Doc_AddEntity( d2, x )
+   d2 := RT( d2 )
+   es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
+   Chk( Len( es ) == 1 .AND. es[ 1 ][ "_type" ] == "IMAGE" .AND. es[ 1 ][ "size" ][ 1 ] == 100.0 .AND. es[ 1 ][ "brightness" ] == 60 .AND. es[ 1 ][ "definition_handle" ] == 55 .AND. es[ 1 ][ "clipping_enabled" ] .AND. Len( es[ 1 ][ "clip_boundary" ][ "vertices" ] ) == 2 .AND. es[ 1 ][ "clip_boundary" ][ "vertices" ][ 2 ][ 1 ] == 99.5 .AND. es[ 1 ][ "u_vector" ][ 1 ] == x[ "u_vector" ][ 1 ], "[extra] IMAGE releido" )
 RETURN
