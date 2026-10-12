@@ -1226,6 +1226,16 @@ STATIC PROCEDURE Swr_WriteEntity( st, e, hOwner )
       IF ! ( v[ 1 ] == 0.0 .AND. v[ 2 ] == 0.0 .AND. v[ 3 ] == 0.0 ) ; Sw_WriteDouble( w, 112, v[ 1 ] ) ; Sw_WriteDouble( w, 122, v[ 2 ] ) ; Sw_WriteDouble( w, 132, v[ 3 ] ) ; ENDIF
       IF e[ "elevation" ] != 0.0 ; Sw_WriteDouble( w, 146, e[ "elevation" ] ) ; ENDIF
       IF e[ "grid_major" ] != 0 ; Sw_WriteI16( w, 61, e[ "grid_major" ] ) ; ENDIF
+   CASE t == "IMAGE"
+      Sw_WriteEntityType( w, "IMAGE" ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbRasterImage" ) ; Sw_WriteI32( w, 90, e[ "class_version" ] )
+      Sw_WritePoint3d( w, 10, e[ "insertion_point" ] ) ; Sw_WritePoint3d( w, 11, e[ "u_vector" ] ) ; Sw_WritePoint3d( w, 12, e[ "v_vector" ] )
+      Sw_WriteDouble( w, 13, e[ "size" ][ 1 ] ) ; Sw_WriteDouble( w, 23, e[ "size" ][ 2 ] )
+      IF e[ "definition_handle" ] != NIL ; Sw_WriteHandle( w, 340, e[ "definition_handle" ] ) ; ENDIF
+      Sw_WriteI16( w, 70, e[ "flags" ] ) ; Sw_WriteByte( w, 280, IIf( e[ "clipping_enabled" ], 1, 0 ) ) ; Sw_WriteByte( w, 281, e[ "brightness" ] )
+      Sw_WriteByte( w, 282, e[ "contrast" ] ) ; Sw_WriteByte( w, 283, e[ "fade" ] )
+      IF e[ "definition_reactor_handle" ] != NIL ; Sw_WriteHandle( w, 360, e[ "definition_reactor_handle" ] ) ; ENDIF
+      Sw_WriteI16( w, 71, e[ "clip_boundary" ][ "clip_type" ] ) ; Sw_WriteI32( w, 91, Len( e[ "clip_boundary" ][ "vertices" ] ) )
+      FOR EACH v IN e[ "clip_boundary" ][ "vertices" ] ; Sw_WriteDouble( w, 14, v[ 1 ] ) ; Sw_WriteDouble( w, 24, v[ 2 ] ) ; NEXT
    CASE t == "SHAPE"
       Sw_WriteEntityType( w, "SHAPE" ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbShape" )
       IF Abs( e[ "thickness" ] ) > 0.0000000001 ; Sw_WriteDouble( w, 39, e[ "thickness" ] ) ; ENDIF
