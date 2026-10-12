@@ -318,3 +318,15 @@
 #define SV_SE_ISOMETRIC  7
 #define SV_NE_ISOMETRIC  8
 #define SV_NW_ISOMETRIC  9
+
+/* entities/wipeout.rs: WipeoutDisplayFlags, WipeoutClipType, WipeoutClipMode */
+#define WDF_NONE                  0
+#define WDF_SHOW_IMAGE            1
+#define WDF_SHOW_NOT_ALIGNED      2
+#define WDF_USE_CLIPPING_BOUNDARY 4
+#define WDF_TRANSPARENCY_ON       8
+#define WDF_DEFAULT               7
+#define WCT_RECTANGULAR  1
+#define WCT_POLYGONAL    2
+#define WCM_OUTSIDE      0
+#define WCM_INSIDE       1
