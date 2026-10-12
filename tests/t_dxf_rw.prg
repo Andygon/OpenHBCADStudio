@@ -490,4 +490,13 @@ PROCEDURE T_DxfRw()
    Chk( Len( es ) == 2 .AND. es[ 1 ][ "embedded_mtext" ] != NIL .AND. es[ 1 ][ "is_multiline" ] .AND. es[ 1 ][ "default_value" ] == "uno\Pdos" .AND. es[ 1 ][ "embedded_mtext" ][ "value" ] == "uno\Pdos" ;
       .AND. Near( es[ 1 ][ "embedded_mtext" ][ "rotation" ], 0.5, 0.000000001 ) .AND. es[ 1 ][ "embedded_mtext" ][ "rectangle_width" ] == 7.0 .AND. es[ 1 ][ "embedded_mtext" ][ "insertion_point" ][ 2 ] == 2.0 ;
       .AND. Len( es[ 2 ][ "attributes" ] ) == 1 .AND. es[ 2 ][ "attributes" ][ 1 ][ "is_multiline" ] .AND. es[ 2 ][ "attributes" ][ 1 ][ "embedded_mtext" ] != NIL .AND. es[ 2 ][ "attributes" ][ 1 ][ "value" ] == "ignorado", "dxf_rw: [extra] ATTDEF/ATTRIB MTEXT embebido" )
+   /* [extra] valid_handles: HATCH asociado a una LINE existente conserva el handle de frontera; un reactor a un handle inexistente se descarta */
+   d2 := Doc_New()
+   x := Eln_New() ; Doc_AddEntity( d2, x )
+   l := Ehh_WithPattern( Hpt_New( "SOLID" ) ) ; pa := Bpa_External() ; Bpa_AddBoundaryHandle( pa, x[ "common" ][ "handle" ] )
+   Bpa_AddEdge( pa, Bed_Polyline( { Vc2_New( 0.0, 0.0 ), Vc2_New( 5.0, 0.0 ), Vc2_New( 5.0, 5.0 ) }, .T. ) ) ; AAdd( l[ "paths" ], pa )
+   l[ "is_associative" ] := .T. ; AAdd( l[ "common" ][ "reactors" ], 99999 ) ; Doc_AddEntity( d2, l )
+   d2 := RT( d2 )
+   es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
+   Chk( Len( es ) == 2 .AND. es[ 2 ][ "_type" ] == "HATCH" .AND. Len( es[ 2 ][ "paths" ] ) == 1 .AND. Len( es[ 2 ][ "paths" ][ 1 ][ "boundary_handles" ] ) == 1 .AND. es[ 2 ][ "paths" ][ 1 ][ "boundary_handles" ][ 1 ] == es[ 1 ][ "common" ][ "handle" ] .AND. es[ 2 ][ "is_associative" ] .AND. Len( es[ 2 ][ "common" ][ "reactors" ] ) == 0, "dxf_rw: [extra] valid_handles: frontera valida se conserva, reactor invalido se descarta" )
 RETURN
