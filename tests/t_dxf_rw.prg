@@ -389,4 +389,10 @@ PROCEDURE T_DxfRw()
    d2 := RT( d2 )
    es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
    Chk( Len( es ) == 1 .AND. es[ 1 ][ "_type" ] == "LEADER" .AND. Len( es[ 1 ][ "vertices" ] ) == 2 .AND. es[ 1 ][ "path_type" ] == LPT_SPLINE .AND. es[ 1 ][ "hookline_direction" ] == 1 .AND. es[ 1 ][ "hookline_enabled" ] .AND. es[ 1 ][ "override_color" ][ 2 ] == 3 .AND. es[ 1 ][ "annotation_handle" ] == 99 .AND. es[ 1 ][ "origin" ][ 1 ] == 1.0 .AND. es[ 1 ][ "creation_type" ] == LCT_WITHTEXT, "[extra] LEADER releido" )
+   /* [extra] VIEWPORT */
+   d2 := Doc_New()
+   x := Evp_WithSize( Vc3_New( 100.0, 50.0, 0.0 ), 200.0, 100.0 ) ; x[ "id" ] := 3 ; x[ "snap_angle" ] := OCX_PI / 2.0 ; x[ "twist_angle" ] := OCX_PI ; x[ "elevation" ] := 1.5 ; x[ "ucs_per_viewport" ] := .T. ; x[ "ucs_origin" ] := Vc3_New( 1.0, 2.0, 3.0 ) ; x[ "view_center" ] := Vc3_New( 7.0, 8.0, 0.0 ) ; AAdd( x[ "frozen_layers" ], 42 ) ; Doc_AddEntity( d2, x )
+   d2 := RT( d2 )
+   es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
+   Chk( Len( es ) == 1 .AND. es[ 1 ][ "_type" ] == "VIEWPORT" .AND. es[ 1 ][ "width" ] == 200.0 .AND. es[ 1 ][ "id" ] == 3 .AND. Abs( es[ 1 ][ "snap_angle" ] - OCX_PI / 2.0 ) < 0.000000000001 .AND. Abs( es[ 1 ][ "twist_angle" ] - OCX_PI ) < 0.000000000001 .AND. es[ 1 ][ "elevation" ] == 1.5 .AND. es[ 1 ][ "ucs_per_viewport" ] .AND. es[ 1 ][ "ucs_origin" ][ 3 ] == 3.0 .AND. es[ 1 ][ "view_center" ][ 1 ] == 7.0 .AND. Len( es[ 1 ][ "frozen_layers" ] ) == 1 .AND. Evp_IsOn( es[ 1 ] ), "[extra] VIEWPORT releido" )
 RETURN
