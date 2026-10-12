@@ -411,6 +411,74 @@ STATIC FUNCTION Dxo_ReadMLeaderStyle( s )
    ENDDO
 RETURN st
 
+STATIC FUNCTION Dxo_ReadPlotSettings( s )
+   LOCAL ps := Pls_New( "" ), p, v, c, cGroup := "", lOwner := .F.
+   ps[ "_type" ] := "PlotSettings"
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      c := p[ DP_CODE ]
+      DO CASE
+      CASE c == 5
+         v := Sr_HexVal( p ) ; IF v != NIL ; ps[ "handle" ] := v ; ENDIF
+      CASE c == 102 ; cGroup := p[ DP_VALUE ]
+      CASE c == 330 .AND. cGroup == "{ACAD_REACTORS"
+         v := Sr_HexVal( p ) ; IF v != NIL ; AAdd( ps[ "reactors" ], v ) ; ENDIF
+      CASE c == 360 .AND. cGroup == "{ACAD_XDICTIONARY"
+         v := Sr_HexVal( p ) ; IF v != NIL ; ps[ "xdictionary_handle" ] := v ; ENDIF
+      CASE c == 330 .AND. Len( cGroup ) == 0 .AND. ! lOwner
+         v := Sr_HexVal( p ) ; IF v != NIL ; ps[ "owner" ] := v ; ENDIF
+         lOwner := .T.
+      CASE c == 1 ; ps[ "page_name" ] := p[ DP_VALUE ]
+      CASE c == 2 ; ps[ "printer_name" ] := p[ DP_VALUE ]
+      CASE c == 4 ; ps[ "paper_size" ] := p[ DP_VALUE ]
+      CASE c == 6 ; ps[ "plot_view_name" ] := p[ DP_VALUE ]
+      CASE c == 7 ; ps[ "current_style_sheet" ] := p[ DP_VALUE ]
+      CASE c == 40 .OR. c == 41 .OR. c == 42 .OR. c == 43 .OR. c == 44 .OR. c == 45 .OR. c == 46 .OR. c == 47 .OR. c == 48 .OR. c == 49 ;
+         .OR. c == 140 .OR. c == 141 .OR. c == 142 .OR. c == 143 .OR. c == 147 .OR. c == 148 .OR. c == 149
+         v := Dp_AsDouble( p )
+         IF v != NIL
+            DO CASE
+            CASE c == 40 ; ps[ "margins" ][ "left" ] := v
+            CASE c == 41 ; ps[ "margins" ][ "bottom" ] := v
+            CASE c == 42 ; ps[ "margins" ][ "right" ] := v
+            CASE c == 43 ; ps[ "margins" ][ "top" ] := v
+            CASE c == 44 ; ps[ "paper_width" ] := v
+            CASE c == 45 ; ps[ "paper_height" ] := v
+            CASE c == 46 ; ps[ "origin_x" ] := v
+            CASE c == 47 ; ps[ "origin_y" ] := v
+            CASE c == 48 ; ps[ "plot_window" ][ "lower_left_x" ] := v
+            CASE c == 49 ; ps[ "plot_window" ][ "lower_left_y" ] := v
+            CASE c == 140 ; ps[ "plot_window" ][ "upper_right_x" ] := v
+            CASE c == 141 ; ps[ "plot_window" ][ "upper_right_y" ] := v
+            CASE c == 142 ; ps[ "scale_numerator" ] := v
+            CASE c == 143 ; ps[ "scale_denominator" ] := v
+            CASE c == 147 ; ps[ "standard_scale_factor" ] := v
+            CASE c == 148 ; ps[ "paper_image_origin_x" ] := v
+            CASE c == 149 ; ps[ "paper_image_origin_y" ] := v
+            ENDCASE
+         ENDIF
+      CASE c == 70
+         v := Dp_AsI32( p ) ; IF v != NIL ; ps[ "flags" ] := Pfl_FromBits( v ) ; ENDIF
+      CASE c >= 72 .AND. c <= 78
+         v := Dp_AsI16( p )
+         IF v != NIL
+            DO CASE
+            CASE c == 72 ; ps[ "paper_units" ] := Ppu_FromCode( v )
+            CASE c == 73 ; ps[ "rotation" ] := Prt_FromCode( v )
+            CASE c == 74 ; ps[ "plot_type" ] := Plt_FromCode( v )
+            CASE c == 75 ; ps[ "scale_type" ] := Sct_FromCode( v )
+            CASE c == 76 ; ps[ "shade_plot_mode" ] := Spm_FromCode( v )
+            CASE c == 77 ; ps[ "shade_plot_resolution" ] := Spr_FromCode( v )
+            CASE c == 78 ; ps[ "shade_plot_dpi" ] := v
+            ENDCASE
+         ENDIF
+      CASE c == 333
+         v := Sr_HexVal( p ) ; IF v != NIL ; ps[ "visual_style_handle" ] := v ; ENDIF
+      ENDCASE
+      IF cGroup == "}" ; cGroup := "" ; ENDIF
+   ENDDO
+RETURN ps
+
 STATIC FUNCTION Dxo_ReadDictionary( s )
    LOCAL d := Dic_New(), p, cKey := NIL, v
    DO WHILE ( p := Sr_Next( s ) ) != NIL
@@ -565,6 +633,8 @@ PROCEDURE Dxo_ReadObjects( s, d )
             d[ "objects" ][ o[ "handle" ] ] := o
          CASE p[ DP_VALUE ] == "MLEADERSTYLE"
             o := Dxo_ReadMLeaderStyle( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
+         CASE p[ DP_VALUE ] == "PLOTSETTINGS"
+            o := Dxo_ReadPlotSettings( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
          CASE p[ DP_VALUE ] == "GROUP"
             o := Dxo_ReadGroup( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
          OTHERWISE
