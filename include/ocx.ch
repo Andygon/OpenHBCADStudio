@@ -299,3 +299,22 @@
 #define MLS_END_SQUARE_CAP        256
 #define MLS_END_INNER_ARCS_CAP    512
 #define MLS_END_ROUND_CAP         1024
+
+/* entities/viewport.rs: ViewportRenderMode y StandardView */
+#define VRM_WIREFRAME2D              0
+#define VRM_WIREFRAME3D              1
+#define VRM_HIDDEN_LINE              2
+#define VRM_FLAT_SHADED              3
+#define VRM_GOURAUD_SHADED           4
+#define VRM_FLAT_SHADED_WITH_EDGES   5
+#define VRM_GOURAUD_SHADED_WITH_EDGES 6
+#define SV_TOP           0
+#define SV_BOTTOM        1
+#define SV_FRONT         2
+#define SV_BACK          3
+#define SV_LEFT          4
+#define SV_RIGHT         5
+#define SV_SW_ISOMETRIC  6
+#define SV_SE_ISOMETRIC  7
+#define SV_NE_ISOMETRIC  8
+#define SV_NW_ISOMETRIC  9
