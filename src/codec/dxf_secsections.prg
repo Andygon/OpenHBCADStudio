@@ -2464,7 +2464,11 @@ STATIC FUNCTION Sr_ReadEntityOfType( s, cT )
    CASE cT == "HATCH" ; RETURN Sr_ReadHatchKind( s, .F. )
    CASE cT == "MPOLYGON" ; RETURN Sr_ReadHatchKind( s, .T. )
    CASE cT == "HELIX" ; RETURN Sr_ReadHelix( s )
-   CASE cT == "MULTILEADER" ; RETURN Sr_ReadMultileader( s )
+   CASE cT == "MULTILEADER" .OR. cT == "MLEADER" ; RETURN Sr_ReadMultileader( s )
+   CASE cT == "LIGHT" ; RETURN Sr_ReadLight( s )
+   CASE cT == "SECTIONLINE" ; RETURN Sr_ReadSectionSymbol( s )
+   CASE cT == "DRAWINGVIEW" ; RETURN Sr_ReadViewBorder( s )
+   CASE cT == "SEQEND" ; Sr_SkipEntity( s ) ; RETURN NIL
    CASE cT == "MESH" ; RETURN Sr_ReadMesh( s )
    CASE cT == "IMAGE" ; RETURN Sr_ReadImage( s )
    CASE cT == "VIEWPORT" ; RETURN Sr_ReadViewport( s )
@@ -2474,8 +2478,9 @@ STATIC FUNCTION Sr_ReadEntityOfType( s, cT )
    CASE cT == "ARC_DIMENSION" ; RETURN Sr_ReadExtDimension( s, .T. )
    CASE cT == "LARGE_RADIAL_DIMENSION" ; RETURN Sr_ReadExtDimension( s, .F. )
    ENDCASE
-   Sr_SkipEntity( s ) /* PENDIENTE: resto de tipos (original: read_unknown_entity / lectores propios) */
-RETURN NIL
+   /* El original tiene lectores propios para otros tipos (3DSOLID/BODY/REGION/superficies, TABLE, OLE2FRAME, extendidos...): aqui se conservan
+      como UnknownEntity (read_unknown_entity) para no perderlos en el roundtrip. */
+RETURN Sr_ReadUnknown( s, cT )
 
 PROCEDURE Sr_ReadEntities( s, d )
    LOCAL p, e
