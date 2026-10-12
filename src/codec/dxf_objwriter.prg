@@ -377,6 +377,12 @@ STATIC PROCEDURE Dxo_WriteGroup( w, g )
    FOR EACH h IN g[ "entities" ] ; Sw_WriteHandle( w, 340, h ) ; NEXT
 RETURN
 
+/* write_object_xdata */
+STATIC PROCEDURE Dxo_WriteObjXdata( w, d, h )
+   IF Dxo_HasOwnXdata( d[ "objects" ][ h ] ) ; RETURN ; ENDIF
+   IF hb_HHasKey( d[ "object_xdata" ], h ) ; Swr_XDataP( w, d[ "object_xdata" ][ h ] ) ; ENDIF
+RETURN
+
 PROCEDURE Dxo_WriteObjects( w, d, nVer, hValid )
    LOCAL nRoot := d[ "header" ][ "named_objects_dict_handle" ], aK, h, o
    s_hValid := hValid ; s_nRoot := Dxo_FindRootDictHandle( d )
@@ -386,6 +392,7 @@ PROCEDURE Dxo_WriteObjects( w, d, nVer, hValid )
    ENDIF
    IF hb_HHasKey( d[ "objects" ], nRoot ) .AND. d[ "objects" ][ nRoot ][ "_type" ] == "Dictionary"
       Dxo_WriteDictionary( w, d, d[ "objects" ][ nRoot ] )
+      Dxo_WriteObjXdata( w, d, nRoot )
    ENDIF
    aK := ASort( hb_HKeys( d[ "objects" ] ) )
    FOR EACH h IN aK
@@ -408,6 +415,7 @@ PROCEDURE Dxo_WriteObjects( w, d, nVer, hValid )
          CASE o[ "_type" ] == "DictionaryWithDefault" ; Dxo_WriteDictWithDefault( w, d, o )
          CASE o[ "_type" ] == "SpatialFilter" ; Dxo_WriteSpatialFilter( w, d, o )
          ENDCASE
+         IF Dxo_IsWritten( o ) ; Dxo_WriteObjXdata( w, d, h ) ; ENDIF
       ENDIF
    NEXT
    Sw_WriteSectionEnd( w )
