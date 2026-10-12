@@ -1,0 +1,30 @@
+/* Port de los 5 tests de text_reader.rs + [extra] */
+#include "ocx.ch"
+PROCEDURE T_CodecText()
+   LOCAL r, p
+   r := TxR_New( "0" + e"\n" + "SECTION" + e"\n" ) ; p := TxR_ReadPair( r )
+   Chk( p[ 1 ] == 0 .AND. p[ 3 ] == "SECTION", "text_reader: test_read_simple_pair" )
+   r := TxR_New( "70" + e"\n" + "42" + e"\n" ) ; p := TxR_ReadPair( r )
+   Chk( p[ 1 ] == 70 .AND. Dp_AsInt( p ) == 42, "text_reader: test_read_integer_pair" )
+   r := TxR_New( "10" + e"\n" + "123.456" + e"\n" ) ; p := TxR_ReadPair( r )
+   Chk( p[ 1 ] == 10 .AND. Dp_AsDouble( p ) == 123.456, "text_reader: test_read_double_pair" )
+   r := TxR_New( "0" + e"\n" + "SECTION" + e"\n" + "2" + e"\n" + "HEADER" + e"\n" )
+   Chk( TxR_PeekCode( r ) == 0, "text_reader: test_peek_code (1)" )
+   p := TxR_ReadPair( r )
+   Chk( p[ 1 ] == 0 .AND. TxR_PeekCode( r ) == 2, "text_reader: test_peek_code (2)" )
+   r := TxR_New( "1" + e"\n" + "Line1^JLine2^MLine3" + e"\n" ) ; p := TxR_ReadPair( r )
+   Chk( p[ 3 ] == "Line1" + e"\n" + "Line2" + Chr( 13 ) + "Line3", "text_reader: test_special_characters" )
+   // [extra]
+   r := TxR_New( "0" + Chr( 13 ) + e"\n" + "LINE" + Chr( 13 ) + e"\n" + "5" + e"\n" + "1A" + e"\n" + "8" + e"\n" + "Capa" + e"\n" + "x" + e"\n" )
+   p := TxR_ReadPair( r ) ; Chk( p[ 3 ] == "LINE", "[extra] text_reader: CRLF" )
+   TxR_ReadPair( r ) ; Chk( TxR_DiagnosticContext( r )[ 3 ] == "LINE" .AND. TxR_DiagnosticContext( r )[ 4 ] == 26, "[extra] text_reader: contexto tipo y handle" )
+   p := TxR_ReadPair( r ) ; Chk( p[ 3 ] == "Capa" .AND. TxR_ReadPair( r ) == NIL .AND. TxR_Error( r ) != NIL, "[extra] text_reader: EOF tras codigo es error" )
+   r := TxR_New( "abc" + e"\n" + "x" + e"\n" )
+   Chk( TxR_ReadPair( r ) == NIL .AND. "Invalid DXF code at line 1" $ TxR_Error( r ), "[extra] text_reader: codigo invalido" )
+   r := TxR_New( "1" + e"\n" + "caf" + Chr( 233 ) + e"\n" ) ; p := TxR_ReadPair( r )
+   Chk( p[ 3 ] == "caf" + hb_UTF8Chr( 233 ), "[extra] text_reader: Latin-1 fallback" )
+   r := TxR_New( "1" + e"\n" + Chr( 128 ) + e"\n" ) ; TxR_SetEncoding( r, "WINDOWS_1252" ) ; p := TxR_ReadPair( r )
+   Chk( p[ 3 ] == hb_UTF8Chr( 0x20AC ), "[extra] text_reader: WINDOWS_1252 0x80 = euro" )
+   r := TxR_New( "0" + e"\n" + "A" + e"\n" ) ; TxR_ReadPair( r ) ; TxR_Reset( r ) ; p := TxR_ReadPair( r )
+   Chk( p[ 3 ] == "A", "[extra] text_reader: reset" )
+RETURN
