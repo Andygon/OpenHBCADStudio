@@ -532,8 +532,33 @@ RETURN
 
 STATIC FUNCTION Swr_Deg( n ) ; RETURN n * 180.0 / OCX_PI
 
+/* write_attribute_text_value: DXF es por lineas, un salto dentro del valor se escribe como \\P */
+STATIC FUNCTION Swr_AttrText( c )
+   c := StrTran( c, Chr( 13 ) + Chr( 10 ), "\\P" )
+   c := StrTran( c, Chr( 13 ), "\\P" )
+RETURN StrTran( c, Chr( 10 ), "\\P" )
+
+/* write_attdef / write_attrib. PENDIENTE: la cola multilinea (R2018+, AC1032: write_attribute_mtext, 101 Embedded Object) */
+STATIC PROCEDURE Swr_AttdefAttrib( st, e, hOwner, lDef )
+   LOCAL w := st[ 1 ], c := e[ "common" ]
+   Sw_WriteEntityType( w, IIf( lDef, "ATTDEF", "ATTRIB" ) ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbText" )
+   Sw_WritePoint3d( w, 10, e[ "insertion_point" ] ) ; Sw_WriteDouble( w, 40, e[ "height" ] )
+   Sw_WriteString( w, 1, Swr_AttrText( IIf( lDef, e[ "default_value" ], e[ "value" ] ) ) )
+   Sw_WriteDouble( w, 50, Swr_Deg( e[ "rotation" ] ) ) ; Sw_WriteDouble( w, 41, e[ "width_factor" ] )
+   Sw_WriteDouble( w, 51, Swr_Deg( e[ "oblique_angle" ] ) ) ; Sw_WriteString( w, 7, e[ "text_style" ] )
+   Sw_WriteI16( w, 71, e[ "text_generation_flags" ] ) ; Sw_WriteI16( w, 72, e[ "horizontal_alignment" ] )
+   Sw_WritePoint3d( w, 11, e[ "alignment_point" ] ) ; Sw_WritePoint3d( w, 210, e[ "normal" ] )
+   Sw_WriteSubclass( w, IIf( lDef, "AcDbAttributeDefinition", "AcDbAttribute" ) )
+   IF st[ 2 ] >= Dxv_FromVersionString( "AC1024" ) ; Sw_WriteByte( w, 280, 0 ) ; ENDIF
+   IF lDef ; Sw_WriteString( w, 3, e[ "prompt" ] ) ; ENDIF
+   Sw_WriteString( w, 2, e[ "tag" ] ) ; Sw_WriteI16( w, 70, Taf_ToBits( e[ "flags" ] ) )
+   Sw_WriteI16( w, 73, e[ "field_length" ] ) ; Sw_WriteI16( w, 74, e[ "vertical_alignment" ] )
+   IF st[ 2 ] >= Dxv_FromVersionString( "AC1021" ) ; Sw_WriteByte( w, 280, IIf( e[ "lock_position" ], 1, 0 ) ) ; ENDIF
+   IF ! lDef ; Swr_XData( w, c[ "extended_data" ] ) ; ENDIF
+RETURN
+
 STATIC PROCEDURE Swr_WriteEntity( st, e, hOwner )
-   LOCAL w := st[ 1 ], c := e[ "common" ], t := e[ "_type" ], v, hSeq
+   LOCAL w := st[ 1 ], c := e[ "common" ], t := e[ "_type" ], v, hSeq, att
    DO CASE
    CASE t == "POINT"
       Sw_WriteEntityType( w, "POINT" ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbPoint" )
@@ -581,6 +606,27 @@ STATIC PROCEDURE Swr_WriteEntity( st, e, hOwner )
       IF e[ "alignment_point" ] != NIL ; Sw_WritePoint3d( w, 11, e[ "alignment_point" ] ) ; ENDIF
       Swr_Normal( w, e[ "normal" ] )
       Sw_WriteSubclass( w, "AcDbText" ) ; Sw_WriteI16( w, 73, e[ "vertical_alignment" ] )
+   CASE t == "ATTDEF"
+      Swr_AttdefAttrib( st, e, hOwner, .T. )
+   CASE t == "ELLIPSE"
+      Sw_WriteEntityType( w, "ELLIPSE" ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbEllipse" )
+      Sw_WritePoint3d( w, 10, e[ "center" ] ) ; Sw_WritePoint3d( w, 11, e[ "major_axis" ] ) ; Sw_WriteDouble( w, 40, e[ "minor_axis_ratio" ] )
+      Swr_Normal( w, e[ "normal" ] )
+      Sw_WriteDouble( w, 41, e[ "start_parameter" ] ) ; Sw_WriteDouble( w, 42, e[ "end_parameter" ] )
+   CASE t == "SOLID"
+      Sw_WriteEntityType( w, IIf( e[ "is_trace" ], "TRACE", "SOLID" ) ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbTrace" )
+      Sw_WritePoint3d( w, 10, e[ "first_corner" ] ) ; Sw_WritePoint3d( w, 11, e[ "second_corner" ] )
+      Sw_WritePoint3d( w, 12, e[ "third_corner" ] ) ; Sw_WritePoint3d( w, 13, e[ "fourth_corner" ] )
+      IF e[ "thickness" ] != 0.0 ; Sw_WriteDouble( w, 39, e[ "thickness" ] ) ; ENDIF
+      Swr_Normal( w, e[ "normal" ] )
+   CASE t == "3DFACE"
+      Sw_WriteEntityType( w, "3DFACE" ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbFace" )
+      Sw_WritePoint3d( w, 10, e[ "first_corner" ] ) ; Sw_WritePoint3d( w, 11, e[ "second_corner" ] )
+      Sw_WritePoint3d( w, 12, e[ "third_corner" ] ) ; Sw_WritePoint3d( w, 13, e[ "fourth_corner" ] )
+      IF e[ "invisible_edges" ] != 0 ; Sw_WriteI16( w, 70, e[ "invisible_edges" ] ) ; ENDIF
+   CASE t == "RAY" .OR. t == "XLINE"
+      Sw_WriteEntityType( w, t ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, IIf( t == "RAY", "AcDbRay", "AcDbXline" ) )
+      Sw_WritePoint3d( w, 10, e[ "base_point" ] ) ; Sw_WritePoint3d( w, 11, e[ "direction" ] )
    CASE t == "INSERT"
       Sw_WriteEntityType( w, IIf( e[ "view_rep_handle" ] != NIL, "ACDBVIEWREPBLOCKREFERENCE", "INSERT" ) )
       Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, Ein_SubclassMarker( e ) )
@@ -600,7 +646,13 @@ STATIC PROCEDURE Swr_WriteEntity( st, e, hOwner )
       ENDIF
       Swr_XData( w, c[ "extended_data" ] )
       IF Ein_HasAttributes( e )
-         /* ATTRIB: PENDIENTE (write_attrib); solo SEQEND */
+         FOR EACH v IN e[ "attributes" ]
+            att := v
+            IF Hd_IsNull( att[ "common" ][ "handle" ] )
+               att := Ent_Clone( v ) ; att[ "common" ][ "handle" ] := Doc_AllocateHandle( st[ 5 ] )
+            ENDIF
+            Swr_AttdefAttrib( st, att, c[ "handle" ], .F. )
+         NEXT
          hSeq := Doc_AllocateHandle( st[ 5 ] )
          Sw_WriteEntityType( w, "SEQEND" ) ; Sw_WriteHandle( w, 5, hSeq ) ; Sw_WriteHandle( w, 330, c[ "handle" ] )
          Sw_WriteSubclass( w, "AcDbEntity" )
