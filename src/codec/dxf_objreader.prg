@@ -557,6 +557,59 @@ STATIC FUNCTION Dxo_ReadPlaceHolder( s )
    ENDDO
 RETURN o
 
+/* matrix_from_column_major: 12 dobles (4 columnas x 3 filas) -> Matrix4 por filas */
+FUNCTION Dxo_MatrixFromColMajor( v )
+RETURN { { v[ 1 ], v[ 4 ], v[ 7 ], v[ 10 ] }, { v[ 2 ], v[ 5 ], v[ 8 ], v[ 11 ] }, { v[ 3 ], v[ 6 ], v[ 9 ], v[ 12 ] }, { 0.0, 0.0, 0.0, 1.0 } }
+
+STATIC FUNCTION Dxo_Slice12( a, n )
+   LOCAL r := Array( 12 ), i
+   FOR i := 1 TO 12 ; r[ i ] := a[ n + i - 1 ] ; NEXT
+RETURN r
+
+/* read_spatial_filter (SPATIAL_FILTER / SPATIALFILTER). El 1er codigo 40 es la distancia frontal solo con 72 activo y sin matriz leida. */
+STATIC FUNCTION Dxo_ReadSpatialFilter( s )
+   LOCAL o := Spf_New(), p, v, lFront := .F., nPx := NIL, aM := {}, n
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      n := p[ DP_CODE ]
+      DO CASE
+      CASE n == 5
+         v := Sr_HexVal( p ) ; IF v != NIL ; o[ "handle" ] := v ; ENDIF
+      CASE n == 330
+         v := Sr_HexVal( p ) ; IF v != NIL ; o[ "owner" ] := v ; ENDIF
+      CASE n == 10
+         v := Dp_AsDouble( p ) ; IF v != NIL ; nPx := v ; ENDIF
+      CASE n == 20
+         v := Dp_AsDouble( p )
+         IF nPx != NIL .AND. v != NIL ; AAdd( o[ "boundary_points" ], { nPx, v } ) ; ENDIF
+         nPx := NIL
+      CASE n == 210 ; v := Dp_AsDouble( p ) ; IF v != NIL ; o[ "normal" ][ 1 ] := v ; ENDIF
+      CASE n == 220 ; v := Dp_AsDouble( p ) ; IF v != NIL ; o[ "normal" ][ 2 ] := v ; ENDIF
+      CASE n == 230 ; v := Dp_AsDouble( p ) ; IF v != NIL ; o[ "normal" ][ 3 ] := v ; ENDIF
+      CASE n == 11 ; v := Dp_AsDouble( p ) ; IF v != NIL ; o[ "origin" ][ 1 ] := v ; ENDIF
+      CASE n == 21 ; v := Dp_AsDouble( p ) ; IF v != NIL ; o[ "origin" ][ 2 ] := v ; ENDIF
+      CASE n == 31 ; v := Dp_AsDouble( p ) ; IF v != NIL ; o[ "origin" ][ 3 ] := v ; ENDIF
+      CASE n == 71
+         v := Dp_AsI16( p ) ; o[ "display_enabled" ] := IIf( v == NIL, .T., v != 0 )
+      CASE n == 72
+         v := Dp_AsI16( p ) ; lFront := IIf( v == NIL, .F., v != 0 )
+      CASE n == 40
+         v := Dp_AsDouble( p )
+         IF v != NIL
+            IF lFront .AND. o[ "front_clip" ] == NIL .AND. Len( aM ) == 0
+               o[ "front_clip" ] := v
+            ELSE
+               AAdd( aM, v )
+            ENDIF
+         ENDIF
+      CASE n == 41
+         v := Dp_AsDouble( p ) ; IF v != NIL ; o[ "back_clip" ] := v ; ENDIF
+      ENDCASE
+   ENDDO
+   IF Len( aM ) >= 12 ; o[ "inverse_block_transform" ] := Dxo_MatrixFromColMajor( Dxo_Slice12( aM, 1 ) ) ; ENDIF
+   IF Len( aM ) >= 24 ; o[ "clip_bound_transform" ] := Dxo_MatrixFromColMajor( Dxo_Slice12( aM, 13 ) ) ; ENDIF
+RETURN o
+
 STATIC FUNCTION Dxo_ReadLayout( s )
    LOCAL l := Lyo_New( "" ), p, v, m, nSec := 0, aPs := {}, lOwner := .F., x, q, n, t
    DO WHILE ( p := Sr_Next( s ) ) != NIL
@@ -656,6 +709,8 @@ PROCEDURE Dxo_ReadObjects( s, d )
          DO CASE
          CASE p[ DP_VALUE ] == "DICTIONARY"
             o := Dxo_ReadDictionary( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
+         CASE p[ DP_VALUE ] == "SPATIAL_FILTER" .OR. p[ DP_VALUE ] == "SPATIALFILTER"
+            o := Dxo_ReadSpatialFilter( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
          CASE p[ DP_VALUE ] == "ACDBPLACEHOLDER"
             o := Dxo_ReadPlaceHolder( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
          CASE p[ DP_VALUE ] == "ACDBDICTIONARYWDFLT"
