@@ -275,6 +275,34 @@ STATIC FUNCTION Dxo_ReadDictVar( s )
    ENDDO
 RETURN dv
 
+STATIC FUNCTION Dxo_ReadSortEnts( s, nVer )
+   LOCAL t := Sot_New(), p, v, nEnt := NIL, aRaw := {}, lGroup := .F., lTable := .F.
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      AAdd( aRaw, { p[ DP_CODE ], p[ DP_VALUE ] } )
+      DO CASE
+      CASE p[ DP_CODE ] == 102 ; lGroup := Left( AllTrim( p[ DP_VALUE ] ), 1 ) == "{"
+      CASE p[ DP_CODE ] == 100 ; lTable := AllTrim( p[ DP_VALUE ] ) == "AcDbSortentsTable"
+      CASE p[ DP_CODE ] == 330 .AND. ! lGroup .AND. ! lTable
+         v := Sr_HexVal( p ) ; IF v != NIL ; t[ "owner_handle" ] := v ; ENDIF
+      CASE p[ DP_CODE ] == 5
+         v := Sr_HexVal( p )
+         IF v != NIL
+            IF Hd_IsNull( t[ "handle" ] )
+               t[ "handle" ] := v
+            ELSEIF nEnt != NIL
+               Sot_AddEntry( t, nEnt, v ) ; nEnt := NIL
+            ENDIF
+         ENDIF
+      CASE p[ DP_CODE ] == 330 .AND. lTable
+         v := Sr_HexVal( p ) ; IF v != NIL ; t[ "block_owner_handle" ] := v ; ENDIF
+      CASE p[ DP_CODE ] == 331
+         v := Sr_HexVal( p ) ; IF v != NIL ; nEnt := v ; ENDIF
+      ENDCASE
+   ENDDO
+   t[ "raw_dxf_codes" ] := aRaw ; t[ "raw_dxf_version" ] := nVer
+RETURN t
+
 STATIC FUNCTION Dxo_ReadDictionary( s )
    LOCAL d := Dic_New(), p, cKey := NIL, v
    DO WHILE ( p := Sr_Next( s ) ) != NIL
@@ -420,6 +448,8 @@ PROCEDURE Dxo_ReadObjects( s, d )
             o := Dxo_ReadScale( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
          CASE p[ DP_VALUE ] == "DICTIONARYVAR"
             o := Dxo_ReadDictVar( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
+         CASE p[ DP_VALUE ] == "SORTENTSTABLE"
+            o := Dxo_ReadSortEnts( s, d[ "version" ] ) ; d[ "objects" ][ o[ "handle" ] ] := o
          CASE p[ DP_VALUE ] == "GROUP"
             o := Dxo_ReadGroup( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
          OTHERWISE
