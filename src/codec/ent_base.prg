@@ -27,7 +27,7 @@ FUNCTION Ec_WithLayer( cLayer )
    c[ "layer" ] := cLayer
 RETURN c
 
-FUNCTION Ec_HasLinetype( c ) ; RETURN Len( c[ "linetype" ] ) > 0 .AND. c[ "linetype" ] != "ByLayer"
+FUNCTION Ec_HasLinetype( c ) ; RETURN Len( c[ "linetype" ] ) > 0 .AND. ! ( c[ "linetype" ] == "ByLayer" )
 
 /* preserve_storage_data_from (privada en Rust): copia campos de almacenamiento DWG */
 FUNCTION Ec_PreserveStorageDataFrom( c, s )
