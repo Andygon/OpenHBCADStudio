@@ -20,7 +20,7 @@ STATIC FUNCTION Dxo_FindRootDictHandle( d )
 RETURN nBest
 
 /* tipos de objeto que este escritor emite: las entradas de diccionario a otros tipos se omiten (equivale al filtro valid_handles de Rust) */
-STATIC FUNCTION Dxo_IsWritten( o ) ; RETURN o[ "_type" ] == "Dictionary" .OR. o[ "_type" ] == "Layout" .OR. o[ "_type" ] == "XRecord" .OR. o[ "_type" ] == "Group" .OR. o[ "_type" ] == "MLineStyle" .OR. o[ "_type" ] == "SortEntitiesTable" .OR. o[ "_type" ] == "ImageDefinition" .OR. o[ "_type" ] == "UnderlayDefinition" .OR. o[ "_type" ] == "MultiLeaderStyle" .OR. o[ "_type" ] == "PlotSettings" .OR. o[ "_type" ] == "Scale" .OR. o[ "_type" ] == "DictionaryVariable"
+STATIC FUNCTION Dxo_IsWritten( o ) ; RETURN o[ "_type" ] == "Dictionary" .OR. o[ "_type" ] == "Layout" .OR. o[ "_type" ] == "XRecord" .OR. o[ "_type" ] == "Group" .OR. o[ "_type" ] == "MLineStyle" .OR. o[ "_type" ] == "SortEntitiesTable" .OR. o[ "_type" ] == "ImageDefinition" .OR. o[ "_type" ] == "UnderlayDefinition" .OR. o[ "_type" ] == "MultiLeaderStyle" .OR. o[ "_type" ] == "PlotSettings" .OR. o[ "_type" ] == "Scale" .OR. o[ "_type" ] == "DictionaryVariable" .OR. o[ "_type" ] == "DictionaryWithDefault" .OR. o[ "_type" ] == "PlaceHolder"
 
 STATIC PROCEDURE Dxo_WriteDictionary( w, d, dic )
    LOCAL aR := dic[ "reactors" ], hX, e, lForced
@@ -48,6 +48,30 @@ STATIC PROCEDURE Dxo_WriteDictionary( w, d, dic )
          Sw_WriteHandle( w, IIf( dic[ "hard_owner" ] .OR. lForced, 360, 350 ), e[ 2 ] )
       ENDIF
    NEXT
+RETURN
+
+/* write_stub_handle_only("ACDBPLACEHOLDER") */
+STATIC PROCEDURE Dxo_WritePlaceHolder( w, o, nVer )
+   Sw_WriteString( w, 0, "ACDBPLACEHOLDER" ) ; Sw_WriteHandle( w, 5, o[ "handle" ] )
+   Sw_WriteString( w, 102, "{ACAD_REACTORS" ) ; Sw_WriteHandle( w, 330, o[ "owner" ] ) ; Sw_WriteString( w, 102, "}" )
+   Sw_WriteHandle( w, 330, o[ "owner" ] )
+   IF nVer < Dxv_FromVersionString( "AC1015" ) ; Sw_WriteSubclass( w, "AcDbPlaceHolder" ) ; ENDIF
+RETURN
+
+/* write_dict_with_default (sin 280: BricsCAD issue #51) */
+STATIC PROCEDURE Dxo_WriteDictWithDefault( w, d, o )
+   LOCAL e
+   Sw_WriteString( w, 0, "ACDBDICTIONARYWDFLT" ) ; Sw_WriteHandle( w, 5, o[ "handle" ] )
+   Sw_WriteHandle( w, 330, o[ "owner" ] )
+   Sw_WriteSubclass( w, "AcDbDictionary" )
+   Sw_WriteByte( w, 281, o[ "duplicate_cloning" ] )
+   FOR EACH e IN o[ "entries" ]
+      IF hb_HHasKey( d[ "objects" ], e[ 2 ] )
+         Sw_WriteString( w, 3, e[ 1 ] ) ; Sw_WriteHandle( w, 350, e[ 2 ] )
+      ENDIF
+   NEXT
+   Sw_WriteSubclass( w, "AcDbDictionaryWithDefault" )
+   Sw_WriteHandle( w, 340, o[ "default_handle" ] )
 RETURN
 
 STATIC PROCEDURE Dxo_WriteLayout( w, l )
@@ -338,6 +362,8 @@ PROCEDURE Dxo_WriteObjects( w, d, nVer )
          CASE o[ "_type" ] == "Scale" ; Dxo_WriteScale( w, o )
          CASE o[ "_type" ] == "DictionaryVariable" ; Dxo_WriteDictVar( w, o )
          CASE o[ "_type" ] == "Group" ; Dxo_WriteGroup( w, o )
+         CASE o[ "_type" ] == "PlaceHolder" ; Dxo_WritePlaceHolder( w, o, nVer )
+         CASE o[ "_type" ] == "DictionaryWithDefault" ; Dxo_WriteDictWithDefault( w, d, o )
          ENDCASE
       ENDIF
    NEXT
