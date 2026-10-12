@@ -284,3 +284,18 @@
 #define GDS_SURFACE_PROFILE   121
 #define GDS_CIRCULAR_RUNOUT   122
 #define GDS_TOTAL_RUNOUT      123
+
+/* entities/mline.rs: MLineFlags y MLineStyleFlags */
+#define MLF_HAS_VERTICES  1
+#define MLF_CLOSED        2
+#define MLF_NO_START_CAPS 4
+#define MLF_NO_END_CAPS   8
+#define MLS_NONE                  0
+#define MLS_FILL_ON               1
+#define MLS_DISPLAY_JOINTS        2
+#define MLS_START_SQUARE_CAP      16
+#define MLS_START_INNER_ARCS_CAP  32
+#define MLS_START_ROUND_CAP       64
+#define MLS_END_SQUARE_CAP        256
+#define MLS_END_INNER_ARCS_CAP    512
+#define MLS_END_ROUND_CAP         1024
