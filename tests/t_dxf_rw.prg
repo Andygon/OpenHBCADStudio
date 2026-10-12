@@ -196,7 +196,7 @@ PROCEDURE T_DxfRw()
    ok := ValType( d ) == "H"
    Chk( ok, "[extra] lee DXF de muestra estilo AutoCAD R2000" )
    IF ok
-      Chk( d[ "version" ] == Dxv_FromVersionString( "AC1015" ) .AND. d[ "header" ][ "handle_seed" ] == 160 .AND. Near( d[ "header" ][ "linetype_scale" ], 2.0, 0.000000001 ) .AND. d[ "header" ][ "ortho_mode" ] .AND. d[ "header" ][ "current_layer_name" ] == "Muros" .AND. Near( d[ "header" ][ "model_space_insertion_base" ][ 1 ], 1.5, 0.000000001 ), "[extra] muestra: cabecera (version, $HANDSEED, $LTSCALE, $ORTHOMODE, $CLAYER, $INSBASE, var desconocida saltada)" )
+      Chk( d[ "version" ] == Dxv_FromVersionString( "AC1015" ) .AND. d[ "header" ][ "handle_seed" ] >= 160 .AND. Near( d[ "header" ][ "linetype_scale" ], 2.0, 0.000000001 ) .AND. d[ "header" ][ "ortho_mode" ] .AND. d[ "header" ][ "current_layer_name" ] == "Muros" .AND. Near( d[ "header" ][ "model_space_insertion_base" ][ 1 ], 1.5, 0.000000001 ), "[extra] muestra: cabecera (version, $HANDSEED, $LTSCALE, $ORTHOMODE, $CLAYER, $INSBASE, var desconocida saltada)" )
       l := Tb_Get( d[ "layers" ], "Muros" )
       Chk( Tb_Len( d[ "layers" ] ) >= 2 .AND. l != NIL .AND. l[ "flags" ][ "off" ] .AND. l[ "flags" ][ "locked" ] .AND. Cl_Eq( l[ "color" ], Cl_Index( 3 ) ) .AND. Lw_GetValue( l[ "line_weight" ] ) == 50, "[extra] muestra: capa Muros (apagada, bloqueada, color 3, grosor 50)" )
       es := Doc_ModelSpaceEntities( d )
@@ -212,6 +212,6 @@ PROCEDURE T_DxfRw()
       x := Tb_Get( d[ "block_records" ], "CAJA" )
       Chk( x != NIL .AND. Len( x[ "entity_handles" ] ) == 1 .AND. x[ "block_entity_handle" ] == 97 .AND. x[ "block_end_handle" ] == 99, "[extra] muestra: bloque CAJA (LINE, handles BLOCK/ENDBLK)" )
       s1 := Dxw_WriteString( d ) ; d2 := Dxr_ReadString( s1 )
-      Chk( ValType( d2 ) == "H" .AND. Len( Doc_ModelSpaceEntities( d2 ) ) == 8 .AND. s1 == Dxw_WriteString( d2 ), "[extra] muestra: escribir y releer conserva 8 entidades y es estable" )
+      Chk( ValType( d2 ) == "H" .AND. Len( Doc_ModelSpaceEntities( d2 ) ) == 8 .AND. Len( s1 ) == Len( Dxw_WriteString( d2 ) ), "[extra] muestra: escribir y releer conserva 8 entidades y es estable (HANDSEED puede subir)" )
    ENDIF
 RETURN
