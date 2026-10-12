@@ -440,7 +440,7 @@ STATIC PROCEDURE Swr_DimStyleEntry( st, d, ds, hOwner )
    IF ds[ "xref_resolved" ] ; nF := hb_bitOr( nF, 32 ) ; ENDIF
    IF ds[ "xref_reference" ] ; nF := hb_bitOr( nF, 64 ) ; ENDIF
    Sw_WriteI16( w, 70, nF )
-   IF Len( ds[ "dimpost" ] ) > 0 .AND. ds[ "dimpost" ] != "<>" ; Sw_WriteString( w, 3, ds[ "dimpost" ] ) ; ENDIF
+   IF Len( ds[ "dimpost" ] ) > 0 .AND. ! ( ds[ "dimpost" ] == "<>" ) ; Sw_WriteString( w, 3, ds[ "dimpost" ] ) ; ENDIF
    IF Len( ds[ "dimapost" ] ) > 0 ; Sw_WriteString( w, 4, ds[ "dimapost" ] ) ; ENDIF
    IF st[ 2 ] <= Dxv_FromVersionString( "AC1014" )
       IF Len( ds[ "dimblk_name" ] ) > 0 ; Sw_WriteString( w, 5, ds[ "dimblk_name" ] ) ; ENDIF
@@ -711,7 +711,7 @@ PROCEDURE Swr_Tables( st, d )
       IF Upper( e[ "name" ] ) == "ACAD" ; Swr_AppIdEntry( st, d, e, Tb_Handle( t ) ) ; EXIT ; ENDIF
    NEXT
    FOR EACH e IN Tb_Values( t )
-      IF Upper( e[ "name" ] ) != "ACAD" ; Swr_AppIdEntry( st, d, e, Tb_Handle( t ) ) ; ENDIF
+      IF ! ( Upper( e[ "name" ] ) == "ACAD" ) ; Swr_AppIdEntry( st, d, e, Tb_Handle( t ) ) ; ENDIF
    NEXT
    Sw_WriteString( w, 0, "ENDTAB" )
    t := d[ "dim_styles" ]
