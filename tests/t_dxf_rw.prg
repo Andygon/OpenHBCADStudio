@@ -129,6 +129,28 @@ PROCEDURE T_DxfRw()
       e := es[ 1 ]
       Chk( e[ "degree" ] == 3 .AND. Len( e[ "knots" ] ) == 8 .AND. Len( e[ "control_points" ] ) == 4 .AND. Len( e[ "fit_points" ] ) == 2 .AND. e[ "flags" ][ "rational" ] .AND. Near( e[ "weights" ][ 2 ], 0.5, 0.000000001 ) .AND. Near( e[ "control_points" ][ 3 ][ 1 ], 3.0, 0.000000001 ) .AND. Near( e[ "begin_tangent" ][ 2 ], 1.0, 0.000000001 ), "[extra] roundtrip spline" )
    ENDIF
+   /* [extra] POLYLINE: 2D pesada, 2D (baja a LWPOLYLINE), 3D, polyface y malla poligonal */
+   d := Doc_New()
+   e := Pl2_New() ; e[ "flags" ] := 1 ; e[ "start_width" ] := 0.2 ; e[ "end_width" ] := 0.4
+   x := Vx2_New( Vc3_New( 0.0, 0.0, 0.0 ) ) ; x[ "flags" ] := 1 ; x[ "bulge" ] := 0.5 ; AAdd( e[ "vertices" ], x )
+   AAdd( e[ "vertices" ], Vx2_New( Vc3_New( 5.0, 0.0, 0.0 ) ) ) ; Doc_AddEntity( d, e )
+   e := Pl2_New() ; e[ "flags" ] := 1 ; AAdd( e[ "vertices" ], Vx2_WithBulge( Vx2_New( Vc3_New( 0.0, 0.0, 0.0 ) ), 0.25 ) ) ; AAdd( e[ "vertices" ], Vx2_New( Vc3_New( 3.0, 0.0, 0.0 ) ) ) ; Doc_AddEntity( d, e )
+   e := P3d_New() ; P3d_AddVertex( e, Vc3_New( 0.0, 0.0, 0.0 ) ) ; P3d_AddVertex( e, Vc3_New( 1.0, 2.0, 3.0 ) ) ; Doc_AddEntity( d, e )
+   e := Epf_New() ; AAdd( e[ "vertices" ], Pfv_FromXyz( 0.0, 0.0, 0.0 ) ) ; AAdd( e[ "vertices" ], Pfv_FromXyz( 1.0, 0.0, 0.0 ) ) ; AAdd( e[ "vertices" ], Pfv_FromXyz( 0.0, 1.0, 0.0 ) )
+   x := Pff_Quad( 1, 2, 3, 0 ) ; x[ "color" ] := Cl_Index( 3 ) ; AAdd( e[ "faces" ], x ) ; Doc_AddEntity( d, e )
+   e := Epm_New() ; e[ "m_vertex_count" ] := 2 ; e[ "n_vertex_count" ] := 2 ; AAdd( e[ "vertices" ], Pmv_At( Vc3_New( 0.0, 0.0, 0.0 ) ) ) ; AAdd( e[ "vertices" ], Pmv_At( Vc3_New( 1.0, 0.0, 0.0 ) ) )
+   AAdd( e[ "vertices" ], Pmv_At( Vc3_New( 0.0, 1.0, 0.0 ) ) ) ; AAdd( e[ "vertices" ], Pmv_At( Vc3_New( 1.0, 1.0, 1.0 ) ) ) ; Doc_AddEntity( d, e )
+   s1 := Dxw_WriteString( d ) ; d2 := Dxr_ReadString( s1 )
+   es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
+   Chk( "SEQEND" $ s1 .AND. "AcDb2dVertex" $ s1 .AND. "AcDbPolyFaceMeshVertex" $ s1 .AND. "AcDbPolygonMeshVertex" $ s1, "[extra] escritura contiene VERTEX/SEQEND de cada tipo" )
+   Chk( Len( es ) == 5, "[extra] roundtrip 5 polylineas (" + hb_ntos( Len( es ) ) + ")" )
+   IF Len( es ) == 5
+      Chk( es[ 1 ][ "_type" ] == "POLYLINE2D" .AND. Len( es[ 1 ][ "vertices" ] ) == 2 .AND. es[ 1 ][ "vertices" ][ 1 ][ "flags" ] == 1 .AND. Near( es[ 1 ][ "vertices" ][ 1 ][ "bulge" ], 0.5, 0.000000001 ) .AND. Near( es[ 1 ][ "vertices" ][ 2 ][ "end_width" ], 0.4, 0.000000001 ) .AND. es[ 1 ][ "flags" ] == 1, "[extra] roundtrip polyline 2D pesada (anchos por vertice)" )
+      Chk( es[ 2 ][ "_type" ] == "LWPOLYLINE" .AND. es[ 2 ][ "is_closed" ] .AND. Near( es[ 2 ][ "vertices" ][ 1 ][ "bulge" ], 0.25, 0.000000001 ), "[extra] polyline 2D simple baja a LWPOLYLINE" )
+      Chk( es[ 3 ][ "_type" ] == "POLYLINE3D" .AND. Len( es[ 3 ][ "vertices" ] ) == 2 .AND. Near( es[ 3 ][ "vertices" ][ 2 ][ "position" ][ 3 ], 3.0, 0.000000001 ), "[extra] roundtrip polyline 3D" )
+      Chk( es[ 4 ][ "_type" ] == "POLYFACE_MESH" .AND. Len( es[ 4 ][ "vertices" ] ) == 3 .AND. Len( es[ 4 ][ "faces" ] ) == 1 .AND. es[ 4 ][ "faces" ][ 1 ][ "index3" ] == 3 .AND. es[ 4 ][ "faces" ][ 1 ][ "index4" ] == 0, "[extra] roundtrip polyface mesh" )
+      Chk( es[ 5 ][ "_type" ] == "POLYGON_MESH" .AND. Len( es[ 5 ][ "vertices" ] ) == 4 .AND. es[ 5 ][ "m_vertex_count" ] == 2 .AND. Near( es[ 5 ][ "vertices" ][ 4 ][ "location" ][ 3 ], 1.0, 0.000000001 ), "[extra] roundtrip polygon mesh" )
+   ENDIF
    /* lwpolyline / text / insert / point / bloque */
    d := Doc_New()
    e := Elw_New() ; AAdd( e[ "vertices" ], Elv_FromCoords( 0.0, 0.0 ) ) ; AAdd( e[ "vertices" ], Elv_WithBulge( Vc2_New( 4.0, 0.0 ), 0.5 ) ) ; e[ "is_closed" ] := .T. ; Doc_AddEntity( d, e )
