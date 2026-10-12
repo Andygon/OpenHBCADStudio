@@ -7,6 +7,11 @@
 ----------------------------------------------------------------------------*/
 #include "ocx.ch"
 
+/* valid_handles del escritor (se fija en Dxo_WriteObjects; vacio = sin filtro) y handle del diccionario raiz (find_root_dict_handle) */
+STATIC s_hValid := NIL
+STATIC s_nRoot := 0
+STATIC FUNCTION Dxo_Valid( h ) ; RETURN s_hValid == NIL .OR. Len( s_hValid ) == 0 .OR. hb_HHasKey( s_hValid, h )
+
 STATIC FUNCTION Dxo_FindRootDictHandle( d )
    LOCAL nBest := 0, nCount := 0, h, o
    FOR EACH h IN hb_HKeys( d[ "objects" ] )
@@ -23,9 +28,14 @@ RETURN nBest
 STATIC FUNCTION Dxo_IsWritten( o ) ; RETURN o[ "_type" ] == "Dictionary" .OR. o[ "_type" ] == "Layout" .OR. o[ "_type" ] == "XRecord" .OR. o[ "_type" ] == "Group" .OR. o[ "_type" ] == "MLineStyle" .OR. o[ "_type" ] == "SortEntitiesTable" .OR. o[ "_type" ] == "ImageDefinition" .OR. o[ "_type" ] == "UnderlayDefinition" .OR. o[ "_type" ] == "MultiLeaderStyle" .OR. o[ "_type" ] == "PlotSettings" .OR. o[ "_type" ] == "Scale" .OR. o[ "_type" ] == "DictionaryVariable" .OR. o[ "_type" ] == "DictionaryWithDefault" .OR. o[ "_type" ] == "PlaceHolder"
 
 STATIC PROCEDURE Dxo_WriteDictionary( w, d, dic )
-   LOCAL aR := dic[ "reactors" ], hX, e, lForced
+   LOCAL aR := dic[ "reactors" ], hX, e, lForced, aV, hO
    IF Len( aR ) == 0 ; aR := hb_HGetDef( d[ "reactors_by_handle" ], dic[ "handle" ], {} ) ; ENDIF
    Sw_WriteString( w, 0, "DICTIONARY" ) ; Sw_WriteHandle( w, 5, dic[ "handle" ] )
+   aV := {}
+   FOR EACH e IN aR
+      IF ! Hd_IsNull( e ) .AND. Dxo_Valid( e ) ; AAdd( aV, e ) ; ENDIF
+   NEXT
+   aR := aV
    IF Len( aR ) > 0
       Sw_WriteString( w, 102, "{ACAD_REACTORS" )
       FOR EACH e IN aR
@@ -35,14 +45,16 @@ STATIC PROCEDURE Dxo_WriteDictionary( w, d, dic )
    ENDIF
    hX := dic[ "xdictionary_handle" ]
    IF hX == NIL ; hX := Doc_ExtensionDictionaryHandle( d, dic[ "handle" ] ) ; ENDIF
-   IF hX != NIL .AND. ! Hd_IsNull( hX )
+   IF hX != NIL .AND. ! Hd_IsNull( hX ) .AND. Dxo_Valid( hX )
       Sw_WriteString( w, 102, "{ACAD_XDICTIONARY" ) ; Sw_WriteHandle( w, 360, hX ) ; Sw_WriteString( w, 102, "}" )
    ENDIF
-   Sw_WriteHandle( w, 330, dic[ "owner" ] )
+   hO := dic[ "owner" ]
+   IF ! ( Hd_IsNull( hO ) .OR. Dxo_Valid( hO ) .OR. Hd_IsNull( s_nRoot ) ) ; hO := s_nRoot ; ENDIF
+   Sw_WriteHandle( w, 330, hO )
    Sw_WriteSubclass( w, "AcDbDictionary" )
    Sw_WriteByte( w, 280, IIf( dic[ "hard_owner" ], 1, 0 ) ) ; Sw_WriteByte( w, 281, dic[ "duplicate_cloning" ] )
    FOR EACH e IN dic[ "entries" ]
-      IF hb_HHasKey( d[ "objects" ], e[ 2 ] ) .AND. Dxo_IsWritten( d[ "objects" ][ e[ 2 ] ] )
+      IF hb_HHasKey( d[ "objects" ], e[ 2 ] ) .AND. Dxo_Valid( e[ 2 ] ) .AND. Dxo_IsWritten( d[ "objects" ][ e[ 2 ] ] )
          Sw_WriteString( w, 3, e[ 1 ] )
          lForced := Dic_IsEntryHardOwner( dic, e[ 1 ] ) .OR. Dic_IsCanonicalHardOwnerKey( e[ 1 ] )
          Sw_WriteHandle( w, IIf( dic[ "hard_owner" ] .OR. lForced, 360, 350 ), e[ 2 ] )
@@ -75,14 +87,18 @@ STATIC PROCEDURE Dxo_WriteDictWithDefault( w, d, o )
 RETURN
 
 STATIC PROCEDURE Dxo_WriteLayout( w, l )
-   LOCAL x, nF
+   LOCAL x, nF, aV
    Sw_WriteString( w, 0, "LAYOUT" ) ; Sw_WriteHandle( w, 5, l[ "handle" ] )
-   IF l[ "xdictionary_handle" ] != NIL .AND. ! Hd_IsNull( l[ "xdictionary_handle" ] )
+   IF l[ "xdictionary_handle" ] != NIL .AND. ! Hd_IsNull( l[ "xdictionary_handle" ] ) .AND. Dxo_Valid( l[ "xdictionary_handle" ] )
       Sw_WriteString( w, 102, "{ACAD_XDICTIONARY" ) ; Sw_WriteHandle( w, 360, l[ "xdictionary_handle" ] ) ; Sw_WriteString( w, 102, "}" )
    ENDIF
-   IF Len( l[ "reactors" ] ) > 0
+   aV := {}
+   FOR EACH x IN l[ "reactors" ]
+      IF Dxo_Valid( x ) ; AAdd( aV, x ) ; ENDIF
+   NEXT
+   IF Len( aV ) > 0
       Sw_WriteString( w, 102, "{ACAD_REACTORS" )
-      FOR EACH x IN l[ "reactors" ] ; Sw_WriteHandle( w, 330, x ) ; NEXT
+      FOR EACH x IN aV ; Sw_WriteHandle( w, 330, x ) ; NEXT
       Sw_WriteString( w, 102, "}" )
    ENDIF
    Sw_WriteHandle( w, 330, l[ "owner" ] )
@@ -336,8 +352,9 @@ STATIC PROCEDURE Dxo_WriteGroup( w, g )
    FOR EACH h IN g[ "entities" ] ; Sw_WriteHandle( w, 340, h ) ; NEXT
 RETURN
 
-PROCEDURE Dxo_WriteObjects( w, d, nVer )
+PROCEDURE Dxo_WriteObjects( w, d, nVer, hValid )
    LOCAL nRoot := d[ "header" ][ "named_objects_dict_handle" ], aK, h, o
+   s_hValid := hValid ; s_nRoot := Dxo_FindRootDictHandle( d )
    Sw_WriteSectionStart( w, "OBJECTS" )
    IF Hd_IsNull( nRoot ) .OR. ! hb_HHasKey( d[ "objects" ], nRoot ) .OR. ! d[ "objects" ][ nRoot ][ "_type" ] == "Dictionary"
       nRoot := Dxo_FindRootDictHandle( d )
