@@ -469,4 +469,13 @@ PROCEDURE T_DxfRw()
    es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
    Chk( ValType( d2 ) == "H" .AND. d2[ "header" ][ "universal_create_date_julian" ] == 2460000.5 .AND. d2[ "header" ][ "universal_update_date_julian" ] == 2460001.25 .AND. Len( es ) == 1 .AND. es[ 1 ][ "common" ][ "graphic_data" ] != NIL ;
       .AND. hb_BLen( es[ 1 ][ "common" ][ "graphic_data" ] ) == 300 .AND. es[ 1 ][ "common" ][ "graphic_data" ] == Replicate( Chr( 1 ) + Chr( 255 ) + "abc", 60 ), "dxf_rw: [extra] TDU* y graphic_data" )
+   /* [extra] ATTDEF/ATTRIB multilinea R2018+ (AC1032): MTEXT embebido (101) conserva texto, rotacion y alineacion */
+   d2 := Doc_New()
+   x := Ead_New( "ML", "P:", "" ) ; x[ "is_multiline" ] := .T. ; x[ "embedded_mtext" ] := Emt_WithValue( "uno\Pdos", Vc3_New( 1.0, 2.0, 0.0 ) ) ; x[ "embedded_mtext" ][ "rotation" ] := 0.5 ; x[ "embedded_mtext" ][ "rectangle_width" ] := 7.0 ; Doc_AddEntity( d2, x )
+   e := Ein_New( "BLK", Vc3_Zero() ) ; l := Eat_New( "ML", "ignorado" ) ; l[ "is_multiline" ] := .T. ; AAdd( e[ "attributes" ], l ) ; Doc_AddEntity( d2, e )
+   d2 := RT( d2 )
+   es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
+   Chk( Len( es ) == 2 .AND. es[ 1 ][ "embedded_mtext" ] != NIL .AND. es[ 1 ][ "is_multiline" ] .AND. es[ 1 ][ "default_value" ] == "uno\Pdos" .AND. es[ 1 ][ "embedded_mtext" ][ "value" ] == "uno\Pdos" ;
+      .AND. Near( es[ 1 ][ "embedded_mtext" ][ "rotation" ], 0.5, 0.000000001 ) .AND. es[ 1 ][ "embedded_mtext" ][ "rectangle_width" ] == 7.0 .AND. es[ 1 ][ "embedded_mtext" ][ "insertion_point" ][ 2 ] == 2.0 ;
+      .AND. Len( es[ 2 ][ "attributes" ] ) == 1 .AND. es[ 2 ][ "attributes" ][ 1 ][ "is_multiline" ] .AND. es[ 2 ][ "attributes" ][ 1 ][ "embedded_mtext" ] != NIL .AND. es[ 2 ][ "attributes" ][ 1 ][ "value" ] == "ignorado", "dxf_rw: [extra] ATTDEF/ATTRIB MTEXT embebido" )
 RETURN
