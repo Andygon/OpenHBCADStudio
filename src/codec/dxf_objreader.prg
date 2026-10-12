@@ -515,6 +515,48 @@ STATIC FUNCTION Dxo_ReadDictionary( s )
    ENDDO
 RETURN d
 
+STATIC FUNCTION Dxo_ReadDictWithDefault( s )
+   LOCAL o := Ddf_New(), p, cKey := NIL, v
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      DO CASE
+      CASE p[ DP_CODE ] == 5
+         v := Sr_HexVal( p ) ; IF v != NIL ; o[ "handle" ] := v ; ENDIF
+      CASE p[ DP_CODE ] == 330
+         v := Sr_HexVal( p ) ; IF v != NIL ; o[ "owner" ] := v ; ENDIF
+      CASE p[ DP_CODE ] == 280
+         v := Dp_AsI16( p ) ; o[ "hard_owner" ] := ( v != NIL .AND. v != 0 )
+      CASE p[ DP_CODE ] == 281
+         v := Dp_AsI16( p ) ; IF v != NIL ; o[ "duplicate_cloning" ] := v ; ENDIF
+      CASE p[ DP_CODE ] == 3
+         cKey := p[ DP_VALUE ]
+      CASE p[ DP_CODE ] == 340
+         v := Sr_HexVal( p )
+         IF v != NIL .AND. Hd_IsNull( o[ "default_handle" ] ) .AND. cKey == NIL
+            o[ "default_handle" ] := v
+         ENDIF
+      CASE p[ DP_CODE ] == 350 .OR. p[ DP_CODE ] == 360
+         IF cKey != NIL
+            v := Sr_HexVal( p )
+            IF v != NIL ; AAdd( o[ "entries" ], { cKey, v } ) ; ENDIF
+            cKey := NIL
+         ENDIF
+      ENDCASE
+   ENDDO
+RETURN o
+
+STATIC FUNCTION Dxo_ReadPlaceHolder( s )
+   LOCAL o := Plhd_New(), p, v
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      IF p[ DP_CODE ] == 5
+         v := Sr_HexVal( p ) ; IF v != NIL ; o[ "handle" ] := v ; ENDIF
+      ELSEIF p[ DP_CODE ] == 330
+         v := Sr_HexVal( p ) ; IF v != NIL ; o[ "owner" ] := v ; ENDIF
+      ENDIF
+   ENDDO
+RETURN o
+
 STATIC FUNCTION Dxo_ReadLayout( s )
    LOCAL l := Lyo_New( "" ), p, v, m, nSec := 0, aPs := {}, lOwner := .F., x, q, n, t
    DO WHILE ( p := Sr_Next( s ) ) != NIL
@@ -614,6 +656,10 @@ PROCEDURE Dxo_ReadObjects( s, d )
          DO CASE
          CASE p[ DP_VALUE ] == "DICTIONARY"
             o := Dxo_ReadDictionary( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
+         CASE p[ DP_VALUE ] == "ACDBPLACEHOLDER"
+            o := Dxo_ReadPlaceHolder( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
+         CASE p[ DP_VALUE ] == "ACDBDICTIONARYWDFLT"
+            o := Dxo_ReadDictWithDefault( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
          CASE p[ DP_VALUE ] == "LAYOUT"
             o := Dxo_ReadLayout( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
          CASE p[ DP_VALUE ] == "XRECORD"
