@@ -284,3 +284,68 @@ FUNCTION Sr_ReadMultileader( s )
    IF cAtt != NIL ; AAdd( e[ "block_attributes" ], cAtt ) ; ENDIF
    IF nPg != 0 .OR. Len( cPg ) > 0 ; e[ "common" ][ "graphic_data" ] := Left( cPg, nPg ) ; ENDIF
 RETURN e
+
+/* read_mesh (mismo fichero por el limite del editor web). Estados: 0 Properties, 1 Vertices, 2 Faces, 3 Edges, 4 Creases */
+FUNCTION Sr_ReadMesh( s )
+   LOCAL e := Emh_New(), p, n, v, nSt := 0, rV := PR_New(), aFi := {}, nSub := NIL, aEb := {}, aCr := {}, pt, i
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      n := p[ DP_CODE ]
+      DO CASE
+      CASE n == 8 ; e[ "common" ][ "layer" ] := p[ DP_VALUE ]
+      CASE n == 62
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "common" ][ "color" ] := Cl_FromIndex( v ) ; ENDIF
+      CASE n == 370
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "common" ][ "line_weight" ] := Lw_FromValue( v ) ; ENDIF
+      CASE n == 71
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "version" ] := v ; ENDIF
+      CASE n == 72
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "blend_crease" ] := ( v != 0 ) ; ENDIF
+      CASE n == 91 .AND. nSt == 0
+         v := Dp_AsI32( p ) ; IF v != NIL ; e[ "subdivision_level" ] := v ; ENDIF
+      CASE n == 91
+         /* otros estados: se ignora (Rust: _ => {}) */
+      CASE n == 92
+         v := Dp_AsI32( p ) ; IF v != NIL ; nSt := 1 ; ENDIF
+      CASE n == 93
+         v := Dp_AsI32( p ) ; IF v != NIL ; nSt := 2 ; ENDIF
+      CASE n == 94
+         v := Dp_AsI32( p ) ; IF v != NIL ; nSt := 3 ; ENDIF
+      CASE n == 95
+         v := Dp_AsI32( p ) ; IF v != NIL ; nSt := 4 ; ENDIF
+      CASE n == 10 .OR. n == 20 .OR. n == 30
+         IF nSt == 1
+            PR_AddCoordinate( rV, p )
+            IF n == 30
+               pt := PR_GetPoint( rV )
+               IF pt != NIL ; AAdd( e[ "vertices" ], pt ) ; rV := PR_New() ; ENDIF
+            ENDIF
+         ENDIF
+      CASE n == 90
+         v := Dp_AsI32( p )
+         IF v != NIL
+            IF nSt == 2
+               IF nSub == NIL
+                  nSub := v
+               ELSE
+                  AAdd( aFi, v )
+                  IF Len( aFi ) == nSub
+                     AAdd( e[ "faces" ], Mfc_New( aFi ) ) ; aFi := {} ; nSub := NIL
+                  ENDIF
+               ENDIF
+            ELSEIF nSt == 3
+               AAdd( aEb, v )
+               IF Len( aEb ) == 2
+                  AAdd( e[ "edges" ], Mge_New( aEb[ 1 ], aEb[ 2 ] ) ) ; aEb := {}
+               ENDIF
+            ENDIF
+         ENDIF
+      CASE n == 140 .AND. nSt == 4
+         v := Dp_AsDouble( p ) ; IF v != NIL ; AAdd( aCr, v ) ; ENDIF
+      OTHERWISE ; Sr_EntBaseP( s, p, e )
+      ENDCASE
+   ENDDO
+   FOR i := 1 TO Len( aCr )
+      IF aCr[ i ] != 0.0 .AND. i <= Len( e[ "edges" ] ) ; e[ "edges" ][ i ][ "crease" ] := aCr[ i ] ; ENDIF
+   NEXT
+RETURN e
