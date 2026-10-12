@@ -91,3 +91,15 @@ HB_FUNC( OCX_I64BIN )   /* i64 -> 8 bytes little-endian */
    long long v = ( long long ) hb_parnint( 1 );
    hb_retclen( ( const char * ) &v, 8 );
 }
+HB_FUNC( OCX_BIN2I64 )   /* 8 bytes little-endian -> i64 (u64 > i64::MAX se devuelve como double, ver obj_semantic.prg) */
+{
+   long long v = 0;
+   if( hb_parclen( 1 ) >= 8 ) { memcpy( &v, hb_parc( 1 ), 8 ); }
+   hb_retnint( v );
+}
+HB_FUNC( OCX_BIN2U64 )   /* 8 bytes little-endian -> u64 */
+{
+   unsigned long long v = 0;
+   if( hb_parclen( 1 ) >= 8 ) { memcpy( &v, hb_parc( 1 ), 8 ); }
+   if( v <= 9223372036854775807ULL ) hb_retnint( ( HB_MAXINT ) v ); else hb_retnd( ( double ) v );
+}
