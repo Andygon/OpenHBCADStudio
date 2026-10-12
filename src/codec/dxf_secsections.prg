@@ -277,7 +277,7 @@ STATIC PROCEDURE Sr_TableGeneric( s, d, cTable, cEntryName, cCtrlKey, bEntry, lD
       ELSEIF p[ DP_CODE ] == 0 .AND. p[ DP_VALUE ] == cEntryName
          e := Eval( bEntry )
          IF e != NIL
-            IF lDupName .AND. Len( e[ "name" ] ) == 0
+            IF ValType( lDupName ) == "N" .OR. ( ValType( lDupName ) == "L" .AND. lDupName .AND. Len( e[ "name" ] ) == 0 )
                Tb_AddAllowDuplicate( t, e )
             ELSE
                Tb_AddOrReplace( t, e )
@@ -414,6 +414,93 @@ STATIC FUNCTION Sr_AppIdEntry( s )
       ENDIF
    ENDDO
 RETURN a
+
+STATIC FUNCTION Sr_VportDblMap()
+   STATIC hM
+   IF hM == NIL
+      hM := { 10 => { "lower_left", 1 }, 20 => { "lower_left", 2 }, 11 => { "upper_right", 1 }, 21 => { "upper_right", 2 }, 12 => { "view_center", 1 }, 22 => { "view_center", 2 }, ;
+         13 => { "snap_base", 1 }, 23 => { "snap_base", 2 }, 14 => { "snap_spacing", 1 }, 24 => { "snap_spacing", 2 }, 15 => { "grid_spacing", 1 }, 25 => { "grid_spacing", 2 }, ;
+         16 => { "view_direction", 1 }, 26 => { "view_direction", 2 }, 36 => { "view_direction", 3 }, 17 => { "view_target", 1 }, 27 => { "view_target", 2 }, 37 => { "view_target", 3 }, ;
+         110 => { "ucs_origin", 1 }, 120 => { "ucs_origin", 2 }, 130 => { "ucs_origin", 3 }, 111 => { "ucs_x_axis", 1 }, 121 => { "ucs_x_axis", 2 }, 131 => { "ucs_x_axis", 3 }, ;
+         112 => { "ucs_y_axis", 1 }, 122 => { "ucs_y_axis", 2 }, 132 => { "ucs_y_axis", 3 }, ;
+         40 => { "view_height", 0 }, 41 => { "aspect_ratio", 0 }, 42 => { "lens_length", 0 }, 43 => { "front_clip", 0 }, 44 => { "back_clip", 0 }, ;
+         141 => { "brightness", 0 }, 142 => { "contrast", 0 }, 146 => { "ucs_elevation", 0 } }
+   ENDIF
+RETURN hM
+
+STATIC FUNCTION Sr_VportEntry( s )
+   LOCAL w := Vpt_New( "*Active" ), p, v, n, m
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      n := p[ DP_CODE ]
+      m := hb_HGetDef( Sr_VportDblMap(), n, NIL )
+      IF m != NIL
+         v := Dp_AsDouble( p )
+         IF v != NIL
+            IF m[ 2 ] == 0 ; w[ m[ 1 ] ] := v ; ELSE ; w[ m[ 1 ] ][ m[ 2 ] ] := v ; ENDIF
+         ENDIF
+         LOOP
+      ENDIF
+      DO CASE
+      CASE n == 5
+         v := Sr_HexVal( p ) ; IF v != NIL ; w[ "handle" ] := v ; ENDIF
+      CASE n == 2 ; w[ "name" ] := p[ DP_VALUE ]
+      CASE n == 50
+         v := Dp_AsDouble( p ) ; IF v != NIL ; w[ "snap_rotation" ] := v * OCX_PI / 180.0 ; ENDIF
+      CASE n == 51
+         v := Dp_AsDouble( p ) ; IF v != NIL ; w[ "view_twist" ] := v * OCX_PI / 180.0 ; ENDIF
+      CASE n == 60
+         v := Dp_AsI16( p ) ; IF v != NIL ; w[ "grid_flags" ] := Vgf_FromBits( v ) ; ENDIF
+      CASE n == 61
+         v := Dp_AsI16( p ) ; IF v != NIL ; w[ "grid_major" ] := v ; ENDIF
+      CASE n == 63
+         v := Dp_AsI16( p ) ; IF v != NIL ; w[ "ambient_color" ] := Cl_FromIndex( v ) ; ENDIF
+      CASE n == 65
+         v := Dp_AsI16( p ) ; IF v != NIL ; w[ "ucs_per_viewport" ] := v != 0 ; ENDIF
+      CASE n == 70
+         v := Dp_AsI16( p )
+         IF v != NIL
+            w[ "xref_dependent" ] := hb_bitAnd( v, 16 ) != 0 ; w[ "xref_resolved" ] := hb_bitAnd( v, 32 ) != 0 ; w[ "xref_reference" ] := hb_bitAnd( v, 64 ) != 0
+         ENDIF
+      CASE n == 71
+         v := Dp_AsI16( p )
+         IF v != NIL
+            w[ "perspective" ] := hb_bitAnd( v, 1 ) != 0 ; w[ "front_clipping" ] := hb_bitAnd( v, 2 ) != 0 ; w[ "back_clipping" ] := hb_bitAnd( v, 4 ) != 0
+            w[ "ucsfollow" ] := hb_bitAnd( v, 8 ) != 0 ; w[ "front_clip_at_eye" ] := hb_bitAnd( v, 16 ) != 0
+         ENDIF
+      CASE n == 72
+         v := Dp_AsI16( p ) ; IF v != NIL ; w[ "circle_zoom" ] := v ; ENDIF
+      CASE n == 73
+         v := Dp_AsI16( p ) ; IF v != NIL ; w[ "fast_zoom" ] := v != 0 ; ENDIF
+      CASE n == 74
+         v := Dp_AsI16( p )
+         IF v != NIL ; w[ "ucsicon_lower" ] := hb_bitAnd( v, 1 ) != 0 ; w[ "ucsicon_origin" ] := hb_bitAnd( v, 2 ) != 0 ; ENDIF
+      CASE n == 75
+         v := Dp_AsI16( p ) ; IF v != NIL ; w[ "snap_on" ] := v != 0 ; ENDIF
+      CASE n == 76
+         v := Dp_AsI16( p ) ; IF v != NIL ; w[ "grid_on" ] := v != 0 ; ENDIF
+      CASE n == 77
+         v := Dp_AsI16( p ) ; IF v != NIL ; w[ "snap_style" ] := v != 0 ; ENDIF
+      CASE n == 78
+         v := Dp_AsI16( p ) ; IF v != NIL ; w[ "snap_isopair" ] := v ; ENDIF
+      CASE n == 79
+         v := Dp_AsI16( p ) ; IF v != NIL ; w[ "ucs_ortho_type" ] := v ; ENDIF
+      CASE n == 281
+         v := Dp_AsI16( p ) ; IF v != NIL ; w[ "render_mode" ] := Vrm_FromValue( v ) ; ENDIF
+      CASE n == 282
+         v := Dp_AsI16( p ) ; IF v != NIL ; w[ "default_lighting_type" ] := v ; ENDIF
+      CASE n == 292
+         v := Dp_AsI16( p ) ; IF v != NIL ; w[ "use_default_lights" ] := v != 0 ; ENDIF
+      CASE n == 332 ; v := Sr_HexVal( p ) ; IF v != NIL ; w[ "background_handle" ] := v ; ENDIF
+      CASE n == 345 ; v := Sr_HexVal( p ) ; IF v != NIL ; w[ "named_ucs_handle" ] := v ; ENDIF
+      CASE n == 346 ; v := Sr_HexVal( p ) ; IF v != NIL ; w[ "base_ucs_handle" ] := v ; ENDIF
+      CASE n == 348 ; v := Sr_HexVal( p ) ; IF v != NIL ; w[ "visual_style_handle" ] := v ; ENDIF
+      CASE n == 361 ; v := Sr_HexVal( p ) ; IF v != NIL ; w[ "sun_handle" ] := v ; ENDIF
+      CASE n == 421
+         v := Dp_AsI32Bits( p ) ; IF v != NIL ; w[ "ambient_color" ] := Cl_FromTrueColorValue( v ) ; ENDIF
+      ENDCASE
+   ENDDO
+RETURN w
 
 STATIC FUNCTION Sr_ViewEntry( s )
    LOCAL w := Viw_New( "*Active" ), p, v, n, ce := PR_New(), tg := PR_New(), di := PR_New(), uo := PR_New(), ux := PR_New(), uy := PR_New(), pt
@@ -622,9 +709,10 @@ PROCEDURE Sr_ReadTables( s, d )
             CASE cN == "STYLE" ; Sr_TableGeneric( s, d, "text_styles", "STYLE", "style_control_handle", {|| Sr_StyleEntry( s ) }, .T. )
             CASE cN == "BLOCK_RECORD" ; Sr_ReadBlockRecordTable( s, d )
             CASE cN == "APPID" ; Sr_TableGeneric( s, d, "app_ids", "APPID", "appid_control_handle", {|| Sr_AppIdEntry( s ) }, .F. )
+            CASE cN == "VPORT" ; Tb_Clear( d[ "vports" ] ) ; Sr_TableGeneric( s, d, "vports", "VPORT", "vport_control_handle", {|| Sr_VportEntry( s ) }, 2 )
             CASE cN == "VIEW" ; Sr_TableGeneric( s, d, "views", "VIEW", "view_control_handle", {|| Sr_ViewEntry( s ) }, .F. )
             CASE cN == "UCS" ; Sr_TableGeneric( s, d, "ucss", "UCS", "ucs_control_handle", {|| Sr_UcsEntry( s ) }, .F. )
-            OTHERWISE ; Sr_SkipToEndTab( s ) /* DIMSTYLE/VPORT: PENDIENTE (se saltan) */
+            OTHERWISE ; Sr_SkipToEndTab( s ) /* DIMSTYLE: PENDIENTE (se saltan) */
             ENDCASE
          ENDIF
       ENDIF
