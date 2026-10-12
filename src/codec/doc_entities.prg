@@ -259,7 +259,7 @@ RETURN
 FUNCTION Doc_Entities( d )
    LOCAL a := {}, e
    FOR EACH e IN d[ "entities" ]
-      IF e[ "_type" ] != "BLOCK" .AND. e[ "_type" ] != "ENDBLK" ; AAdd( a, e ) ; ENDIF
+      IF ! ( e[ "_type" ] == "BLOCK" ) .AND. ! ( e[ "_type" ] == "ENDBLK" ) ; AAdd( a, e ) ; ENDIF
    NEXT
 RETURN a
 
