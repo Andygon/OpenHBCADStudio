@@ -804,7 +804,7 @@ STATIC PROCEDURE Swr_DimBase( st, b, vDef, nFlags, hOwner )
    ENDIF
 RETURN
 
-/* write_dimension (Aligned/Linear/Radius/Diameter/Angular2Ln/Angular3Pt/Ordinate). Arc/LargeRadial: PENDIENTE */
+/* write_dimension (Aligned/Linear/Radius/Diameter/Angular2Ln/Angular3Pt/Ordinate). Arc/LargeRadial incluidos */
 STATIC PROCEDURE Swr_Dimension( st, e, hOwner )
    LOCAL w := st[ 1 ], t := e[ "_type" ], b := e[ "base" ], bb
    DO CASE
@@ -833,6 +833,14 @@ STATIC PROCEDURE Swr_Dimension( st, e, hOwner )
       bb := Ent_Clone( b ) ; bb[ "actual_measurement" ] := Dor_Measurement( e )
       Sw_WriteEntityType( w, "DIMENSION" ) ; Swr_DimBase( st, bb, e[ "definition_point" ], hb_bitOr( 6, IIf( e[ "is_ordinate_type_x" ], 64, 0 ) ), hOwner )
       Sw_WriteSubclass( w, "AcDbOrdinateDimension" ) ; Sw_WritePoint3d( w, 13, e[ "feature_location" ] ) ; Sw_WritePoint3d( w, 14, e[ "leader_endpoint" ] )
+   CASE t == "ARC_DIMENSION"
+      Sw_WriteEntityType( w, "ARC_DIMENSION" ) ; Swr_DimBase( st, b, e[ "definition_point" ], 8, hOwner ) ; Sw_WriteSubclass( w, "AcDbArcDimension" )
+      Sw_WritePoint3d( w, 13, e[ "first_extension_point" ] ) ; Sw_WritePoint3d( w, 14, e[ "second_extension_point" ] ) ; Sw_WritePoint3d( w, 15, e[ "center_point" ] )
+      Sw_WriteBool( w, 70, e[ "is_partial" ] ) ; Sw_WriteDouble( w, 40, e[ "arc_start_parameter" ] ) ; Sw_WriteDouble( w, 41, e[ "arc_end_parameter" ] )
+      Sw_WriteBool( w, 71, e[ "has_leader" ] ) ; Sw_WritePoint3d( w, 16, e[ "first_leader_point" ] ) ; Sw_WritePoint3d( w, 17, e[ "second_leader_point" ] )
+   CASE t == "LARGE_RADIAL_DIMENSION"
+      Sw_WriteEntityType( w, "LARGE_RADIAL_DIMENSION" ) ; Swr_DimBase( st, b, e[ "definition_point" ], 4, hOwner ) ; Sw_WriteSubclass( w, "AcDbRadialDimensionLarge" )
+      Sw_WritePoint3d( w, 13, e[ "jog_point" ] ) ; Sw_WritePoint3d( w, 14, e[ "override_center" ] ) ; Sw_WritePoint3d( w, 15, e[ "chord_point" ] ) ; Sw_WriteDouble( w, 40, e[ "jog_angle" ] )
    ENDCASE
 RETURN
 
@@ -1141,7 +1149,7 @@ STATIC PROCEDURE Swr_WriteEntity( st, e, hOwner )
       Sw_WritePoint3d( w, 10, e[ "first_corner" ] ) ; Sw_WritePoint3d( w, 11, e[ "second_corner" ] )
       Sw_WritePoint3d( w, 12, e[ "third_corner" ] ) ; Sw_WritePoint3d( w, 13, e[ "fourth_corner" ] )
       IF e[ "invisible_edges" ] != 0 ; Sw_WriteI16( w, 70, e[ "invisible_edges" ] ) ; ENDIF
-   CASE t == "DIMENSION_ALIGNED" .OR. t == "DIMENSION_LINEAR" .OR. t == "DIMENSION_RADIUS" .OR. t == "DIMENSION_DIAMETER" .OR. t == "DIMENSION_ANGULAR_2LINE" .OR. t == "DIMENSION_ANGULAR_3POINT" .OR. t == "DIMENSION_ORDINATE"
+   CASE t == "DIMENSION_ALIGNED" .OR. t == "DIMENSION_LINEAR" .OR. t == "DIMENSION_RADIUS" .OR. t == "DIMENSION_DIAMETER" .OR. t == "DIMENSION_ANGULAR_2LINE" .OR. t == "DIMENSION_ANGULAR_3POINT" .OR. t == "DIMENSION_ORDINATE" .OR. t == "ARC_DIMENSION" .OR. t == "LARGE_RADIAL_DIMENSION"
       Swr_Dimension( st, e, hOwner )
    CASE t == "RAY" .OR. t == "XLINE"
       Sw_WriteEntityType( w, t ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, IIf( t == "RAY", "AcDbRay", "AcDbXline" ) )
