@@ -353,4 +353,14 @@ PROCEDURE T_DxfRw()
       Chk( es[ 7 ][ "_type" ] == "DIMENSION_ORDINATE" .AND. ! es[ 7 ][ "is_ordinate_type_x" ] .AND. Near( es[ 7 ][ "feature_location" ][ 2 ], 4.0, 0.000000001 ) .AND. Near( es[ 7 ][ "leader_endpoint" ][ 1 ], 5.0, 0.000000001 ), "[extra] DIMENSION: ordinate Y" )
       Chk( es[ 1 ][ "common" ] == es[ 1 ][ "base" ][ "common" ], "[extra] DIMENSION: common compartido con base" )
    ENDIF
+   /* [extra] ARC_DIMENSION y LARGE_RADIAL_DIMENSION */
+   d2 := Doc_New()
+   x := Dar_Default() ; x[ "first_extension_point" ] := Vc3_New( 1.0, 0.0, 0.0 ) ; x[ "second_extension_point" ] := Vc3_New( 0.0, 1.0, 0.0 ) ; x[ "center_point" ] := Vc3_New( 0.0, 0.0, 0.0 )
+   x[ "is_partial" ] := .T. ; x[ "arc_start_parameter" ] := 0.5 ; x[ "arc_end_parameter" ] := 1.5 ; x[ "has_leader" ] := .T. ; x[ "first_leader_point" ] := Vc3_New( 2.0, 2.0, 0.0 )
+   Edm_SetDefinitionPoint( x, Vc3_New( 0.7, 0.7, 0.0 ) ) ; Doc_AddEntity( d2, x )
+   x := Dlr_Default() ; x[ "jog_point" ] := Vc3_New( 3.0, 0.0, 0.0 ) ; x[ "chord_point" ] := Vc3_New( 6.0, 1.0, 0.0 ) ; x[ "jog_angle" ] := 0.75 ; Doc_AddEntity( d2, x )
+   d2 := RT( d2 )
+   es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
+   Chk( Len( es ) == 2 .AND. es[ 1 ][ "_type" ] == "ARC_DIMENSION" .AND. es[ 1 ][ "is_partial" ] .AND. es[ 1 ][ "has_leader" ] .AND. Near( es[ 1 ][ "arc_end_parameter" ], 1.5, 0.000000001 ) .AND. Near( es[ 1 ][ "first_leader_point" ][ 1 ], 2.0, 0.000000001 ) .AND. Near( es[ 1 ][ "definition_point" ][ 1 ], 0.7, 0.000000001 ), "[extra] DIMENSION: ARC_DIMENSION releida" )
+   Chk( Len( es ) == 2 .AND. es[ 2 ][ "_type" ] == "LARGE_RADIAL_DIMENSION" .AND. Near( es[ 2 ][ "jog_angle" ], 0.75, 0.000000001 ) .AND. Near( es[ 2 ][ "jog_point" ][ 1 ], 3.0, 0.000000001 ) .AND. Near( es[ 2 ][ "chord_point" ][ 2 ], 1.0, 0.000000001 ), "[extra] DIMENSION: LARGE_RADIAL releida" )
 RETURN
