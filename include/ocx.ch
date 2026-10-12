@@ -115,4 +115,10 @@
 #define SX_NONE 0
 #define SX_POINT 1
 #define SX_OVERLAP 2
+/* codec Color kinds: {nKind, a, b, c} */
+#define CK_BYLAYER 0
+#define CK_NONE    1
+#define CK_BYBLOCK 2
+#define CK_INDEX   3
+#define CK_RGB     4
 #endif
