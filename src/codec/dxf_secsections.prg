@@ -7,6 +7,8 @@
 #include "ocx.ch"
 
 #define DP_CODE 1
+#define HPT_PREDEFINED  1
+#define HST_NORMAL      0
 #define DP_VALUE 3
 
 /* ---- utilidades de lectura ---- */
@@ -2063,6 +2065,329 @@ STATIC FUNCTION Sr_ReadHelix( s )
    pt := PR_GetPoint( rAv ) ; IF pt != NIL ; e[ "axis_vector" ] := pt ; ENDIF
 RETURN e
 
+/* helpers de HATCH: unwrap_or sobre as_double / as_i16 / as_i32 */
+STATIC FUNCTION Sr_Dd( p, nDef ) ; LOCAL v := Dp_AsDouble( p ) ; RETURN IIf( v == NIL, nDef, v )
+STATIC FUNCTION Sr_Di( p, nDef ) ; LOCAL v := Dp_AsI16( p ) ; RETURN IIf( v == NIL, nDef, v )
+STATIC FUNCTION Sr_Dl( p, nDef ) ; LOCAL v := Dp_AsI32( p ) ; RETURN IIf( v == NIL, nDef, v )
+
+STATIC FUNCTION Sr_HatchPatternLine( s )
+   LOCAL l := Hpl_New( 0.0, Vc2_Zero(), Vc2_Zero(), {} ), p, nD := 0, i
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      DO CASE
+      CASE p[ DP_CODE ] == 53 ; l[ "angle" ] := Sr_Deg( Sr_Dd( p, 0.0 ) )
+      CASE p[ DP_CODE ] == 43 ; l[ "base_point" ][ 1 ] := Sr_Dd( p, 0.0 )
+      CASE p[ DP_CODE ] == 44 ; l[ "base_point" ][ 2 ] := Sr_Dd( p, 0.0 )
+      CASE p[ DP_CODE ] == 45 ; l[ "offset" ][ 1 ] := Sr_Dd( p, 0.0 )
+      CASE p[ DP_CODE ] == 46 ; l[ "offset" ][ 2 ] := Sr_Dd( p, 0.0 )
+      CASE p[ DP_CODE ] == 79 ; nD := Max( 0, Sr_Di( p, 0 ) ) ; EXIT
+      OTHERWISE ; Sr_PushBack( s, p ) ; EXIT
+      ENDCASE
+   ENDDO
+   FOR i := 1 TO nD
+      p := Sr_Next( s )
+      IF p == NIL ; EXIT ; ENDIF
+      IF p[ DP_CODE ] == 49
+         AAdd( l[ "dash_lengths" ], Sr_Dd( p, 0.0 ) )
+      ELSE
+         Sr_PushBack( s, p ) ; EXIT
+      ENDIF
+   NEXT
+RETURN l
+
+/* aristas: bucle de N pares esperados; un codigo inesperado se devuelve y termina */
+STATIC FUNCTION Sr_HatchLineEdge( s )
+   LOCAL e := Bed_Line( Vc2_Zero(), Vc2_Zero() ), p, i
+   FOR i := 1 TO 4
+      p := Sr_Next( s )
+      IF p != NIL
+         DO CASE
+         CASE p[ DP_CODE ] == 10 ; e[ "start" ][ 1 ] := Sr_Dd( p, 0.0 )
+         CASE p[ DP_CODE ] == 20 ; e[ "start" ][ 2 ] := Sr_Dd( p, 0.0 )
+         CASE p[ DP_CODE ] == 11 ; e[ "end" ][ 1 ] := Sr_Dd( p, 0.0 )
+         CASE p[ DP_CODE ] == 21 ; e[ "end" ][ 2 ] := Sr_Dd( p, 0.0 )
+         OTHERWISE ; Sr_PushBack( s, p ) ; EXIT
+         ENDCASE
+      ENDIF
+   NEXT
+RETURN e
+
+STATIC FUNCTION Sr_HatchArcEdge( s )
+   LOCAL e := Bed_CircularArc( Vc2_Zero(), 0.0, 0.0, 0.0, .T. ), p, i
+   FOR i := 1 TO 6
+      p := Sr_Next( s )
+      IF p != NIL
+         DO CASE
+         CASE p[ DP_CODE ] == 10 ; e[ "center" ][ 1 ] := Sr_Dd( p, 0.0 )
+         CASE p[ DP_CODE ] == 20 ; e[ "center" ][ 2 ] := Sr_Dd( p, 0.0 )
+         CASE p[ DP_CODE ] == 40 ; e[ "radius" ] := Sr_Dd( p, 0.0 )
+         CASE p[ DP_CODE ] == 50 ; e[ "start_angle" ] := Sr_Deg( Sr_Dd( p, 0.0 ) )
+         CASE p[ DP_CODE ] == 51 ; e[ "end_angle" ] := Sr_Deg( Sr_Dd( p, 0.0 ) )
+         CASE p[ DP_CODE ] == 73 ; e[ "counter_clockwise" ] := ( Sr_Di( p, 1 ) != 0 )
+         OTHERWISE ; Sr_PushBack( s, p ) ; EXIT
+         ENDCASE
+      ENDIF
+   NEXT
+RETURN e
+
+/* elliptic: 50/51 sin conversion de grados (fiel al original) */
+STATIC FUNCTION Sr_HatchEllipseEdge( s )
+   LOCAL e := Bed_EllipticArc( Vc2_Zero(), Vc2_New( 1.0, 0.0 ), 1.0, 0.0, OCX_TAU, .T. ), p, i
+   FOR i := 1 TO 8
+      p := Sr_Next( s )
+      IF p != NIL
+         DO CASE
+         CASE p[ DP_CODE ] == 10 ; e[ "center" ][ 1 ] := Sr_Dd( p, 0.0 )
+         CASE p[ DP_CODE ] == 20 ; e[ "center" ][ 2 ] := Sr_Dd( p, 0.0 )
+         CASE p[ DP_CODE ] == 11 ; e[ "major_axis_endpoint" ][ 1 ] := Sr_Dd( p, 0.0 )
+         CASE p[ DP_CODE ] == 21 ; e[ "major_axis_endpoint" ][ 2 ] := Sr_Dd( p, 0.0 )
+         CASE p[ DP_CODE ] == 40 ; e[ "minor_axis_ratio" ] := Sr_Dd( p, 1.0 )
+         CASE p[ DP_CODE ] == 50 ; e[ "start_angle" ] := Sr_Dd( p, 0.0 )
+         CASE p[ DP_CODE ] == 51 ; e[ "end_angle" ] := Sr_Dd( p, OCX_TAU )
+         CASE p[ DP_CODE ] == 73 ; e[ "counter_clockwise" ] := ( Sr_Di( p, 1 ) != 0 )
+         OTHERWISE ; Sr_PushBack( s, p ) ; EXIT
+         ENDCASE
+      ENDIF
+   NEXT
+RETURN e
+
+STATIC FUNCTION Sr_HatchSplineEdge( s )
+   LOCAL e := Bed_Spline(), p, i, nK := 0, nC := 0, nF := 0, x, y, w, lSkip
+   e[ "degree" ] := 3
+   FOR i := 1 TO 5
+      p := Sr_Next( s )
+      IF p != NIL
+         DO CASE
+         CASE p[ DP_CODE ] == 94 ; e[ "degree" ] := Sr_Dl( p, 3 )
+         CASE p[ DP_CODE ] == 73 ; e[ "rational" ] := ( Sr_Di( p, 0 ) != 0 )
+         CASE p[ DP_CODE ] == 74 ; e[ "periodic" ] := ( Sr_Di( p, 0 ) != 0 )
+         CASE p[ DP_CODE ] == 95 ; nK := Sr_Dl( p, 0 )
+         CASE p[ DP_CODE ] == 96 ; nC := Sr_Dl( p, 0 )
+         OTHERWISE ; Sr_PushBack( s, p ) ; EXIT
+         ENDCASE
+      ENDIF
+   NEXT
+   FOR i := 1 TO nK
+      p := Sr_Next( s )
+      IF p != NIL
+         IF p[ DP_CODE ] == 40
+            AAdd( e[ "knots" ], Sr_Dd( p, 0.0 ) )
+         ELSE
+            Sr_PushBack( s, p ) ; EXIT
+         ENDIF
+      ENDIF
+   NEXT
+   FOR i := 1 TO nC
+      x := 0.0 ; y := 0.0 ; w := 1.0 ; lSkip := .F.
+      p := Sr_Next( s )
+      IF p != NIL
+         IF p[ DP_CODE ] == 10 ; x := Sr_Dd( p, 0.0 ) ; ELSE ; Sr_PushBack( s, p ) ; lSkip := .T. ; ENDIF
+      ENDIF
+      IF ! lSkip
+         p := Sr_Next( s )
+         IF p != NIL
+            IF p[ DP_CODE ] == 20 ; y := Sr_Dd( p, 0.0 ) ; ELSE ; Sr_PushBack( s, p ) ; ENDIF
+         ENDIF
+         p := Sr_Next( s )
+         IF p != NIL
+            IF p[ DP_CODE ] == 42 ; w := Sr_Dd( p, 1.0 ) ; ELSE ; Sr_PushBack( s, p ) ; ENDIF
+         ENDIF
+         AAdd( e[ "control_points" ], Vc3_New( x, y, w ) )
+      ENDIF
+   NEXT
+   p := Sr_Next( s )
+   IF p != NIL
+      IF p[ DP_CODE ] == 97 ; nF := Sr_Dl( p, 0 ) ; ELSE ; Sr_PushBack( s, p ) ; ENDIF
+   ENDIF
+   FOR i := 1 TO nF
+      x := 0.0 ; y := 0.0 ; lSkip := .F.
+      p := Sr_Next( s )
+      IF p != NIL
+         IF p[ DP_CODE ] == 11 ; x := Sr_Dd( p, 0.0 ) ; ELSE ; Sr_PushBack( s, p ) ; lSkip := .T. ; ENDIF
+      ENDIF
+      IF ! lSkip
+         p := Sr_Next( s )
+         IF p != NIL
+            IF p[ DP_CODE ] == 21 ; y := Sr_Dd( p, 0.0 ) ; ELSE ; Sr_PushBack( s, p ) ; ENDIF
+         ENDIF
+         AAdd( e[ "fit_points" ], Vc2_New( x, y ) )
+      ENDIF
+   NEXT
+   FOR i := 1 TO 4
+      p := Sr_Next( s )
+      IF p != NIL
+         DO CASE
+         CASE p[ DP_CODE ] == 12 ; e[ "start_tangent" ][ 1 ] := Sr_Dd( p, 0.0 )
+         CASE p[ DP_CODE ] == 22 ; e[ "start_tangent" ][ 2 ] := Sr_Dd( p, 0.0 )
+         CASE p[ DP_CODE ] == 13 ; e[ "end_tangent" ][ 1 ] := Sr_Dd( p, 0.0 )
+         CASE p[ DP_CODE ] == 23 ; e[ "end_tangent" ][ 2 ] := Sr_Dd( p, 0.0 )
+         OTHERWISE ; Sr_PushBack( s, p ) ; EXIT
+         ENDCASE
+      ENDIF
+   NEXT
+RETURN e
+
+STATIC FUNCTION Sr_HatchPolyEdge( s )
+   LOCAL lB := .F., lC := .F., nV := 0, i, p, x, y, b, lSkip, e
+   FOR i := 1 TO 3
+      p := Sr_Next( s )
+      IF p != NIL
+         DO CASE
+         CASE p[ DP_CODE ] == 72 ; lB := ( Sr_Di( p, 0 ) != 0 )
+         CASE p[ DP_CODE ] == 73 ; lC := ( Sr_Di( p, 0 ) != 0 )
+         CASE p[ DP_CODE ] == 93 ; nV := Sr_Dl( p, 0 )
+         OTHERWISE ; Sr_PushBack( s, p ) ; EXIT
+         ENDCASE
+      ENDIF
+   NEXT
+   e := hb_Hash( "kind", "Polyline", "vertices", {}, "is_closed", lC )
+   FOR i := 1 TO nV
+      x := 0.0 ; y := 0.0 ; b := 0.0 ; lSkip := .F.
+      p := Sr_Next( s )
+      IF p != NIL
+         IF p[ DP_CODE ] == 10 ; x := Sr_Dd( p, 0.0 ) ; ELSE ; Sr_PushBack( s, p ) ; lSkip := .T. ; ENDIF
+      ENDIF
+      IF ! lSkip
+         p := Sr_Next( s )
+         IF p != NIL
+            IF p[ DP_CODE ] == 20 ; y := Sr_Dd( p, 0.0 ) ; ELSE ; Sr_PushBack( s, p ) ; ENDIF
+         ENDIF
+         IF lB
+            p := Sr_Next( s )
+            IF p != NIL
+               IF p[ DP_CODE ] == 42 ; b := Sr_Dd( p, 0.0 ) ; ELSE ; Sr_PushBack( s, p ) ; ENDIF
+            ENDIF
+         ENDIF
+         AAdd( e[ "vertices" ], Vc3_New( x, y, b ) )
+      ENDIF
+   NEXT
+RETURN e
+
+STATIC FUNCTION Sr_HatchGradient( s, g, p0 )
+   LOCAL p, n, nL, v
+   g[ "enabled" ] := ( Sr_Dl( p0, 0 ) != 0 )
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      n := p[ DP_CODE ]
+      nL := Len( g[ "colors" ] )
+      DO CASE
+      CASE n == 451 ; g[ "reserved" ] := Sr_Dl( p, 0 )
+      CASE n == 452 ; g[ "is_single_color" ] := ( Sr_Di( p, 0 ) != 0 )
+      CASE n == 453
+      CASE n == 460 ; v := Dp_AsDouble( p ) ; IF v != NIL ; g[ "angle" ] := v ; ENDIF
+      CASE n == 461 ; v := Dp_AsDouble( p ) ; IF v != NIL ; g[ "shift" ] := v ; ENDIF
+      CASE n == 462 ; v := Dp_AsDouble( p ) ; IF v != NIL ; g[ "color_tint" ] := v ; ENDIF
+      CASE n == 463 ; AAdd( g[ "colors" ], hb_Hash( "value", Sr_Dd( p, 0.0 ), "color", Cl_ByLayer() ) )
+      CASE n == 63
+         v := AllTrim( p[ DP_VALUE ] )
+         IF nL > 0 .AND. hb_RegexLike( "^[+-]?[0-9]+$", v ) .AND. Val( v ) >= -32768 .AND. Val( v ) <= 32767
+            g[ "colors" ][ nL ][ "color" ] := Cl_FromIndex( Val( v ) )
+         ENDIF
+      CASE n == 421
+         v := Sr_TrueColorBits( p[ DP_VALUE ] )
+         IF nL > 0 .AND. v != NIL ; g[ "colors" ][ nL ][ "color" ] := Cl_FromTrueColorValue( v ) ; ENDIF
+      CASE n == 470 ; g[ "name" ] := p[ DP_VALUE ]
+      OTHERWISE ; Sr_PushBack( s, p ) ; EXIT
+      ENDCASE
+   ENDDO
+RETURN NIL
+
+STATIC FUNCTION Sr_ReadHatchKind( s, lMp )
+   LOCAL h := Ehh_New(), p, n, v, cSub := "", rEl := PR_New(), rNo := PR_New(), rMx := PR_New(), cName := "SOLID", nPT := HPT_PREDEFINED
+   LOCAL cLayer := "0", aColor := Cl_ByLayer(), oLw := Lw_ByLayer(), aEdges := {}, nFlags := 0, aHandles := {}, lRB := .F., i, p2, nX, nY, pt, nN
+   h[ "is_mpolygon" ] := lMp
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      n := p[ DP_CODE ]
+      DO CASE
+      CASE n == 100 ; cSub := p[ DP_VALUE ]
+      CASE n == 8 ; cLayer := p[ DP_VALUE ]
+      CASE n == 62 .AND. lMp .AND. cSub == "AcDbMPolygon"
+         v := Dp_AsI16( p ) ; IF v != NIL ; h[ "mpolygon_hatch_color" ] := Cl_FromIndex( v ) ; ENDIF
+      CASE n == 62
+         v := Dp_AsI16( p ) ; IF v != NIL ; aColor := Cl_FromIndex( v ) ; ENDIF
+      CASE n == 370
+         v := Dp_AsI16( p ) ; IF v != NIL ; oLw := Lw_FromValue( v ) ; ENDIF
+      CASE n == 2 ; cName := p[ DP_VALUE ]
+      CASE ( n == 10 .OR. n == 20 .OR. n == 30 ) .AND. ! lRB ; PR_AddCoordinate( rEl, p )
+      CASE n == 210 .OR. n == 220 .OR. n == 230 ; PR_AddCoordinate( rNo, p )
+      CASE ( n == 11 .OR. n == 21 ) .AND. lMp .AND. cSub == "AcDbMPolygon" ; PR_AddCoordinate( rMx, p )
+      CASE n == 99 .AND. lMp
+      CASE n == 70
+         v := Dp_AsI16( p ) ; IF v != NIL ; h[ "is_solid" ] := ( v != 0 ) ; ENDIF
+      CASE n == 71
+         v := Dp_AsI16( p ) ; IF v != NIL ; h[ "is_associative" ] := ( v != 0 ) ; ENDIF
+      CASE n == 75
+         v := Dp_AsI16( p ) ; IF v != NIL ; h[ "style" ] := IIf( v >= 0 .AND. v <= 2, v, HST_NORMAL ) ; ENDIF
+      CASE n == 76
+         v := Dp_AsI16( p ) ; IF v != NIL ; nPT := IIf( v >= 0 .AND. v <= 2, v, HPT_PREDEFINED ) ; ENDIF
+      CASE n == 52
+         v := Dp_AsDouble( p ) ; IF v != NIL ; h[ "pattern_angle" ] := Sr_Deg( v ) ; ENDIF
+      CASE n == 41
+         v := Dp_AsDouble( p ) ; IF v != NIL ; h[ "pattern_scale" ] := v ; ENDIF
+      CASE n == 77
+         v := Dp_AsI16( p ) ; IF v != NIL ; h[ "is_double" ] := ( v != 0 ) ; ENDIF
+      CASE n == 78
+         nN := Max( 0, Sr_Di( p, 0 ) )
+         FOR i := 1 TO nN ; AAdd( h[ "pattern" ][ "lines" ], Sr_HatchPatternLine( s ) ) ; NEXT
+      CASE n == 91
+      CASE n == 92
+         IF lRB .AND. Len( aEdges ) > 0
+            AAdd( h[ "paths" ], hb_Hash( "flags", nFlags, "edges", aEdges, "boundary_handles", aHandles ) )
+            aEdges := {} ; aHandles := {}
+         ENDIF
+         lRB := .T.
+         nFlags := Sr_Dl( p, 0 )
+         IF Bpf_IsPolyline( nFlags ) ; AAdd( aEdges, Sr_HatchPolyEdge( s ) ) ; ENDIF
+      CASE n == 93
+      CASE n == 72
+         v := Dp_AsI16( p )
+         IF v != NIL
+            DO CASE
+            CASE v == 1 ; AAdd( aEdges, Sr_HatchLineEdge( s ) )
+            CASE v == 2 ; AAdd( aEdges, Sr_HatchArcEdge( s ) )
+            CASE v == 3 ; AAdd( aEdges, Sr_HatchEllipseEdge( s ) )
+            CASE v == 4 ; AAdd( aEdges, Sr_HatchSplineEdge( s ) )
+            ENDCASE
+         ENDIF
+      CASE n == 97
+         nN := Sr_Dl( p, 0 )
+         FOR i := 1 TO nN
+            p2 := Sr_Next( s )
+            IF p2 != NIL .AND. p2[ DP_CODE ] == 330
+               v := Sr_HexVal( p2 ) ; IF v != NIL ; AAdd( aHandles, v ) ; ENDIF
+            ENDIF
+         NEXT
+      CASE n == 47
+         v := Dp_AsDouble( p ) ; IF v != NIL ; h[ "pixel_size" ] := v ; ENDIF
+      CASE n == 98
+         nN := Max( 0, Sr_Dl( p, 0 ) )
+         FOR i := 1 TO nN
+            nX := 0.0 ; nY := 0.0
+            p2 := Sr_Next( s )
+            IF p2 != NIL
+               IF p2[ DP_CODE ] == 10 ; nX := Sr_Dd( p2, 0.0 ) ; ELSE ; Sr_PushBack( s, p2 ) ; EXIT ; ENDIF
+            ENDIF
+            p2 := Sr_Next( s )
+            IF p2 != NIL
+               IF p2[ DP_CODE ] == 20 ; nY := Sr_Dd( p2, 0.0 ) ; ELSE ; Sr_PushBack( s, p2 ) ; ENDIF
+            ENDIF
+            AAdd( h[ "seed_points" ], Vc2_New( nX, nY ) )
+         NEXT
+      CASE n == 450 ; Sr_HatchGradient( s, h[ "gradient_color" ], p )
+      OTHERWISE ; Sr_EntBase( s, p, h )
+      ENDCASE
+   ENDDO
+   IF lRB .AND. Len( aEdges ) > 0
+      AAdd( h[ "paths" ], hb_Hash( "flags", nFlags, "edges", aEdges, "boundary_handles", aHandles ) )
+   ENDIF
+   h[ "common" ][ "layer" ] := cLayer
+   IF ! ( h[ "common" ][ "color" ][ 1 ] == CK_RGB ) ; h[ "common" ][ "color" ] := aColor ; ENDIF
+   h[ "common" ][ "line_weight" ] := oLw
+   h[ "pattern" ][ "name" ] := cName ; h[ "pattern_type" ] := nPT
+   pt := PR_GetPoint( rEl ) ; IF pt != NIL ; h[ "elevation" ] := pt[ 3 ] ; ENDIF
+   pt := PR_GetPoint( rNo ) ; IF pt != NIL ; h[ "normal" ] := pt ; ENDIF
+   pt := PR_GetPoint( rMx ) ; IF pt != NIL ; h[ "mpolygon_x_direction" ] := Vc2_New( pt[ 1 ], pt[ 2 ] ) ; ENDIF
+RETURN h
+
 STATIC FUNCTION Sr_ReadEntityOfType( s, cT )
    LOCAL p
    DO CASE
@@ -2087,6 +2412,8 @@ STATIC FUNCTION Sr_ReadEntityOfType( s, cT )
    CASE cT == "DIMENSION" ; RETURN Sr_ReadDimension( s )
    CASE cT == "TOLERANCE" ; RETURN Sr_ReadTolerance( s )
    CASE cT == "SHAPE" ; RETURN Sr_ReadShape( s )
+   CASE cT == "HATCH" ; RETURN Sr_ReadHatchKind( s, .F. )
+   CASE cT == "MPOLYGON" ; RETURN Sr_ReadHatchKind( s, .T. )
    CASE cT == "HELIX" ; RETURN Sr_ReadHelix( s )
    CASE cT == "IMAGE" ; RETURN Sr_ReadImage( s )
    CASE cT == "VIEWPORT" ; RETURN Sr_ReadViewport( s )
