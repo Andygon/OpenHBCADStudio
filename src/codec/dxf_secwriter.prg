@@ -283,6 +283,8 @@ STATIC PROCEDURE Swr_XData( w, xd )
    NEXT
 RETURN
 
+PROCEDURE Swr_XDataP( w, xd ) ; Swr_XData( w, xd ) ; RETURN   /* envoltorio publico (xdata de objetos) */
+
 STATIC PROCEDURE Swr_TableHeader( w, d, cName, nCount, hTable )
    LOCAL hX := hb_HGetDef( d[ "xdic_by_handle" ], hTable, NIL )
    Sw_WriteString( w, 0, "TABLE" ) ; Sw_WriteString( w, 2, cName ) ; Sw_WriteHandle( w, 5, hTable )
