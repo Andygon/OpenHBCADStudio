@@ -25,7 +25,16 @@ STATIC FUNCTION Dxo_FindRootDictHandle( d )
 RETURN nBest
 
 /* tipos de objeto que este escritor emite: las entradas de diccionario a otros tipos se omiten (equivale al filtro valid_handles de Rust) */
-STATIC FUNCTION Dxo_IsWritten( o ) ; RETURN o[ "_type" ] == "Dictionary" .OR. o[ "_type" ] == "Layout" .OR. o[ "_type" ] == "XRecord" .OR. o[ "_type" ] == "Group" .OR. o[ "_type" ] == "MLineStyle" .OR. o[ "_type" ] == "SortEntitiesTable" .OR. o[ "_type" ] == "ImageDefinition" .OR. o[ "_type" ] == "UnderlayDefinition" .OR. o[ "_type" ] == "MultiLeaderStyle" .OR. o[ "_type" ] == "PlotSettings" .OR. o[ "_type" ] == "Scale" .OR. o[ "_type" ] == "DictionaryVariable" .OR. o[ "_type" ] == "DictionaryWithDefault" .OR. o[ "_type" ] == "PlaceHolder" .OR. o[ "_type" ] == "SpatialFilter"
+/* is_unrestorable_assoc_object */
+FUNCTION Dxo_IsUnrestorable( cName )
+   LOCAL c := "", i, k
+   FOR i := 1 TO Len( cName )
+      k := SubStr( cName, i, 1)
+      IF IsAlpha( k ) .OR. IsDigit( k ) ; c += Upper( k ) ; ENDIF
+   NEXT
+RETURN Left( c, 30 ) == "ACDBDYNAMICBLOCKPURGEPREVENTER"
+
+STATIC FUNCTION Dxo_IsWritten( o ) ; RETURN ( o[ "_type" ] == "Unknown" .AND. o[ "raw_dxf_codes" ] != NIL .AND. ! Dxo_IsUnrestorable( o[ "type_name" ] ) ) .OR. o[ "_type" ] == "Dictionary" .OR. o[ "_type" ] == "Layout" .OR. o[ "_type" ] == "XRecord" .OR. o[ "_type" ] == "Group" .OR. o[ "_type" ] == "MLineStyle" .OR. o[ "_type" ] == "SortEntitiesTable" .OR. o[ "_type" ] == "ImageDefinition" .OR. o[ "_type" ] == "UnderlayDefinition" .OR. o[ "_type" ] == "MultiLeaderStyle" .OR. o[ "_type" ] == "PlotSettings" .OR. o[ "_type" ] == "Scale" .OR. o[ "_type" ] == "DictionaryVariable" .OR. o[ "_type" ] == "DictionaryWithDefault" .OR. o[ "_type" ] == "PlaceHolder" .OR. o[ "_type" ] == "SpatialFilter"
 
 STATIC PROCEDURE Dxo_WriteDictionary( w, d, dic )
    LOCAL aR := dic[ "reactors" ], hX, e, lForced, aV, hO
@@ -384,7 +393,7 @@ STATIC PROCEDURE Dxo_WriteObjXdata( w, d, h )
 RETURN
 
 PROCEDURE Dxo_WriteObjects( w, d, nVer, hValid )
-   LOCAL nRoot := d[ "header" ][ "named_objects_dict_handle" ], aK, h, o
+   LOCAL nRoot := d[ "header" ][ "named_objects_dict_handle" ], aK, h, o, e
    s_hValid := hValid ; s_nRoot := Dxo_FindRootDictHandle( d )
    Sw_WriteSectionStart( w, "OBJECTS" )
    IF Hd_IsNull( nRoot ) .OR. ! hb_HHasKey( d[ "objects" ], nRoot ) .OR. ! d[ "objects" ][ nRoot ][ "_type" ] == "Dictionary"
@@ -414,6 +423,11 @@ PROCEDURE Dxo_WriteObjects( w, d, nVer, hValid )
          CASE o[ "_type" ] == "PlaceHolder" ; Dxo_WritePlaceHolder( w, o, nVer )
          CASE o[ "_type" ] == "DictionaryWithDefault" ; Dxo_WriteDictWithDefault( w, d, o )
          CASE o[ "_type" ] == "SpatialFilter" ; Dxo_WriteSpatialFilter( w, d, o )
+         CASE o[ "_type" ] == "Unknown"
+            IF o[ "raw_dxf_codes" ] != NIL .AND. ! Dxo_IsUnrestorable( o[ "type_name" ] )
+               Sw_WriteString( w, 0, o[ "type_name" ] ) ; Sw_WriteHandle( w, 5, o[ "handle" ] ) ; Sw_WriteHandle( w, 330, o[ "owner" ] )
+               FOR EACH e IN o[ "raw_dxf_codes" ] ; Sw_WriteString( w, e[ 1 ], e[ 2 ] ) ; NEXT
+            ENDIF
          ENDCASE
          IF Dxo_IsWritten( o ) ; Dxo_WriteObjXdata( w, d, h ) ; ENDIF
       ENDIF
