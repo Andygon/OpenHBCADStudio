@@ -12,7 +12,7 @@
 #define DP_VALUE 3
 
 /* ---- utilidades de lectura ---- */
-STATIC FUNCTION Sr_Deg( n ) ; RETURN n * OCX_PI / 180.0
+STATIC FUNCTION Sr_Deg( n ) ; RETURN n * ( OCX_PI / 180.0 )
 
 STATIC FUNCTION Sr_Str2Num( c, nDef )
    LOCAL n
@@ -597,9 +597,9 @@ STATIC FUNCTION Sr_VportEntry( s )
          v := Sr_HexVal( p ) ; IF v != NIL ; w[ "handle" ] := v ; ENDIF
       CASE n == 2 ; w[ "name" ] := p[ DP_VALUE ]
       CASE n == 50
-         v := Dp_AsDouble( p ) ; IF v != NIL ; w[ "snap_rotation" ] := v * OCX_PI / 180.0 ; ENDIF
+         v := Dp_AsDouble( p ) ; IF v != NIL ; w[ "snap_rotation" ] := v * ( OCX_PI / 180.0 ) ; ENDIF
       CASE n == 51
-         v := Dp_AsDouble( p ) ; IF v != NIL ; w[ "view_twist" ] := v * OCX_PI / 180.0 ; ENDIF
+         v := Dp_AsDouble( p ) ; IF v != NIL ; w[ "view_twist" ] := v * ( OCX_PI / 180.0 ) ; ENDIF
       CASE n == 60
          v := Dp_AsI16( p ) ; IF v != NIL ; w[ "grid_flags" ] := Vgf_FromBits( v ) ; ENDIF
       CASE n == 61
@@ -677,7 +677,7 @@ STATIC FUNCTION Sr_ViewEntry( s )
             CASE n == 42 ; w[ "lens_length" ] := v
             CASE n == 43 ; w[ "front_clip" ] := v
             CASE n == 44 ; w[ "back_clip" ] := v
-            CASE n == 50 ; w[ "twist_angle" ] := v * OCX_PI / 180.0
+            CASE n == 50 ; w[ "twist_angle" ] := v * ( OCX_PI / 180.0 )
             CASE n == 141 ; w[ "brightness" ] := v
             CASE n == 142 ; w[ "contrast" ] := v
             CASE n == 146 ; w[ "ucs_elevation" ] := v
