@@ -266,6 +266,14 @@ PROCEDURE T_DxfRw()
             .AND. x[ "entries" ][ 5 ][ "value" ][ "value" ] .AND. Near( x[ "entries" ][ 6 ][ "value" ][ "value" ][ 3 ], 3.0, 0.000000001 ) .AND. x[ "entries" ][ 7 ][ "value" ][ "value" ] == 12 .AND. x[ "entries" ][ 8 ][ "value" ][ "value" ] == Chr( 1 ) + Chr( 255 ) + Chr( 16 ) ;
             .AND. Len( x[ "object_references" ] ) == 1, "[extra] OBJECTS: XRECORD escribir y releer (tipos de valor)" )
          Chk( ok != NIL .AND. ok[ "unnamed" ] .AND. ! ok[ "selectable" ] .AND. ok[ "description" ] == "grp" .AND. Len( ok[ "entities" ] ) == 1, "[extra] OBJECTS: GROUP escribir y releer" )
+         x := Mlsy_New( "Doble" ) ; x[ "handle" ] := Doc_AllocateHandle( d ) ; x[ "owner" ] := d[ "header" ][ "named_objects_dict_handle" ] ; x[ "description" ] := "dos lineas"
+         x[ "start_angle" ] := OCX_PI / 2.0 ; x[ "end_angle" ] := OCX_PI ; x[ "fill_color" ] := Cl_FromIndex( 3 )
+         Mlsy_AddElement( x, Mlse_Full( 0.25, Cl_FromIndex( 1 ), "CENTER" ) ) ; Mlsy_AddElement( x, Mlse_New( -0.25 ) )
+         d[ "objects" ][ x[ "handle" ] ] := x
+         d5 := Dxr_ReadString( Dxw_WriteString( d ) )
+         x := IIf( ValType( d5 ) == "H", hb_HGetDef( d5[ "objects" ], x[ "handle" ], NIL ), NIL )
+         Chk( x != NIL .AND. x[ "name" ] == "Doble" .AND. x[ "description" ] == "dos lineas" .AND. Near( x[ "end_angle" ], OCX_PI, 0.000000001 ) .AND. Len( x[ "elements" ] ) == 2 .AND. x[ "elements" ][ 1 ][ "linetype" ] == "CENTER" ;
+            .AND. Near( x[ "elements" ][ 2 ][ "offset" ], -0.25, 0.000000001 ) .AND. x[ "elements" ][ 2 ][ "linetype" ] == "BYLAYER" .AND. Cl_Eq( x[ "fill_color" ], Cl_FromIndex( 3 ) ), "[extra] OBJECTS: MLINESTYLE escribir y releer" )
       ENDIF
       x := NIL
       IF ValType( d2 ) == "H"
