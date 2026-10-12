@@ -8,6 +8,7 @@
    3DSOLID/REGION/BODY (ACIS).
    Nota (quirk fiel al original): TEXT escribe oblique_angle (51) en radianes sin convertir.
    st = { w, nVer, nextHandle, lPaper, d, hViewportIds, nNormalPlotstyle }. Prefijo Swr_ / Dxw_.
+----------------------------------------------------------------------------*/
 #include "ocx.ch"
 
 STATIC PROCEDURE Swr_Var( w, cName, bBody )
@@ -858,12 +859,44 @@ STATIC FUNCTION Swr_AttrText( c )
    c := StrTran( c, Chr( 13 ), "\P" )
 RETURN StrTran( c, Chr( 10 ), "\P" )
 
-/* write_attdef / write_attrib. PENDIENTE: la cola multilinea (R2018+, AC1032: write_attribute_mtext, 101 Embedded Object) */
+/* write_attribute_mtext: cola multilinea R2018+ (MTEXT flag, 72 0, punto 11 y el objeto embebido 101) */
+STATIC PROCEDURE Swr_AttribMtext( w, nFlag, e, cValue )
+   LOCAL m := e[ "embedded_mtext" ], xd
+   IF m == NIL
+      m := Emt_WithValue( cValue, e[ "insertion_point" ] )
+      m[ "normal" ] := e[ "normal" ] ; m[ "rotation" ] := e[ "rotation" ] ; m[ "height" ] := e[ "height" ] ; m[ "style" ] := e[ "text_style" ]
+   ENDIF
+   Sw_WriteI16( w, 71, nFlag ) ; Sw_WriteI16( w, 72, 0 ) ; Sw_WritePoint3d( w, 11, e[ "alignment_point" ] )
+   Sw_WriteString( w, 101, "Embedded Object" )
+   Sw_WritePoint3d( w, 10, m[ "insertion_point" ] ) ; Sw_WriteDouble( w, 40, m[ "height" ] ) ; Sw_WriteDouble( w, 41, m[ "rectangle_width" ] )
+   Sw_WriteDouble( w, 46, IIf( m[ "rectangle_height" ] == NIL, 0.0, m[ "rectangle_height" ] ) )
+   Sw_WriteI16( w, 71, m[ "attachment_point" ] ) ; Sw_WriteI16( w, 72, m[ "drawing_direction" ] )
+   Swr_MTextValue( w, m[ "value" ] ) ; Sw_WriteString( w, 7, m[ "style" ] )
+   IF ! ( m[ "normal" ][ 1 ] == 0.0 .AND. m[ "normal" ][ 2 ] == 0.0 .AND. m[ "normal" ][ 3 ] == 1.0 )
+      Sw_WritePoint3d( w, 210, m[ "normal" ] )
+   ENDIF
+   IF m[ "rotation" ] != 0.0
+      xd := m[ "dwg_x_direction" ]
+      IF xd == NIL .OR. ! ( OCX_ATAN2( xd[ 2 ], xd[ 1 ] ) == m[ "rotation" ] )
+         xd := Vc3_New( OCX_COS( m[ "rotation" ] ), OCX_SIN( m[ "rotation" ] ), 0.0 )
+      ENDIF
+      Sw_WritePoint3d( w, 11, xd )
+   ENDIF
+   IF m[ "extents_width" ] > 0.0 ; Sw_WriteDouble( w, 42, m[ "extents_width" ] ) ; ENDIF
+   IF m[ "extents_height" ] > 0.0 ; Sw_WriteDouble( w, 43, m[ "extents_height" ] ) ; ENDIF
+   IF m[ "rotation" ] != 0.0 ; Sw_WriteDouble( w, 50, Swr_Deg( m[ "rotation" ] ) ) ; ENDIF
+   Sw_WriteI16( w, 73, m[ "line_spacing_style" ] ) ; Sw_WriteDouble( w, 44, m[ "line_spacing_factor" ] )
+RETURN
+
+/* write_attdef / write_attrib */
 STATIC PROCEDURE Swr_AttdefAttrib( st, e, hOwner, lDef )
-   LOCAL w := st[ 1 ], c := e[ "common" ]
+   LOCAL w := st[ 1 ], c := e[ "common" ], lMl, cVal
+   lMl := st[ 2 ] >= Dxv_FromVersionString( "AC1032" ) .AND. ( e[ "is_multiline" ] .OR. e[ "embedded_mtext" ] != NIL )
+   cVal := IIf( lDef, e[ "default_value" ], e[ "value" ] )
+   IF lMl .AND. e[ "embedded_mtext" ] != NIL ; cVal := e[ "embedded_mtext" ][ "value" ] ; ENDIF
    Sw_WriteEntityType( w, IIf( lDef, "ATTDEF", "ATTRIB" ) ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbText" )
    Sw_WritePoint3d( w, 10, e[ "insertion_point" ] ) ; Sw_WriteDouble( w, 40, e[ "height" ] )
-   Sw_WriteString( w, 1, Swr_AttrText( IIf( lDef, e[ "default_value" ], e[ "value" ] ) ) )
+   Sw_WriteString( w, 1, Swr_AttrText( cVal ) )
    Sw_WriteDouble( w, 50, Swr_Deg( e[ "rotation" ] ) ) ; Sw_WriteDouble( w, 41, e[ "width_factor" ] )
    Sw_WriteDouble( w, 51, Swr_Deg( e[ "oblique_angle" ] ) ) ; Sw_WriteString( w, 7, e[ "text_style" ] )
    Sw_WriteI16( w, 71, e[ "text_generation_flags" ] ) ; Sw_WriteI16( w, 72, e[ "horizontal_alignment" ] )
@@ -874,6 +907,7 @@ STATIC PROCEDURE Swr_AttdefAttrib( st, e, hOwner, lDef )
    Sw_WriteString( w, 2, e[ "tag" ] ) ; Sw_WriteI16( w, 70, Taf_ToBits( e[ "flags" ] ) )
    Sw_WriteI16( w, 73, e[ "field_length" ] ) ; Sw_WriteI16( w, 74, e[ "vertical_alignment" ] )
    IF st[ 2 ] >= Dxv_FromVersionString( "AC1021" ) ; Sw_WriteByte( w, 280, IIf( e[ "lock_position" ], 1, 0 ) ) ; ENDIF
+   IF lMl ; Swr_AttribMtext( w, IIf( lDef, 4, 2 ), e, IIf( lDef, e[ "default_value" ], e[ "value" ] ) ) ; ENDIF
    IF ! lDef ; Swr_XData( w, c[ "extended_data" ] ) ; ENDIF
 RETURN
 
