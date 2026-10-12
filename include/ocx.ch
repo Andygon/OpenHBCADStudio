@@ -121,4 +121,12 @@
 #define CK_BYBLOCK 2
 #define CK_INDEX   3
 #define CK_RGB     4
+/* codec Transparency {nKind, nAlpha} y LineWeight {nKind, nValue} */
+#define TK_BYLAYER  0
+#define TK_BYBLOCK  1
+#define TK_EXPLICIT 2
+#define LK_BYLAYER 0
+#define LK_BYBLOCK 1
+#define LK_DEFAULT 2
+#define LK_VALUE   3
 #endif
