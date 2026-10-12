@@ -1,0 +1,31 @@
+/* Tests: multileader_style.rs (20 tests 1:1) */
+#include "ocx.ch"
+PROCEDURE T_CodecObjMlderStyle()
+   LOCAL s, f
+   s := Mst_New( "TestStyle" ) ; Chk( s[ "name" ] == "TestStyle" .AND. Len( s[ "description" ] ) == 0, "creation" )
+   s := Mst_Standard() ; Chk( s[ "name" ] == "Standard", "standard_style" )
+   s := Mst_Default()
+   Chk( s[ "path_type" ] == MST_PT_STRAIGHT_LINE_SEGMENTS .AND. s[ "content_type" ] == MST_CT_MTEXT .AND. s[ "enable_landing" ] .AND. s[ "enable_dogleg" ] ;
+      .AND. Abs( s[ "landing_distance" ] - 0.36 ) < 0.0000000001 .AND. Abs( s[ "arrowhead_size" ] - 0.18 ) < 0.0000000001 .AND. Abs( s[ "text_height" ] - 0.18 ) < 0.0000000001 .AND. Abs( s[ "scale_factor" ] - 1.0 ) < 0.0000000001, "default_values" )
+   Chk( Mst_ContentTypeFrom( 0 ) == MST_CT_NONE .AND. Mst_ContentTypeFrom( 1 ) == MST_CT_BLOCK .AND. Mst_ContentTypeFrom( 2 ) == MST_CT_MTEXT .AND. Mst_ContentTypeFrom( 3 ) == MST_CT_TOLERANCE .AND. Mst_ContentTypeFrom( 99 ) == MST_CT_MTEXT, "content_type_enum" )
+   Chk( Mst_PathTypeFrom( 0 ) == MST_PT_INVISIBLE .AND. Mst_PathTypeFrom( 1 ) == MST_PT_STRAIGHT_LINE_SEGMENTS .AND. Mst_PathTypeFrom( 2 ) == MST_PT_SPLINE, "path_type_enum" )
+   Chk( Mst_TextAttachmentFrom( 0 ) == MST_TA_TOP_OF_TOP_LINE .AND. Mst_TextAttachmentFrom( 2 ) == MST_TA_MIDDLE_OF_TEXT .AND. Mst_TextAttachmentFrom( 9 ) == MST_TA_CENTER_OF_TEXT, "text_attachment_type" )
+   s := Mst_New( "Test" ) ; Mst_SetBlockScale( s, 2.5 )
+   Chk( s[ "block_content_scale_x" ] == 2.5 .AND. s[ "block_content_scale_y" ] == 2.5 .AND. s[ "block_content_scale_z" ] == 2.5 .AND. Mst_UniformBlockScale( s ) == 2.5, "set_block_scale" )
+   s := Mst_New( "Test" ) ; s[ "block_content_scale_x" ] := 1.0 ; s[ "block_content_scale_y" ] := 2.0 ; s[ "block_content_scale_z" ] := 1.0 ; Chk( Mst_UniformBlockScale( s ) == NIL, "non_uniform_block_scale" )
+   s := Mst_New( "Test" ) ; Mst_SetBlockRotationDegrees( s, 45.0 ) ; Chk( Abs( Mst_BlockRotationDegrees( s ) - 45.0 ) < 0.0000000001, "block_rotation_degrees" )
+   s := Mst_New( "Test" ) ; s[ "content_type" ] := MST_CT_MTEXT ; Chk( Mst_HasTextContent( s ) .AND. ! Mst_HasBlockContent( s ) .AND. ! Mst_HasToleranceContent( s ), "has_text_content" )
+   s := Mst_New( "Test" ) ; s[ "content_type" ] := MST_CT_BLOCK ; Chk( ! Mst_HasTextContent( s ) .AND. Mst_HasBlockContent( s ), "has_block_content" )
+   s := Mst_New( "Test" ) ; s[ "content_type" ] := MST_CT_TOLERANCE ; Chk( Mst_HasToleranceContent( s ), "has_tolerance_content" )
+   s := Mst_New( "Test" ) ; Chk( Mst_HasVisibleLeaders( s ), "has_visible_leaders 1" ) ; s[ "path_type" ] := MST_PT_INVISIBLE ; Chk( ! Mst_HasVisibleLeaders( s ), "has_visible_leaders 2" )
+   s := Mst_New( "Test" ) ; Chk( ! Mst_HasSplineLeaders( s ), "has_spline_leaders 1" ) ; s[ "path_type" ] := MST_PT_SPLINE ; Chk( Mst_HasSplineLeaders( s ), "has_spline_leaders 2" )
+   f := hb_bitOr( MST_PO_PATH_TYPE, MST_PO_LINE_COLOR, MST_PO_TEXT_HEIGHT )
+   Chk( Mst_FlagsContain( f, MST_PO_PATH_TYPE ) .AND. Mst_FlagsContain( f, MST_PO_LINE_COLOR ) .AND. Mst_FlagsContain( f, MST_PO_TEXT_HEIGHT ) .AND. ! Mst_FlagsContain( f, MST_PO_TEXT_FRAME ), "property_override_flags" )
+   f := hb_bitOr( MST_LL_PATH_TYPE, MST_LL_ARROWHEAD )
+   Chk( Mst_FlagsContain( f, MST_LL_PATH_TYPE ) .AND. Mst_FlagsContain( f, MST_LL_ARROWHEAD ) .AND. ! Mst_FlagsContain( f, MST_LL_LINE_COLOR ), "leader_line_override_flags" )
+   Chk( Mst_TextAlignmentFrom( 0 ) == MST_TL_LEFT .AND. Mst_TextAlignmentFrom( 1 ) == MST_TL_CENTER .AND. Mst_TextAlignmentFrom( 2 ) == MST_TL_RIGHT, "text_alignment_enum" )
+   Chk( Mst_TextAngleFrom( 0 ) == MST_TG_PARALLEL_TO_LAST_LEADER_LINE .AND. Mst_TextAngleFrom( 1 ) == MST_TG_HORIZONTAL .AND. Mst_TextAngleFrom( 2 ) == MST_TG_OPTIMIZED, "text_angle_enum" )
+   Chk( Mst_BlockConnectionFrom( 0 ) == MST_BC_BLOCK_EXTENTS .AND. Mst_BlockConnectionFrom( 1 ) == MST_BC_BASE_POINT, "block_connection_enum" )
+   Chk( Mst_LeaderDrawOrderFrom( 0 ) == MST_LD_LEADER_HEAD_FIRST .AND. Mst_LeaderDrawOrderFrom( 1 ) == MST_LD_LEADER_TAIL_FIRST .AND. Mst_MultiLeaderDrawOrderFrom( 0 ) == MST_MD_CONTENT_FIRST .AND. Mst_MultiLeaderDrawOrderFrom( 1 ) == MST_MD_LEADER_FIRST, "draw_order_enums" )
+   Chk( Mst_ObjectName() == "MLEADERSTYLE" .AND. Mst_SubclassMarker() == "AcDbMLeaderStyle" .AND. Mst_AttachmentDirectionFrom( 1 ) == MST_TD_VERTICAL .AND. Mst_AttachmentDirectionFrom( 5 ) == MST_TD_HORIZONTAL, "[extra] constantes y direccion" )
+RETURN

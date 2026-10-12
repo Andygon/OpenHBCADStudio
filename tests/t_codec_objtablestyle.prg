@@ -1,0 +1,35 @@
+/* Tests: table_style.rs (29 tests 1:1; las funciones de roundtrip con CadDocument no estan portadas) */
+#include "ocx.ch"
+PROCEDURE T_CodecObjTableStyle()
+   LOCAL s, b, r, f
+   s := Tbsy_New( "TestStyle" ) ; Chk( s[ "name" ] == "TestStyle" .AND. Len( s[ "description" ] ) == 0, "tablestyle_creation" )
+   s := Tbsy_Standard() ; Chk( s[ "name" ] == "Standard", "standard_style" )
+   s := Tbsy_Default() ; Chk( Abs( s[ "horizontal_margin" ] - 0.06 ) < 0.0000000001 .AND. Abs( s[ "vertical_margin" ] - 0.06 ) < 0.0000000001 .AND. ! s[ "title_suppressed" ] .AND. ! s[ "header_suppressed" ] .AND. s[ "flow_direction" ] == TST_FD_DOWN, "default_values" )
+   s := Tbsy_Default() ; Chk( Abs( s[ "data_row_style" ][ "text_height" ] - 0.18 ) < 0.0000000001 .AND. s[ "data_row_style" ][ "alignment" ] == TST_CA_MIDDLE_CENTER, "data_row_style" )
+   Chk( Abs( s[ "header_row_style" ][ "text_height" ] - 0.25 ) < 0.0000000001 .AND. s[ "header_row_style" ][ "alignment" ] == TST_CA_TOP_CENTER, "header_row_style" )
+   Chk( Abs( s[ "title_row_style" ][ "text_height" ] - 0.25 ) < 0.0000000001, "title_row_style" )
+   Chk( Tbsy_FlowDirectionFrom( 0 ) == TST_FD_DOWN .AND. Tbsy_FlowDirectionFrom( 1 ) == TST_FD_UP, "flow_direction_enum" )
+   Chk( Tbsy_CellAlignmentFrom( 1 ) == TST_CA_TOP_LEFT .AND. Tbsy_CellAlignmentFrom( 5 ) == TST_CA_MIDDLE_CENTER .AND. Tbsy_CellAlignmentFrom( 9 ) == TST_CA_BOTTOM_RIGHT .AND. Tbsy_CellAlignmentFrom( 99 ) == TST_CA_MIDDLE_CENTER, "cell_alignment_enum" )
+   Chk( Tbsy_CaIsTop( TST_CA_TOP_LEFT ) .AND. Tbsy_CaIsLeft( TST_CA_TOP_LEFT ) .AND. ! Tbsy_CaIsCenter( TST_CA_TOP_LEFT ) .AND. ! Tbsy_CaIsBottom( TST_CA_TOP_LEFT ) ;
+      .AND. Tbsy_CaIsMiddle( TST_CA_MIDDLE_CENTER ) .AND. Tbsy_CaIsCenter( TST_CA_MIDDLE_CENTER ) .AND. Tbsy_CaIsBottom( TST_CA_BOTTOM_RIGHT ) .AND. Tbsy_CaIsRight( TST_CA_BOTTOM_RIGHT ), "cell_alignment_helpers" )
+   s := Tbsy_New( "Test" ) ; Tbsy_SetMargins( s, 0.15 ) ; Chk( s[ "horizontal_margin" ] == 0.15 .AND. s[ "vertical_margin" ] == 0.15, "set_margins" )
+   s := Tbsy_New( "Test" ) ; Tbsy_SetAllTextHeights( s, 0.3 ) ; Chk( s[ "data_row_style" ][ "text_height" ] == 0.3 .AND. s[ "header_row_style" ][ "text_height" ] == 0.3 .AND. s[ "title_row_style" ][ "text_height" ] == 0.3, "set_all_text_heights" )
+   s := Tbsy_New( "Test" ) ; Tbsy_SetAllTextColors( s, Cl_Index( 1 ) )
+   Chk( Cl_Eq( s[ "data_row_style" ][ "text_color" ], Cl_Index( 1 ) ) .AND. Cl_Eq( s[ "header_row_style" ][ "text_color" ], Cl_Index( 1 ) ) .AND. Cl_Eq( s[ "title_row_style" ][ "text_color" ], Cl_Index( 1 ) ), "set_all_text_colors" )
+   s := Tbsy_New( "Test" ) ; Tbsy_SetAllFillEnabled( s, .T. ) ; Chk( s[ "data_row_style" ][ "fill_enabled" ] .AND. s[ "header_row_style" ][ "fill_enabled" ] .AND. s[ "title_row_style" ][ "fill_enabled" ], "set_all_fill_enabled" )
+   s := Tbsy_New( "Test" ) ; Chk( Tbsy_HasTitleRow( s ) .AND. Tbsy_HasHeaderRow( s ), "row_visibility 1" ) ; Tbsy_SetTitleVisible( s, .F. ) ; Tbsy_SetHeaderVisible( s, .F. ) ; Chk( ! Tbsy_HasTitleRow( s ) .AND. ! Tbsy_HasHeaderRow( s ), "row_visibility 2" )
+   b := Tbsy_BorderNew() ; Chk( ! b[ "is_invisible" ] .AND. b[ "border_type" ] == TST_BT_SINGLE, "cell_border_creation" )
+   b := Tbsy_BorderInvisible() ; Chk( b[ "is_invisible" ], "cell_border_invisible" )
+   b := Tbsy_BorderWithStyle( Cl_Index( 1 ), Lw_Value( 50 ) ) ; Chk( Cl_Eq( b[ "color" ], Cl_Index( 1 ) ) .AND. Lw_Eq( b[ "line_weight" ], Lw_Value( 50 ) ), "cell_border_with_style" )
+   r := Tbsy_RowNew() ; Tbsy_RowSetAllBorders( r, Tbsy_BorderWithStyle( Cl_Index( 3 ), Lw_Value( 100 ) ) )
+   Chk( Cl_Eq( r[ "left_border" ][ "color" ], Cl_Index( 3 ) ) .AND. Cl_Eq( r[ "right_border" ][ "color" ], Cl_Index( 3 ) ) .AND. Cl_Eq( r[ "top_border" ][ "color" ], Cl_Index( 3 ) ) .AND. Cl_Eq( r[ "bottom_border" ][ "color" ], Cl_Index( 3 ) ), "set_all_borders" )
+   r := Tbsy_RowNew() ; Tbsy_RowSetAllBordersInvisible( r ) ; Chk( r[ "left_border" ][ "is_invisible" ] .AND. r[ "right_border" ][ "is_invisible" ] .AND. r[ "top_border" ][ "is_invisible" ] .AND. r[ "bottom_border" ][ "is_invisible" ], "set_all_borders_invisible" )
+   f := hb_bitOr( TST_CP_ALIGNMENT, TST_CP_TEXT_HEIGHT, TST_CP_BACKGROUND_COLOR ) ; Chk( Tbsy_FlagsContain( f, TST_CP_ALIGNMENT ) .AND. Tbsy_FlagsContain( f, TST_CP_TEXT_HEIGHT ) .AND. ! Tbsy_FlagsContain( f, TST_CP_ROTATION ), "cell_style_property_flags" )
+   f := hb_bitOr( TST_BP_COLOR, TST_BP_LINE_WEIGHT ) ; Chk( Tbsy_FlagsContain( f, TST_BP_COLOR ) .AND. Tbsy_FlagsContain( f, TST_BP_LINE_WEIGHT ) .AND. ! Tbsy_FlagsContain( f, TST_BP_VISIBILITY ), "border_property_flags" )
+   f := TST_SF_TITLE_SUPPRESSED ; Chk( Tbsy_FlagsContain( f, TST_SF_TITLE_SUPPRESSED ) .AND. ! Tbsy_FlagsContain( f, TST_SF_HEADER_SUPPRESSED ), "table_style_flags" )
+   Chk( Tbsy_BorderTypeFrom( 1 ) == TST_BT_SINGLE .AND. Tbsy_BorderTypeFrom( 2 ) == TST_BT_DOUBLE, "border_type_enum" )
+   /* [extra] defaults de los structs auxiliares */
+   r := Tbsy_ContentFormatDefault() ; Chk( r[ "value_data_type" ] == 512 .AND. r[ "cell_alignment" ] == 5 .AND. r[ "block_scale" ] == 1.0 .AND. r[ "text_height" ] == 0.18, "[extra] content format default" )
+   r := Tbsy_NamedCellStyleDefault() ; Chk( r[ "id" ] == 0 .AND. Len( r[ "cell_style" ][ "borders" ] ) == 0 .AND. Cl_Eq( r[ "cell_style" ][ "background_color" ], Cl_Default() ), "[extra] named cell style default" )
+   s := Tbsy_New( "S" ) ; Chk( s[ "modern_unknown_long1" ] == 8 .AND. s[ "modern_unknown_long2" ] == 101 .AND. s[ "modern_style" ] == NIL .AND. Len( s[ "modern_overrides" ] ) == 0 .AND. Tbsy_ObjectName() == "TABLESTYLE" .AND. Tbsy_SubclassMarker() == "AcDbTableStyle", "[extra] campos modern" )
+RETURN

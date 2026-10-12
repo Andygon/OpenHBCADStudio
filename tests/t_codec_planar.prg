@@ -1,0 +1,47 @@
+/* Port de tests: ray.rs (9), xline.rs (11); solid.rs y face3d.rs no tienen tests en Rust -> [extra] */
+#include "ocx.ch"
+STATIC FUNCTION Nr( a, b ) ; RETURN Abs( a - b ) < 0.0000000001
+PROCEDURE T_CodecPlanar()
+   LOCAL r, r2, x, x2, p, s, f, bb
+   // ray
+   r := Ery_New( Vc3_New( 1.0, 2.0, 3.0 ), Vc3_New( 1.0, 0.0, 0.0 ) )
+   Chk( Vc3_Eq( r[ "base_point" ], Vc3_New( 1.0, 2.0, 3.0 ) ) .AND. Nr( Vc3_Length( r[ "direction" ] ), 1.0 ), "ray: test_ray_creation" )
+   r := Ery_FromPoints( Vc3_Zero(), Vc3_New( 10.0, 0.0, 0.0 ) ) ; Chk( Vc3_Eq( r[ "base_point" ], Vc3_Zero() ) .AND. Nr( r[ "direction" ][ 1 ], 1.0 ), "ray: test_ray_from_points" )
+   r := Ery_AlongX( Vc3_Zero() ) ; Chk( Vc3_Eq( Ery_PointAt( r, 5.0 ), Vc3_New( 5.0, 0.0, 0.0 ) ), "ray: test_ray_point_at" )
+   Chk( Vc3_Eq( Ery_PointAt( r, -5.0 ), Vc3_Zero() ), "ray: test_ray_point_at_negative" )
+   Chk( Vc3_Eq( Ery_ClosestPoint( r, Vc3_New( 5.0, 3.0, 0.0 ) ), Vc3_New( 5.0, 0.0, 0.0 ) ) .AND. Vc3_Eq( Ery_ClosestPoint( r, Vc3_New( -5.0, 0.0, 0.0 ) ), Vc3_Zero() ), "ray: test_ray_closest_point" )
+   Chk( Nr( Ery_DistanceToPoint( r, Vc3_New( 5.0, 3.0, 4.0 ) ), 5.0 ), "ray: test_ray_distance_to_point" )
+   r2 := Ery_AlongX( Vc3_New( 0.0, 5.0, 0.0 ) ) ; Chk( Ery_IsParallelTo( r, r2, 0.0000000001 ), "ray: test_ray_parallel" )
+   Chk( Ery_IsPerpendicularTo( r, Ery_AlongY( Vc3_Zero() ), 0.0000000001 ), "ray: test_ray_perpendicular" )
+   r := Ery_AlongX( Vc3_Zero() ) ; Ent_Translate( r, Vc3_New( 1.0, 2.0, 3.0 ) )
+   Chk( Vc3_Eq( r[ "base_point" ], Vc3_New( 1.0, 2.0, 3.0 ) ) .AND. Vc3_Eq( r[ "direction" ], Vc3_UnitX() ), "ray: test_ray_translate" )
+   // xline
+   x := Exl_New( Vc3_New( 1.0, 2.0, 3.0 ), Vc3_New( 2.0, 0.0, 0.0 ) )
+   Chk( Vc3_Eq( x[ "base_point" ], Vc3_New( 1.0, 2.0, 3.0 ) ) .AND. Nr( Vc3_Length( x[ "direction" ] ), 1.0 ) .AND. Nr( x[ "direction" ][ 1 ], 1.0 ), "xline: test_xline_creation" )
+   x := Exl_FromPoints( Vc3_Zero(), Vc3_New( 10.0, 0.0, 0.0 ) ) ; Chk( Vc3_Eq( x[ "base_point" ], Vc3_Zero() ) .AND. Nr( x[ "direction" ][ 1 ], 1.0 ), "xline: test_xline_from_points" )
+   x := Exl_Horizontal( Vc3_Zero() ) ; Chk( Vc3_Eq( Exl_PointAt( x, 5.0 ), Vc3_New( 5.0, 0.0, 0.0 ) ) .AND. Vc3_Eq( Exl_PointAt( x, -5.0 ), Vc3_New( -5.0, 0.0, 0.0 ) ), "xline: test_xline_point_at" )
+   Chk( Vc3_Eq( Exl_ClosestPoint( x, Vc3_New( 5.0, 3.0, 0.0 ) ), Vc3_New( 5.0, 0.0, 0.0 ) ) .AND. Vc3_Eq( Exl_ClosestPoint( x, Vc3_New( -5.0, 3.0, 0.0 ) ), Vc3_New( -5.0, 0.0, 0.0 ) ), "xline: test_xline_closest_point" )
+   Chk( Nr( Exl_DistanceToPoint( x, Vc3_New( 5.0, 3.0, 4.0 ) ), 5.0 ), "xline: test_xline_distance_to_point" )
+   x2 := Exl_Horizontal( Vc3_New( 0.0, 5.0, 0.0 ) ) ; Chk( Exl_IsParallelTo( x, x2, 0.0000000001 ), "xline: test_xline_parallel" )
+   Chk( Exl_IsPerpendicularTo( x, Exl_Vertical( Vc3_Zero() ), 0.0000000001 ), "xline: test_xline_perpendicular" )
+   p := Exl_Intersection( x, Exl_Vertical( Vc3_New( 5.0, 0.0, 0.0 ) ), 0.0000000001 )
+   Chk( p != NIL .AND. Nr( p[ 1 ], 5.0 ) .AND. Nr( p[ 2 ], 0.0 ), "xline: test_xline_intersection" )
+   Chk( Exl_Intersection( x, x2, 0.0000000001 ) == NIL, "xline: test_xline_no_intersection_parallel" )
+   x := Exl_Horizontal( Vc3_Zero() ) ; Ent_Translate( x, Vc3_New( 1.0, 2.0, 3.0 ) )
+   Chk( Vc3_Eq( x[ "base_point" ], Vc3_New( 1.0, 2.0, 3.0 ) ) .AND. Vc3_Eq( x[ "direction" ], Vc3_UnitX() ), "xline: test_xline_translate" )
+   x := Exl_AtAngle( Vc3_Zero(), OCX_PI / 4.0 ) ; Chk( Nr( x[ "direction" ][ 1 ], x[ "direction" ][ 2 ] ), "xline: test_xline_at_angle" )
+   // [extra] solid / face3d (sin tests en Rust), bounding_box de ray/xline, entity_type
+   Chk( Ent_EntityType( r ) == "RAY" .AND. Ent_EntityType( x ) == "XLINE", "[extra] ray/xline: entity_type" )
+   bb := Ent_BoundingBox( Ery_AlongX( Vc3_Zero() ) ) ; Chk( bb[ 1 ][ 1 ] == 0.0 .AND. Nr( bb[ 2 ][ 1 ] / 10000000000.0, 1.0 ), "[extra] ray: bounding box" )
+   s := Eso_Triangle( Vc3_Zero(), Vc3_New( 1.0, 0.0, 0.0 ), Vc3_New( 0.0, 1.0, 0.0 ) )
+   Chk( Eso_IsTriangle( s ) .AND. Len( Eso_Corners( s ) ) == 3 .AND. Ent_EntityType( s ) == "SOLID", "[extra] solid: triangulo" )
+   s := Eso_New( Vc3_Zero(), Vc3_New( 1.0, 0.0, 0.0 ), Vc3_New( 0.0, 1.0, 0.0 ), Vc3_New( 1.0, 1.0, 0.0 ) )
+   Chk( ! Eso_IsTriangle( s ) .AND. Vc3_Eq( Eso_BoundaryCorners( s )[ 3 ], Vc3_New( 1.0, 1.0, 0.0 ) ), "[extra] solid: boundary_corners" )
+   Ent_Translate( s, Vc3_New( 1.0, 2.0, 3.0 ) ) ; Chk( Vc3_Eq( s[ "first_corner" ], Vc3_New( 1.0, 2.0, 3.0 ) ), "[extra] solid: translate" )
+   Ent_MirrorX( s ) ; Chk( Vc3_Eq( s[ "second_corner" ], Vc3_New( -2.0, 3.0, 3.0 ) ) .AND. Vc3_Eq( s[ "fourth_corner" ], Vc3_New( -2.0, 2.0, 3.0 ) ), "[extra] solid: mirror intercambia 2 y 4" )
+   f := Ef3_New( Vc3_Zero(), Vc3_New( 2.0, 0.0, 0.0 ), Vc3_New( 2.0, 2.0, 0.0 ), Vc3_New( 0.0, 2.0, 0.0 ) )
+   Chk( Nr( Ef3_Area( f ), 4.0 ) .AND. Ent_EntityType( f ) == "3DFACE", "[extra] face3d: area cuadrado" )
+   Chk( Nr( Ef3_Area( Ef3_Triangle( Vc3_Zero(), Vc3_New( 2.0, 0.0, 0.0 ), Vc3_New( 0.0, 2.0, 0.0 ) ) ), 2.0 ), "[extra] face3d: area triangulo" )
+   Ent_MirrorX( f ) ; Chk( Vc3_Eq( f[ "second_corner" ], Vc3_New( 0.0, 2.0, 0.0 ) ) .AND. Vc3_Eq( f[ "fourth_corner" ], Vc3_New( -2.0, 0.0, 0.0 ) ), "[extra] face3d: mirror intercambia 2 y 4" )
+   Chk( Ief_IsInvisible( Ief_Set( 0, 3, .T. ), 3 ) .AND. ! Ief_IsInvisible( Ief_Set( Ief_Set( 0, 3, .T. ), 3, .F. ), 3 ), "[extra] face3d: InvisibleEdgeFlags" )
+RETURN

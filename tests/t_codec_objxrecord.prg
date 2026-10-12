@@ -1,0 +1,47 @@
+/* Tests: xrecord.rs (13 tests 1:1) + [extra] secciones, mesh, overrides, referencias, nombres conocidos */
+#include "ocx.ch"
+PROCEDURE T_CodecObjXRecord()
+   LOCAL x, e, a, p, r, s, c
+   x := Xrc_New() ; Chk( Xrc_IsEmpty( x ) .AND. x[ "cloning_flags" ] == 0, "xrecord_creation" )
+   x := Xrc_Named( "MyRecord" ) ; Chk( x[ "name" ] == "MyRecord", "xrecord_named" )
+   x := Xrc_New() ; Xrc_AddString( x, 1, "Test" ) ; Xrc_AddDouble( x, 40, 3.14 ) ; Xrc_AddInt32( x, 90, 42 ) ; Xrc_AddBool( x, 290, .T. ) ; Chk( Xrc_Len( x ) == 4, "add_entries" )
+   x := Xrc_New() ; Xrc_AddString( x, 1, "Hello" ) ; Xrc_AddDouble( x, 40, 2.5 ) ; Xrc_AddInt32( x, 90, 100 )
+   Chk( Xrc_GetString( x, 1 ) == "Hello" .AND. Xrc_GetDouble( x, 40 ) == 2.5 .AND. Xrc_GetI32( x, 90 ) == 100 .AND. Xrc_GetString( x, 999 ) == NIL, "get_values" )
+   x := Xrc_New() ; Xrc_AddString( x, 1, "First" ) ; Xrc_AddString( x, 1, "Second" ) ; Xrc_AddString( x, 2, "Other" ) ; a := Xrc_GetStrings( x, 1 )
+   Chk( Len( Xrc_GetByCode( x, 1 ) ) == 2 .AND. Len( a ) == 2 .AND. a[ 1 ] == "First" .AND. a[ 2 ] == "Second", "get_by_code" )
+   x := Xrc_New() ; Xrc_AddString( x, 1, "Keep" ) ; Xrc_AddDouble( x, 40, 1.0 ) ; Xrc_AddDouble( x, 40, 2.0 ) ; Xrc_RemoveByCode( x, 40 )
+   Chk( Xrc_Len( x ) == 1 .AND. Xrc_GetString( x, 1 ) == "Keep", "remove_by_code" )
+   e := Xre_String( 1, "test" ) ; Chk( Xre_ValueType( e ) == XVT_STRING, "entry_types string" )
+   e := Xre_Double( 40, 1.0 ) ; Chk( Xre_ValueType( e ) == XVT_DOUBLE, "entry_types double" )
+   e := Xre_Int32( 90, 42 ) ; Chk( Xre_ValueType( e ) == XVT_INT32, "entry_types int32" )
+   e := Xre_Handle( 330, 100 ) ; Chk( Xre_ValueType( e ) == XVT_OBJECT_ID .AND. Xre_HasLinkedObject( e ), "entry_types handle" )
+   x := Xrc_New() ; Xrc_AddPoint3d( x, 10, 1.0, 2.0, 3.0 ) ; p := Xrv_AsPoint3d( Xrc_Get( x, 0 )[ "value" ] ) ; Chk( p != NIL .AND. p[ 1 ] == 1.0 .AND. p[ 2 ] == 2.0 .AND. p[ 3 ] == 3.0, "point3d" )
+   x := Xrc_New() ; Xrc_AddHandle( x, 330, 100 ) ; Xrc_AddString( x, 1, "text" ) ; Xrc_AddHandle( x, 340, 200 ) ; r := Xrc_GetReferences( x )
+   Chk( Len( r ) == 2 .AND. AScan( r, 100 ) > 0 .AND. AScan( r, 200 ) > 0, "get_references" )
+   Chk( Dcf_FromValue( 0 ) == 0 .AND. Dcf_FromValue( 1 ) == 1 .AND. Dcf_FromValue( 2 ) == 2 .AND. Dcf_ToValue( 1 ) == 1, "cloning_flags" )
+   Chk( Xvt_FromCode( 1 ) == XVT_STRING .AND. Xvt_FromCode( 10 ) == XVT_POINT3D .AND. Xvt_FromCode( 40 ) == XVT_DOUBLE .AND. Xvt_FromCode( 90 ) == XVT_INT32 .AND. Xvt_FromCode( 290 ) == XVT_BOOL .AND. Xvt_FromCode( 330 ) == XVT_OBJECT_ID, "value_type_from_code" )
+   /* [extra] */
+   Chk( Xvt_FromCode( -3 ) == XVT_HANDLE .AND. Xvt_FromCode( 5 ) == XVT_HANDLE .AND. Xvt_FromCode( 1005 ) == XVT_HANDLE .AND. Xvt_FromCode( 1004 ) == XVT_CHUNK .AND. Xvt_FromCode( 150 ) == XVT_INT64 ;
+      .AND. Xvt_FromCode( 280 ) == XVT_BYTE .AND. Xvt_FromCode( 60 ) == XVT_INT16 .AND. Xvt_FromCode( 1071 ) == XVT_INT32 .AND. Xvt_FromCode( 5000 ) == XVT_UNKNOWN .AND. Xvt_IsHandle( XVT_OBJECT_ID ), "[extra] value_type_from_code mas rangos" )
+   Chk( Xrk_FromName( "dwgprops" ) == XRK_DRAWING_PROPERTIES .AND. Xrk_FromName( "ACAD_MTEXT_2008_RT" ) == XRK_MTEXT_ROUND_TRIP .AND. Xrk_FromName( "VIZ XML MATERIAL DEFINITION" ) == XRK_MATERIAL_ASSET ;
+      .AND. Xrk_FromName( "versionguid" ) == XRK_METADATA .AND. Xrk_FromName( "nope" ) == XRK_UNKNOWN .AND. Xrk_FromName( "PUCSORGTOP" ) == XRK_UCS_DATA, "[extra] known_kind" )
+   x := Xrc_Named( "ADSK_XREC_LAYER_ALPHA_OVR" ) ; Chk( Xrc_KnownKind( x ) == XRK_LAYER_VIEWPORT_ALPHA_OVERRIDE, "[extra] known_kind del xrecord" )
+   x := Xrc_New() ; Xrc_AddHandle( x, 340, 7 ) ; Xrc_AddHandle( x, 330, 8 ) ; Xrc_AddHandle( x, 360, 9 ) ; r := x[ "object_references" ]
+   Chk( Len( r ) == 3 .AND. r[ 1 ][ "kind" ] == PRK_HARD_POINTER .AND. r[ 2 ][ "kind" ] == PRK_SOFT_POINTER .AND. r[ 3 ][ "kind" ] == PRK_HARD_OWNERSHIP, "[extra] synchronize_object_references" )
+   x := Xrc_New() ; Xrc_AddString( x, 102, "{OUTER" ) ; Xrc_AddInt32( x, 90, 1 ) ; Xrc_AddString( x, 102, "{INNER" ) ; Xrc_AddInt32( x, 90, 2 ) ; Xrc_AddString( x, 102, "}" ) ; Xrc_AddString( x, 102, "OUTER}" ) ; Xrc_AddInt32( x, 90, 99 )
+   s := Xrc_Sections( x )
+   Chk( Len( s ) == 2 .AND. s[ 1 ][ "name" ] == "INNER" .AND. Len( s[ 1 ][ "entries" ] ) == 1 .AND. s[ 2 ][ "name" ] == "OUTER" .AND. Len( s[ 2 ][ "entries" ] ) == 4, "[extra] sections anidadas" )
+   c := Xrc_Section( x, "outer" ) ; Chk( c != NIL .AND. c[ "entries" ][ 2 ][ "value" ][ "value" ] == "{INNER" .AND. Xrc_Section( x, "zzz" ) == NIL, "[extra] section por nombre" )
+   Xrc_SetSection( x, "INNER", { Xre_Int32( 90, 55 ) } )
+   Chk( Xrc_Len( x ) == 7 .AND. Xrc_Get( x, 3 )[ "value" ][ "value" ] == 55, "[extra] set_section reemplaza" )
+   Xrc_SetSection( x, "NEW", { Xre_Int32( 91, 1 ) } ) ; Chk( Xrc_Len( x ) == 10 .AND. Xrc_Get( x, 7 )[ "value" ][ "value" ] == "{NEW", "[extra] set_section anade" )
+   x := Xrc_New() ; Xrc_SetMeshTextureCoordinates( x, { { 1.0, 2.0, 3.0 }, { 4.0, 5.0, 6.0 } } ) ; a := Xrc_MeshTextureCoordinates( x )
+   Chk( Xrc_Len( x ) == 6 .AND. Len( a ) == 2 .AND. a[ 2 ][ 1 ] == 4.0 .AND. a[ 2 ][ 3 ] == 6.0, "[extra] mesh texture coords" )
+   x := Xrc_New() ; Xrc_SetAnnotationScaleHandle( x, 0x20 ) ; Chk( Xrc_AnnotationScaleHandle( x ) == 0x20 .AND. Len( x[ "object_references" ] ) == 1, "[extra] annotation scale 1" )
+   Xrc_SetAnnotationScaleHandle( x, 0x21 ) ; Chk( Xrc_AnnotationScaleHandle( x ) == 0x21 .AND. Xrc_Len( x ) == 1, "[extra] annotation scale 2" )
+   x := Xrc_New() ; Xrc_SetLayerViewportOverride( x, "ACAD_XREC_ALPHA", 440, 0x30, Xrv_New( "Int32", 50 ) ) ; a := Xrc_LayerViewportOverrides( x, 440 )
+   Chk( Xrc_Len( x ) == 4 .AND. Len( a ) == 1 .AND. a[ 1 ][ 1 ] == 0x30 .AND. a[ 1 ][ 2 ][ "value" ] == 50, "[extra] layer viewport override nuevo" )
+   Xrc_SetLayerViewportOverride( x, "ACAD_XREC_ALPHA", 440, 0x30, Xrv_New( "Int32", 75 ) ) ; a := Xrc_LayerViewportOverrides( x, 440 )
+   Chk( Xrc_Len( x ) == 4 .AND. a[ 1 ][ 2 ][ "value" ] == 75, "[extra] layer viewport override actualiza" )
+   Xrc_Clear( x ) ; Chk( Xrc_IsEmpty( x ) .AND. Len( x[ "object_references" ] ) == 0 .AND. x[ "entries_complete" ], "[extra] clear" )
+RETURN
