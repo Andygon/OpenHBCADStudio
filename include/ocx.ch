@@ -129,4 +129,16 @@
 #define LK_BYBLOCK 1
 #define LK_DEFAULT 2
 #define LK_VALUE   3
+/* codec GroupCodeValueType */
+#define GVT_NONE 0
+#define GVT_STRING 1
+#define GVT_BOOL 2
+#define GVT_BYTE 3
+#define GVT_INT16 4
+#define GVT_INT32 5
+#define GVT_INT64 6
+#define GVT_DOUBLE 7
+#define GVT_POINT3D 8
+#define GVT_BINARYDATA 9
+#define GVT_HANDLE 10
 #endif
