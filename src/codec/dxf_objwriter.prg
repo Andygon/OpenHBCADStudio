@@ -2,7 +2,7 @@
    OpenHBCADStudio - src/codec/dxf_objwriter.prg
    Origen Rust: opencadcodec/src/io/dxf/writer/section_writer.rs (write_objects, write_dictionary, write_layout,
    find_root_dict_handle). Licencia del original: MPL-2.0. Prefijo Dxo_.
-   PENDIENTE: solo se escriben DICTIONARY y LAYOUT; el resto de tipos, valid_handles y xdata de objetos no estan portados.
+   PENDIENTE: solo se escriben DICTIONARY, LAYOUT, XRECORD y GROUP (sin las entradas avanzadas de MATERIAL en XRECORD); el resto de tipos, valid_handles y xdata de objetos no estan portados.
    El original no tiene #[test] para estas funciones; los tests [extra] estan en t_dxf_rw.prg.
 ----------------------------------------------------------------------------*/
 #include "ocx.ch"
@@ -20,7 +20,7 @@ STATIC FUNCTION Dxo_FindRootDictHandle( d )
 RETURN nBest
 
 /* tipos de objeto que este escritor emite: las entradas de diccionario a otros tipos se omiten (equivale al filtro valid_handles de Rust) */
-STATIC FUNCTION Dxo_IsWritten( o ) ; RETURN o[ "_type" ] == "Dictionary" .OR. o[ "_type" ] == "Layout"
+STATIC FUNCTION Dxo_IsWritten( o ) ; RETURN o[ "_type" ] == "Dictionary" .OR. o[ "_type" ] == "Layout" .OR. o[ "_type" ] == "XRecord" .OR. o[ "_type" ] == "Group"
 
 STATIC PROCEDURE Dxo_WriteDictionary( w, d, dic )
    LOCAL aR := dic[ "reactors" ], hX, e, lForced
@@ -129,6 +129,47 @@ STATIC PROCEDURE Dxo_WriteLayout( w, l )
    IF ! Hd_IsNull( l[ "base_ucs" ] ) ; Sw_WriteHandle( w, 346, l[ "base_ucs" ] ) ; ENDIF
 RETURN
 
+STATIC PROCEDURE Dxo_WriteXRecord( w, x )
+   LOCAL e, v, k, r
+   Sw_WriteString( w, 0, "XRECORD" ) ; Sw_WriteHandle( w, 5, x[ "handle" ] )
+   IF Len( x[ "reactors" ] ) > 0
+      Sw_WriteString( w, 102, "{ACAD_REACTORS" )
+      FOR EACH r IN x[ "reactors" ] ; Sw_WriteHandle( w, 330, r ) ; NEXT
+      Sw_WriteString( w, 102, "}" )
+   ENDIF
+   IF x[ "xdictionary_handle" ] != NIL
+      Sw_WriteString( w, 102, "{ACAD_XDICTIONARY" ) ; Sw_WriteHandle( w, 360, x[ "xdictionary_handle" ] ) ; Sw_WriteString( w, 102, "}" )
+   ENDIF
+   Sw_WriteHandle( w, 330, x[ "owner" ] )
+   Sw_WriteSubclass( w, "AcDbXrecord" )
+   Sw_WriteByte( w, 280, Dcf_ToCode( x[ "cloning_flags" ] ) )
+   FOR EACH e IN x[ "entries" ]
+      v := e[ "value" ] ; k := v[ "_kind" ]
+      DO CASE
+      CASE k == "String" ; Sw_WriteXRecordString( w, e[ "code" ], v[ "value" ] )
+      CASE k == "Double" ; Sw_WriteDouble( w, e[ "code" ], v[ "value" ] )
+      CASE k == "Int16" ; Sw_WriteI16( w, e[ "code" ], v[ "value" ] )
+      CASE k == "Int32" ; Sw_WriteI32( w, e[ "code" ], v[ "value" ] )
+      CASE k == "Int64" ; Sw_WriteI64( w, e[ "code" ], v[ "value" ] )
+      CASE k == "Byte" ; Sw_WriteByte( w, e[ "code" ], v[ "value" ] )
+      CASE k == "Bool" ; Sw_WriteBool( w, e[ "code" ], v[ "value" ] )
+      CASE k == "Handle" ; Sw_WriteHandle( w, e[ "code" ], v[ "value" ] )
+      CASE k == "Point3D"
+         Sw_WriteDouble( w, e[ "code" ], v[ "value" ][ 1 ] ) ; Sw_WriteDouble( w, e[ "code" ] + 10, v[ "value" ][ 2 ] ) ; Sw_WriteDouble( w, e[ "code" ] + 20, v[ "value" ][ 3 ] )
+      CASE k == "Chunk" ; Sw_WriteBinary( w, e[ "code" ], v[ "value" ] )
+      ENDCASE
+   NEXT
+RETURN
+
+STATIC PROCEDURE Dxo_WriteGroup( w, g )
+   LOCAL h
+   Sw_WriteString( w, 0, "GROUP" ) ; Sw_WriteHandle( w, 5, g[ "handle" ] ) ; Sw_WriteHandle( w, 330, g[ "owner" ] )
+   Sw_WriteSubclass( w, "AcDbGroup" )
+   Sw_WriteString( w, 300, g[ "description" ] )
+   Sw_WriteI16( w, 70, IIf( Grp_IsUnnamed( g ), 1, 0 ) ) ; Sw_WriteI16( w, 71, IIf( g[ "selectable" ], 1, 0 ) )
+   FOR EACH h IN g[ "entities" ] ; Sw_WriteHandle( w, 340, h ) ; NEXT
+RETURN
+
 PROCEDURE Dxo_WriteObjects( w, d )
    LOCAL nRoot := d[ "header" ][ "named_objects_dict_handle" ], aK, h, o
    Sw_WriteSectionStart( w, "OBJECTS" )
@@ -145,6 +186,8 @@ PROCEDURE Dxo_WriteObjects( w, d )
          DO CASE
          CASE o[ "_type" ] == "Dictionary" ; Dxo_WriteDictionary( w, d, o )
          CASE o[ "_type" ] == "Layout" ; Dxo_WriteLayout( w, o )
+         CASE o[ "_type" ] == "XRecord" ; Dxo_WriteXRecord( w, o )
+         CASE o[ "_type" ] == "Group" ; Dxo_WriteGroup( w, o )
          ENDCASE
       ENDIF
    NEXT
