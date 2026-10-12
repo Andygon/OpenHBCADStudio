@@ -1,7 +1,7 @@
 /*----------------------------------------------------------------------------
    OpenHBCADStudio - src/geom2d/nurbs.prg
    Origen Rust: opencadkernel/src/geom2d/nurbs.rs (1619 lineas)
-   Estado: COMPLETO salvo tests de parameter_at pendientes. Traducido: new, new_strict, accesores, is_rational, domain,
+   Estado: COMPLETO (tests de parameter_at ya portados en t_nurbs). Traducido: new, new_strict, accesores, is_rational, domain,
    point_at_knot, derivative_at_knot, derivative_at, point_at, parameter_at,
    tessellate, is_closed.
    + insert_knot, reversed, elevated, bezier_segments, split_at, trimmed, span_containing
