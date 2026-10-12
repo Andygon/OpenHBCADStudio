@@ -427,6 +427,115 @@ STATIC PROCEDURE Swr_AppIdEntry( st, d, a, hOwner )
    Sw_WriteString( w, 2, a[ "name" ] ) ; Sw_WriteI16( w, 70, 0 )
 RETURN
 
+STATIC PROCEDURE Swr_DimStyleEntry( st, d, ds, hOwner )
+   LOCAL w := st[ 1 ], nF := 0, hX := hb_HGetDef( d[ "xdic_by_handle" ], ds[ "handle" ], NIL )
+   Sw_WriteString( w, 0, "DIMSTYLE" ) ; Sw_WriteHandle( w, 105, ds[ "handle" ] )
+   IF hX != NIL .AND. ! Hd_IsNull( hX )
+      Sw_WriteString( w, 102, "{ACAD_XDICTIONARY" ) ; Sw_WriteHandle( w, 360, hX ) ; Sw_WriteString( w, 102, "}" )
+   ENDIF
+   Sw_WriteHandle( w, 330, hOwner )
+   Sw_WriteSubclass( w, "AcDbSymbolTableRecord" ) ; Sw_WriteSubclass( w, "AcDbDimStyleTableRecord" )
+   Sw_WriteString( w, 2, ds[ "name" ] )
+   IF ds[ "xref_dependent" ] ; nF := hb_bitOr( nF, 16 ) ; ENDIF
+   IF ds[ "xref_resolved" ] ; nF := hb_bitOr( nF, 32 ) ; ENDIF
+   IF ds[ "xref_reference" ] ; nF := hb_bitOr( nF, 64 ) ; ENDIF
+   Sw_WriteI16( w, 70, nF )
+   IF Len( ds[ "dimpost" ] ) > 0 .AND. ds[ "dimpost" ] != "<>" ; Sw_WriteString( w, 3, ds[ "dimpost" ] ) ; ENDIF
+   IF Len( ds[ "dimapost" ] ) > 0 ; Sw_WriteString( w, 4, ds[ "dimapost" ] ) ; ENDIF
+   IF st[ 2 ] <= Dxv_FromVersionString( "AC1014" )
+      IF Len( ds[ "dimblk_name" ] ) > 0 ; Sw_WriteString( w, 5, ds[ "dimblk_name" ] ) ; ENDIF
+      IF Len( ds[ "dimblk1_name" ] ) > 0 ; Sw_WriteString( w, 6, ds[ "dimblk1_name" ] ) ; ENDIF
+      IF Len( ds[ "dimblk2_name" ] ) > 0 ; Sw_WriteString( w, 7, ds[ "dimblk2_name" ] ) ; ENDIF
+   ENDIF
+   Sw_WriteDouble( w, 40, ds[ "dimscale" ] )
+   Sw_WriteDouble( w, 41, ds[ "dimasz" ] )
+   Sw_WriteDouble( w, 42, ds[ "dimexo" ] )
+   Sw_WriteDouble( w, 43, ds[ "dimdli" ] )
+   Sw_WriteDouble( w, 44, ds[ "dimexe" ] )
+   Sw_WriteDouble( w, 45, ds[ "dimrnd" ] )
+   Sw_WriteDouble( w, 46, ds[ "dimdle" ] )
+   Sw_WriteDouble( w, 47, ds[ "dimtp" ] )
+   Sw_WriteDouble( w, 48, ds[ "dimtm" ] )
+   IF ds[ "dimfxl" ] != 1.0 ; Sw_WriteDouble( w, 49, ds[ "dimfxl" ] ) ; ENDIF
+   IF ds[ "dimjogang" ] != OCX_PI / 4.0 ; Sw_WriteDouble( w, 50, Max( 0.0872665, Min( 1.5708, ds[ "dimjogang" ] ) ) ) ; ENDIF
+   Sw_WriteDouble( w, 140, ds[ "dimtxt" ] )
+   Sw_WriteDouble( w, 141, ds[ "dimcen" ] )
+   Sw_WriteDouble( w, 142, ds[ "dimtsz" ] )
+   Sw_WriteDouble( w, 143, ds[ "dimaltf" ] )
+   Sw_WriteDouble( w, 144, ds[ "dimlfac" ] )
+   Sw_WriteDouble( w, 145, ds[ "dimtvp" ] )
+   Sw_WriteDouble( w, 146, ds[ "dimtfac" ] )
+   Sw_WriteDouble( w, 147, ds[ "dimgap" ] )
+   IF ds[ "dimaltrnd" ] != 0.0 ; Sw_WriteDouble( w, 148, ds[ "dimaltrnd" ] ) ; ENDIF
+   IF st[ 2 ] >= Dxv_FromVersionString( "AC1021" ) .AND. ds[ "dimtfill" ] != 0
+      Sw_WriteI16( w, 69, ds[ "dimtfill" ] ) ; Sw_WriteI16( w, 70, ds[ "dimtfillclr" ] )
+   ENDIF
+   Sw_WriteI16( w, 71, IIf( ds[ "dimtol" ], 1, 0 ) )
+   Sw_WriteI16( w, 72, IIf( ds[ "dimlim" ], 1, 0 ) )
+   Sw_WriteI16( w, 73, IIf( ds[ "dimtih" ], 1, 0 ) )
+   Sw_WriteI16( w, 74, IIf( ds[ "dimtoh" ], 1, 0 ) )
+   Sw_WriteI16( w, 75, IIf( ds[ "dimse1" ], 1, 0 ) )
+   Sw_WriteI16( w, 76, IIf( ds[ "dimse2" ], 1, 0 ) )
+   Sw_WriteI16( w, 77, ds[ "dimtad" ] )
+   Sw_WriteI16( w, 78, ds[ "dimzin" ] )
+   Sw_WriteI16( w, 79, ds[ "dimazin" ] )
+   IF ds[ "dimarcsym" ] != 0 ; Sw_WriteI32( w, 90, ds[ "dimarcsym" ] ) ; ENDIF
+   Sw_WriteI16( w, 170, IIf( ds[ "dimalt" ], 1, 0 ) )
+   Sw_WriteI16( w, 171, ds[ "dimaltd" ] )
+   Sw_WriteI16( w, 172, IIf( ds[ "dimtofl" ], 1, 0 ) )
+   Sw_WriteI16( w, 173, IIf( ds[ "dimsah" ], 1, 0 ) )
+   Sw_WriteI16( w, 174, IIf( ds[ "dimtix" ], 1, 0 ) )
+   Sw_WriteI16( w, 175, IIf( ds[ "dimsoxd" ], 1, 0 ) )
+   Sw_WriteI16( w, 176, ds[ "dimclrd" ] )
+   Sw_WriteI16( w, 177, ds[ "dimclre" ] )
+   Sw_WriteI16( w, 178, ds[ "dimclrt" ] )
+   Sw_WriteI16( w, 179, ds[ "dimadec" ] )
+   IF st[ 2 ] <= Dxv_FromVersionString( "AC1014" ) ; Sw_WriteI16( w, 270, ds[ "dimunit" ] ) ; ENDIF
+   Sw_WriteI16( w, 271, ds[ "dimdec" ] )
+   Sw_WriteI16( w, 272, ds[ "dimtdec" ] )
+   Sw_WriteI16( w, 273, ds[ "dimaltu" ] )
+   Sw_WriteI16( w, 274, ds[ "dimalttd" ] )
+   Sw_WriteI16( w, 275, ds[ "dimaunit" ] )
+   Sw_WriteI16( w, 276, ds[ "dimfrac" ] )
+   Sw_WriteI16( w, 277, ds[ "dimlunit" ] )
+   Sw_WriteI16( w, 278, ds[ "dimdsep" ] )
+   Sw_WriteI16( w, 279, ds[ "dimtmove" ] )
+   Sw_WriteI16( w, 280, ds[ "dimjust" ] )
+   Sw_WriteI16( w, 281, IIf( ds[ "dimsd1" ], 1, 0 ) )
+   Sw_WriteI16( w, 282, IIf( ds[ "dimsd2" ], 1, 0 ) )
+   Sw_WriteI16( w, 283, ds[ "dimtolj" ] )
+   Sw_WriteI16( w, 284, ds[ "dimtzin" ] )
+   Sw_WriteI16( w, 285, ds[ "dimaltz" ] )
+   Sw_WriteI16( w, 286, ds[ "dimalttz" ] )
+   Sw_WriteI16( w, 288, IIf( ds[ "dimupt" ], 1, 0 ) )
+   IF st[ 2 ] <= Dxv_FromVersionString( "AC1014" )
+      Sw_WriteI16( w, 287, ds[ "dimfit" ] )
+   ELSE
+      Sw_WriteI16( w, 289, ds[ "dimatfit" ] )
+   ENDIF
+   IF st[ 2 ] >= Dxv_FromVersionString( "AC1021" ) .AND. ds[ "dimfxlon" ] ; Sw_WriteBool( w, 290, .T. ) ; ENDIF
+   IF st[ 2 ] >= Dxv_FromVersionString( "AC1024" ) .AND. ds[ "dimtxtdirection" ] ; Sw_WriteBool( w, 295, .T. ) ; ENDIF
+   IF ! Hd_IsNull( ds[ "dimtxsty_handle" ] ) ; Sw_WriteHandle( w, 340, ds[ "dimtxsty_handle" ] ) ; ENDIF
+   IF st[ 2 ] >= Dxv_FromVersionString( "AC1015" )
+      IF ! Hd_IsNull( ds[ "dimldrblk" ] ) ; Sw_WriteHandle( w, 341, ds[ "dimldrblk" ] ) ; ENDIF
+      IF ! Hd_IsNull( ds[ "dimblk" ] ) ; Sw_WriteHandle( w, 342, ds[ "dimblk" ] ) ; ENDIF
+      IF ! Hd_IsNull( ds[ "dimblk1" ] ) ; Sw_WriteHandle( w, 343, ds[ "dimblk1" ] ) ; ENDIF
+      IF ! Hd_IsNull( ds[ "dimblk2" ] ) ; Sw_WriteHandle( w, 344, ds[ "dimblk2" ] ) ; ENDIF
+   ENDIF
+   IF st[ 2 ] >= Dxv_FromVersionString( "AC1021" )
+      IF ! Hd_IsNull( ds[ "dimltex_handle" ] ) ; Sw_WriteHandle( w, 345, ds[ "dimltex_handle" ] ) ; ENDIF
+      IF ! Hd_IsNull( ds[ "dimltex1_handle" ] ) ; Sw_WriteHandle( w, 346, ds[ "dimltex1_handle" ] ) ; ENDIF
+      IF ! Hd_IsNull( ds[ "dimltex2_handle" ] ) ; Sw_WriteHandle( w, 347, ds[ "dimltex2_handle" ] ) ; ENDIF
+   ENDIF
+   IF st[ 2 ] >= Dxv_FromVersionString( "AC1015" )
+      Sw_WriteI16( w, 371, ds[ "dimlwd" ] ) ; Sw_WriteI16( w, 372, ds[ "dimlwe" ] )
+   ENDIF
+   IF ds[ "annotative" ]
+      Sw_WriteString( w, 1001, "AcadAnnotative" ) ; Sw_WriteString( w, 1000, "AnnotativeData" ) ; Sw_WriteString( w, 1002, "{" )
+      Sw_WriteI16( w, 1070, 1 ) ; Sw_WriteI16( w, 1070, 1 ) ; Sw_WriteString( w, 1002, "}" )
+   ENDIF
+RETURN
+
 STATIC PROCEDURE Swr_VportEntry( st, d, vp, hOwner )
    LOCAL w := st[ 1 ], nF := 0, nM := 0, nI := 0, rgb
    Sw_WriteString( w, 0, "VPORT" )
@@ -604,6 +713,11 @@ PROCEDURE Swr_Tables( st, d )
    FOR EACH e IN Tb_Values( t )
       IF Upper( e[ "name" ] ) != "ACAD" ; Swr_AppIdEntry( st, d, e, Tb_Handle( t ) ) ; ENDIF
    NEXT
+   Sw_WriteString( w, 0, "ENDTAB" )
+   t := d[ "dim_styles" ]
+   Swr_TableHeader( w, d, "DIMSTYLE", Tb_Len( t ), Tb_Handle( t ) )
+   IF st[ 2 ] >= Dxv_FromVersionString( "AC1015" ) ; Sw_WriteSubclass( w, "AcDbDimStyleTable" ) ; Sw_WriteI16( w, 71, Tb_Len( t ) ) ; ENDIF
+   FOR EACH e IN Tb_Values( t ) ; Swr_DimStyleEntry( st, d, e, Tb_Handle( t ) ) ; NEXT
    Sw_WriteString( w, 0, "ENDTAB" )
    t := d[ "block_records" ]
    Swr_TableHeader( w, d, "BLOCK_RECORD", Tb_Len( t ), Tb_Handle( t ) )
