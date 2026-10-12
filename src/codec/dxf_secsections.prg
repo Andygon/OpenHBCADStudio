@@ -21,7 +21,7 @@ STATIC FUNCTION Sr_Str2Num( c, nDef )
 RETURN n
 
 /* read_reactor_handles */
-STATIC FUNCTION Sr_ReadReactorHandles( s )
+FUNCTION Sr_ReadReactorHandles( s )
    LOCAL a := {}, p, h
    DO WHILE ( p := Sr_Next( s ) ) != NIL
       IF p[ DP_CODE ] == 102 ; EXIT ; ENDIF
@@ -33,7 +33,7 @@ STATIC FUNCTION Sr_ReadReactorHandles( s )
 RETURN a
 
 /* read_xdictionary_handle: handle o NIL */
-STATIC FUNCTION Sr_ReadXDictHandle( s )
+FUNCTION Sr_ReadXDictHandle( s )
    LOCAL r := NIL, p, h
    DO WHILE ( p := Sr_Next( s ) ) != NIL
       IF p[ DP_CODE ] == 102 ; EXIT ; ENDIF
@@ -44,14 +44,14 @@ STATIC FUNCTION Sr_ReadXDictHandle( s )
    ENDDO
 RETURN r
 
-STATIC PROCEDURE Sr_SkipDefinedGroup( s )
+PROCEDURE Sr_SkipDefinedGroup( s )
    LOCAL p
    DO WHILE ( p := Sr_Next( s ) ) != NIL
       IF p[ DP_CODE ] == 102 .AND. AllTrim( p[ DP_VALUE ] ) == "}" ; EXIT ; ENDIF
    ENDDO
 RETURN
 
-STATIC PROCEDURE Sr_SkipEntity( s )
+PROCEDURE Sr_SkipEntity( s )
    LOCAL p
    DO WHILE ( p := Sr_Next( s ) ) != NIL
       IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
@@ -1605,7 +1605,8 @@ FUNCTION Dxr_ReadString( cData )
             CASE cSec == "TABLES" ; Sr_ReadTables( s, d )
             CASE cSec == "BLOCKS" ; Sr_ReadBlocks( s, d )
             CASE cSec == "ENTITIES" ; Sr_ReadEntities( s, d )
-            OTHERWISE ; Sr_SkipSection( s ) /* OBJECTS/ACDSDATA/THUMBNAILIMAGE: PENDIENTE */
+            CASE cSec == "OBJECTS" ; Dxo_ReadObjects( s, d )
+            OTHERWISE ; Sr_SkipSection( s ) /* ACDSDATA/THUMBNAILIMAGE: PENDIENTE */
             ENDCASE
          ENDIF
       ENDIF
