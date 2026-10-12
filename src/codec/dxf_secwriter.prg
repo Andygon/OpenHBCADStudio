@@ -2,15 +2,12 @@
    OpenHBCADStudio - src/codec/dxf_secwriter.prg
    Origen Rust: opencadcodec/src/io/dxf/writer/section_writer.rs (parcial) y writer/mod.rs (write_dxf).
    Licencia del original: MPL-2.0. Sin tests propios en el original (se prueba por roundtrip: tests/t_dxf_rw.prg).
-   Portado: write_header (generado del original, con puertas de version), summary_info, write_classes,
-   tablas LTYPE/LAYER/STYLE/APPID/BLOCK_RECORD, write_blocks, write_entities (POINT/LINE/CIRCLE/ARC/LWPOLYLINE/TEXT/INSERT),
-   xdata, EOF.
-   PENDIENTE: VPORT/VIEW/UCS/DIMSTYLE, OBJECTS (se escribe vacia), ACDSDATA, resto de entidades,
-   $TDUCREATE/$TDUUPDATE (universal_*_or_local no portado), valid_handles/safe_entity_owner (no filtra),
-   normal_plotstyle_handle, preview_data de BLOCK_RECORD, prepare_database_references/table_keys.
+   Portado: cabecera (con $TDUCREATE/$TDUUPDATE), summary_info, classes, tablas, blocks, entities (la mayoria de tipos incl. MULTILEADER/MESH),
+   graphic_data comun, normal_plotstyle_handle, active_viewport_ids, xdata, DXF binario (Dxw_WriteBinaryString), EOF.
+   PENDIENTE: valid_handles/safe_entity_owner (no filtra), preview_data de BLOCK_RECORD, prepare_database_references/table_keys, ACDSDATA,
+   3DSOLID/REGION/BODY (ACIS).
    Nota (quirk fiel al original): TEXT escribe oblique_angle (51) en radianes sin convertir.
-   st = { w, nVer, lPaper }. Prefijo Swr_ / Dxw_.
-----------------------------------------------------------------------------*/
+   st = { w, nVer, nextHandle, lPaper, d, hViewportIds, nNormalPlotstyle }. Prefijo Swr_ / Dxw_.
 #include "ocx.ch"
 
 STATIC PROCEDURE Swr_Var( w, cName, bBody )
@@ -224,7 +221,9 @@ PROCEDURE Swr_Header( st, d )
    Swr_Var( w, "$VISRETAIN", {|| Sw_WriteI16( w, 70, IIf( hdr[ "retain_xref_visibility" ], 1, 0 ) ) } )
    Swr_Var( w, "$PSTYLEMODE", {|| Sw_WriteBool( w, 290, hdr[ "plotstyle_mode" ] ) } )
    Swr_Var( w, "$TDCREATE", {|| Sw_WriteDouble( w, 40, hdr[ "create_date_julian" ] ) } )
+   IF nVer >= Dxv_FromVersionString( "AC1015" ) ; Swr_Var( w, "$TDUCREATE", {|| Sw_WriteDouble( w, 40, Hdr_UniversalCreateOrLocal( hdr ) ) } ) ; ENDIF
    Swr_Var( w, "$TDUPDATE", {|| Sw_WriteDouble( w, 40, hdr[ "update_date_julian" ] ) } )
+   IF nVer >= Dxv_FromVersionString( "AC1015" ) ; Swr_Var( w, "$TDUUPDATE", {|| Sw_WriteDouble( w, 40, Hdr_UniversalUpdateOrLocal( hdr ) ) } ) ; ENDIF
    Swr_Var( w, "$TDINDWG", {|| Sw_WriteDouble( w, 40, hdr[ "total_editing_time" ] ) } )
    IF nVer >= Dxv_FromVersionString( "AC1015" ) .AND. Len( hdr[ "fingerprint_guid" ] ) > 0
      Swr_Var( w, "$FINGERPRINTGUID", {|| Sw_WriteString( w, 2, hdr[ "fingerprint_guid" ] ) } )
@@ -312,7 +311,7 @@ STATIC PROCEDURE Swr_CommonTable( w, d, h, hOwner )
 RETURN
 
 STATIC PROCEDURE Swr_LayerEntry( st, d, l, hOwner, h )
-   LOCAL w := st[ 1 ], nFl := 0, nCi, c := l[ "color" ], tc, cB
+   LOCAL w := st[ 1 ], nFl := 0, nCi, c := l[ "color" ], tc, cB, nPs
    Sw_WriteString( w, 0, "LAYER" )
    Swr_CommonTable( w, d, h, hOwner )
    Sw_WriteSubclass( w, "AcDbSymbolTableRecord" ) ; Sw_WriteSubclass( w, "AcDbLayerTableRecord" )
@@ -336,8 +335,9 @@ STATIC PROCEDURE Swr_LayerEntry( st, d, l, hOwner, h )
    ENDIF
    Sw_WriteString( w, 6, l[ "line_type" ] )
    Sw_WriteI16( w, 370, Lw_GetValue( l[ "line_weight" ] ) )
-   IF st[ 2 ] >= Dxv_FromVersionString( "AC1015" ) .AND. ! Hd_IsNull( l[ "plotstyle_handle" ] )
-      Sw_WriteHandle( w, 390, l[ "plotstyle_handle" ] )
+   IF st[ 2 ] >= Dxv_FromVersionString( "AC1015" )
+      nPs := IIf( Hd_IsNull( l[ "plotstyle_handle" ] ), st[ 7 ], l[ "plotstyle_handle" ] )
+      IF ! Hd_IsNull( nPs ) ; Sw_WriteHandle( w, 390, nPs ) ; ENDIF
    ENDIF
    Sw_WriteBool( w, 290, l[ "is_plottable" ] )
    IF ! Tp_IsOpaque( l[ "transparency" ] )
@@ -747,6 +747,12 @@ STATIC PROCEDURE Swr_CommonEntity( st, c, hOwner )
    Sw_WriteSubclass( w, "AcDbEntity" )
    IF st[ 4 ] ; Sw_WriteI16( w, 67, 1 ) ; ENDIF
    Sw_WriteString( w, 8, c[ "layer" ] )
+   IF c[ "graphic_data" ] != NIL
+      IF st[ 2 ] >= Dxv_FromVersionString( "AC1024" ) ; Sw_WriteI64( w, 160, hb_BLen( c[ "graphic_data" ] ) ) ; ELSE ; Sw_WriteI32( w, 92, hb_BLen( c[ "graphic_data" ] ) ) ; ENDIF
+      FOR h := 1 TO hb_BLen( c[ "graphic_data" ] ) STEP 127
+         Sw_WriteBinary( w, 310, hb_BSubStr( c[ "graphic_data" ], h, 127 ) )
+      NEXT
+   ENDIF
    IF Ec_HasLinetype( c ) ; Sw_WriteString( w, 6, c[ "linetype" ] ) ; ENDIF
    IF ! Cl_Eq( c[ "color" ], Cl_ByLayer() ) ; Sw_WriteColor( w, 62, c[ "color" ] ) ; ENDIF
    IF st[ 2 ] >= Dxv_FromVersionString( "AC1018" )
@@ -1431,6 +1437,7 @@ STATIC PROCEDURE Swr_WriteEntity( st, e, hOwner )
       Sw_WriteEntityType( w, "VIEWPORT" ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbViewport" ) ; Sw_WritePoint3d( w, 10, e[ "center" ] )
       Sw_WriteDouble( w, 40, e[ "width" ] ) ; Sw_WriteDouble( w, 41, e[ "height" ] )
       nI := e[ "id" ]
+      IF nI == 0 ; nI := hb_HGetDef( st[ 6 ], c[ "handle" ], 0 ) ; ENDIF
       DO CASE
       CASE ! Evp_IsOn( e ) ; Sw_WriteI16( w, 68, 0 )
       CASE e[ "off_screen" ] ; Sw_WriteI16( w, 68, -1 )
@@ -1587,14 +1594,24 @@ PROCEDURE Swr_Blocks( st, d )
 RETURN
 
 PROCEDURE Swr_Entities( st, d )
-   LOCAL w := st[ 1 ], br
+   LOCAL w := st[ 1 ], br, nVp, h, n
    Sw_WriteSectionStart( w, "ENTITIES" )
    st[ 4 ] := .F.
    br := Tb_Get( d[ "block_records" ], "*Model_Space" )
    IF br != NIL ; Swr_EntitiesOf( st, d, br ) ; ENDIF
    st[ 4 ] := .T.
    br := Tb_Get( d[ "block_records" ], "*Paper_Space" )
-   IF br != NIL ; Swr_EntitiesOf( st, d, br ) ; ENDIF
+   IF br != NIL
+      /* AutoCAD numera los viewports del layout activo 1, 2, ... en orden de entidad */
+      nVp := 1
+      FOR EACH h IN br[ "entity_handles" ]
+         n := hb_HGetDef( d[ "entity_index" ], h, NIL )
+         IF n != NIL .AND. d[ "entities" ][ n + 1 ][ "_type" ] == "VIEWPORT"
+            st[ 6 ][ d[ "entities" ][ n + 1 ][ "common" ][ "handle" ] ] := nVp ; nVp := Min( nVp + 1, 32767 )
+         ENDIF
+      NEXT
+      Swr_EntitiesOf( st, d, br )
+   ENDIF
    st[ 4 ] := .F.
    Sw_WriteSectionEnd( w )
 RETURN
@@ -1606,9 +1623,18 @@ FUNCTION Dxw_WriteString( d ) ; RETURN Dxw_WriteWith( d, TxW_New( NIL ) )
 FUNCTION Dxw_WriteBinaryString( d ) ; RETURN Dxw_WriteWith( d, BnW_New( NIL ) )
 
 STATIC FUNCTION Dxw_WriteWith( d, w )
-   LOCAL st
+   LOCAL st, o, nNp := Hd_Null(), e
    Doc_SynchronizeHandleAllocator( d )
-   st := { w, d[ "version" ], d[ "next_handle" ] + 1, .F., d }
+   /* normal_plotstyle_handle: default_handle del DictionaryWithDefault que tiene la entrada "Normal" */
+   FOR EACH o IN hb_HValues( d[ "objects" ] )
+      IF o[ "_type" ] == "DictionaryWithDefault"
+         FOR EACH e IN o[ "entries" ]
+            IF e[ 1 ] == "Normal" ; nNp := o[ "default_handle" ] ; EXIT ; ENDIF
+         NEXT
+         IF ! Hd_IsNull( nNp ) ; EXIT ; ENDIF
+      ENDIF
+   NEXT
+   st := { w, d[ "version" ], d[ "next_handle" ] + 1, .F., d, hb_Hash(), nNp }
    Swr_Header( st, d )
    Swr_Classes( st, d )
    Swr_Tables( st, d )
