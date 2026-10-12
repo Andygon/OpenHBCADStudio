@@ -377,4 +377,10 @@ PROCEDURE T_DxfRw()
    d2 := RT( d2 )
    es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
    Chk( Len( es ) == 1 .AND. es[ 1 ][ "_type" ] == "WIPEOUT" .AND. es[ 1 ][ "clip_type" ] == WCT_POLYGONAL .AND. Len( es[ 1 ][ "clip_boundary_vertices" ] ) == Len( x[ "clip_boundary_vertices" ] ) .AND. es[ 1 ][ "brightness" ] == 70 .AND. es[ 1 ][ "clip_mode" ] == WCM_INSIDE .AND. es[ 1 ][ "definition_handle" ] == 77, "[extra] WIPEOUT releido" )
+   /* [extra] MLINE */
+   d2 := Doc_New()
+   x := Eml_FromPoints( { Vc3_New( 0.0, 0.0, 0.0 ), Vc3_New( 10.0, 0.0, 0.0 ), Vc3_New( 10.0, 5.0, 0.0 ) } ) ; x[ "scale_factor" ] := 2.5 ; x[ "justification" ] := 2 ; Eml_Close( x ) ; Doc_AddEntity( d2, x )
+   d2 := RT( d2 )
+   es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
+   Chk( Len( es ) == 1 .AND. es[ 1 ][ "_type" ] == "MLINE" .AND. Len( es[ 1 ][ "vertices" ] ) == 3 .AND. es[ 1 ][ "scale_factor" ] == 2.5 .AND. es[ 1 ][ "justification" ] == 2 .AND. Eml_IsClosed( es[ 1 ] ) .AND. es[ 1 ][ "style_element_count" ] == x[ "style_element_count" ] .AND. Len( es[ 1 ][ "vertices" ][ 2 ][ "segments" ] ) == Len( x[ "vertices" ][ 2 ][ "segments" ] ) .AND. es[ 1 ][ "vertices" ][ 2 ][ "position" ][ 1 ] == 10.0, "[extra] MLINE releido" )
 RETURN
