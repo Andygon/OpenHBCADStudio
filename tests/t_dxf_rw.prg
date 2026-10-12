@@ -69,7 +69,7 @@ STATIC FUNCTION Dxo_RootForTest( d )
 RETURN nB
 
 PROCEDURE T_DxfRw()
-   LOCAL d, d2, d5, e, l, es, c, tx, s1, s2, s3, s4, ms, x, ok, u
+   LOCAL d, d2, d5, e, l, es, c, tx, s1, s2, s3, s4, ms, x, ok, u, pa
    /* test_dxf_roundtrip_line_normal */
    d := Doc_New() ; l := Eln_New()
    l[ "start" ] := Vc3_New( 1.0, 2.0, 3.0 ) ; l[ "end" ] := Vc3_New( 4.0, 5.0, 6.0 ) ; l[ "normal" ] := Vc3_New( 0.0, 1.0, 0.0 )
@@ -408,4 +408,23 @@ PROCEDURE T_DxfRw()
    d2 := RT( d2 )
    es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
    Chk( Len( es ) == 1 .AND. es[ 1 ][ "_type" ] == "HELIX" .AND. es[ 1 ][ "radius" ] == 2.5 .AND. es[ 1 ][ "turns" ] == 4.0 .AND. ! es[ 1 ][ "handedness" ] .AND. es[ 1 ][ "constraint" ] == HXC_TURNS .AND. es[ 1 ][ "axis_base_point" ][ 3 ] == 3.0 .AND. Len( es[ 1 ][ "spline" ][ "control_points" ] ) == 2 .AND. es[ 1 ][ "spline" ][ "control_points" ][ 2 ][ 1 ] == 1.0, "[extra] HELIX releido" )
+   /* [extra] HATCH */
+   d2 := Doc_New()
+   x := Ehh_WithPattern( Hpt_New( "ANSI31" ) ) ; x[ "pattern_angle" ] := OCX_PI / 2.0 ; x[ "pattern_scale" ] := 2.0 ; x[ "pattern_type" ] := 1
+   Hpt_AddLine( x[ "pattern" ], Hpl_New( OCX_PI / 4.0, Vc2_New( 0.0, 0.0 ), Vc2_New( 0.0, 3.0 ), { 1.0, -0.5 } ) )
+   pa := Bpa_External() ; Bpa_AddEdge( pa, Bed_Line( Vc2_New( 0.0, 0.0 ), Vc2_New( 4.0, 0.0 ) ) ) ; Bpa_AddEdge( pa, Bed_CircularArc( Vc2_New( 4.0, 2.0 ), 2.0, 0.0, OCX_PI, .T. ) ) ; Bpa_AddEdge( pa, Bed_EllipticArc( Vc2_New( 1.0, 1.0 ), Vc2_New( 2.0, 0.0 ), 0.5, 0.0, 3.0, .F. ) )
+   Bpa_AddBoundaryHandle( pa, 77 ) ; AAdd( x[ "paths" ], pa )
+   pa := Bpa_External() ; Bpa_AddEdge( pa, Bed_Polyline( { Vc2_New( 0.0, 0.0 ), Vc2_New( 5.0, 0.0 ), Vc2_New( 5.0, 5.0 ) }, .T. ) ) ; AAdd( x[ "paths" ], pa )
+   AAdd( x[ "seed_points" ], Vc2_New( 1.0, 1.0 ) ) ; x[ "is_associative" ] := .T. ; Doc_AddEntity( d2, x )
+   d2 := RT( d2 )
+   es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
+   Chk( Len( es ) == 1 .AND. es[ 1 ][ "_type" ] == "HATCH" .AND. Len( es[ 1 ][ "paths" ] ) == 2 .AND. Len( es[ 1 ][ "paths" ][ 1 ][ "edges" ] ) == 3 .AND. es[ 1 ][ "paths" ][ 1 ][ "edges" ][ 2 ][ "kind" ] == "CircularArc" .AND. es[ 1 ][ "paths" ][ 1 ][ "edges" ][ 3 ][ "end_angle" ] == 3.0 .AND. es[ 1 ][ "paths" ][ 1 ][ "boundary_handles" ][ 1 ] == 77 .AND. es[ 1 ][ "paths" ][ 2 ][ "edges" ][ 1 ][ "kind" ] == "Polyline" .AND. Len( es[ 1 ][ "paths" ][ 2 ][ "edges" ][ 1 ][ "vertices" ] ) == 3 .AND. es[ 1 ][ "pattern" ][ "name" ] == "ANSI31" .AND. Len( es[ 1 ][ "pattern" ][ "lines" ] ) == 1 .AND. es[ 1 ][ "pattern" ][ "lines" ][ 1 ][ "dash_lengths" ][ 2 ] == -0.5 .AND. Abs( es[ 1 ][ "pattern_angle" ] - OCX_PI / 2.0 ) < 0.000000000001 .AND. Len( es[ 1 ][ "seed_points" ] ) == 1 .AND. es[ 1 ][ "is_associative" ] .AND. ! es[ 1 ][ "is_solid" ], "[extra] HATCH releido" )
+   /* [extra] HATCH degradado y MPOLYGON */
+   d2 := Doc_New()
+   x := Ehh_Solid() ; x[ "is_mpolygon" ] := .T. ; x[ "mpolygon_hatch_color" ] := Cl_Index( 5 ) ; x[ "mpolygon_x_direction" ] := Vc2_New( 1.0, 0.0 ) ; x[ "gradient_color" ][ "enabled" ] := .T. ; x[ "gradient_color" ][ "name" ] := "LINEAR" ; x[ "gradient_color" ][ "angle" ] := 0.5
+   Hgp_AddColor( x[ "gradient_color" ], 0.0, Cl_Index( 1 ) ) ; Hgp_AddColor( x[ "gradient_color" ], 1.0, Cl_Index( 3 ) )
+   pa := Bpa_External() ; Bpa_AddEdge( pa, Bed_Polyline( { Vc2_New( 0.0, 0.0 ), Vc2_New( 5.0, 0.0 ), Vc2_New( 5.0, 5.0 ) }, .T. ) ) ; AAdd( x[ "paths" ], pa ) ; Doc_AddEntity( d2, x )
+   d2 := RT( d2 )
+   es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
+   Chk( Len( es ) == 1 .AND. es[ 1 ][ "_type" ] == "HATCH" .AND. es[ 1 ][ "is_mpolygon" ] .AND. es[ 1 ][ "mpolygon_hatch_color" ][ 2 ] == 5 .AND. es[ 1 ][ "gradient_color" ][ "enabled" ] .AND. es[ 1 ][ "gradient_color" ][ "name" ] == "LINEAR" .AND. Len( es[ 1 ][ "gradient_color" ][ "colors" ] ) == 2 .AND. es[ 1 ][ "gradient_color" ][ "colors" ][ 2 ][ "color" ][ 2 ] == 3 .AND. Len( es[ 1 ][ "paths" ] ) == 1, "[extra] MPOLYGON/gradiente releido" )
 RETURN
