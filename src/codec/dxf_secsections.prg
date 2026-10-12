@@ -876,6 +876,9 @@ RETURN
 STATIC FUNCTION Sr_EntBase( s, p, e )
 RETURN Sr_CommonCode( s, p, e[ "common" ] )
 
+/* envoltorio publico para dxf_secmleader.prg */
+FUNCTION Sr_EntBaseP( s, p, e ) ; RETURN Sr_EntBase( s, p, e )
+
 STATIC FUNCTION Sr_ReadPoint( s )
    LOCAL e := Ept_New(), loc := PR_New(), nor := PR_New(), p, v, n, pt
    DO WHILE ( p := Sr_Next( s ) ) != NIL
@@ -2459,6 +2462,7 @@ STATIC FUNCTION Sr_ReadEntityOfType( s, cT )
    CASE cT == "HATCH" ; RETURN Sr_ReadHatchKind( s, .F. )
    CASE cT == "MPOLYGON" ; RETURN Sr_ReadHatchKind( s, .T. )
    CASE cT == "HELIX" ; RETURN Sr_ReadHelix( s )
+   CASE cT == "MULTILEADER" ; RETURN Sr_ReadMultileader( s )
    CASE cT == "IMAGE" ; RETURN Sr_ReadImage( s )
    CASE cT == "VIEWPORT" ; RETURN Sr_ReadViewport( s )
    CASE cT == "LEADER" ; RETURN Sr_ReadLeader( s )
