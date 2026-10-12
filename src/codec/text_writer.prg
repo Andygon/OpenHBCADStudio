@@ -10,7 +10,7 @@
 FUNCTION TxW_New( nFH ) ; RETURN { 1, "", nFH }
 
 STATIC FUNCTION TxW_Code( w, nCode )
-   Sw_Put( w, PadL( hb_ntos( nCode ), 3 ) + Chr( 13 ) + Chr( 10 ) )
+   Sw_Put( w, IIf( nCode < 100, PadL( hb_ntos( nCode ), 3 ), hb_ntos( nCode ) ) + Chr( 13 ) + Chr( 10 ) ) /* {:>3}: sin truncar (codigos 1000+) */
 RETURN NIL
 STATIC FUNCTION TxW_Line( w, c )
    Sw_Put( w, c + Chr( 13 ) + Chr( 10 ) )
@@ -44,8 +44,8 @@ FUNCTION TxW_XRecordString( w, nCode, c )
 RETURN NIL
 
 FUNCTION TxW_Byte( w, nCode, n ) ; TxW_Code( w, nCode ) ; TxW_Line( w, hb_ntos( n ) ) ; RETURN NIL
-FUNCTION TxW_I16( w, nCode, n ) ; TxW_Code( w, nCode ) ; TxW_Line( w, PadL( hb_ntos( n ), 6 ) ) ; RETURN NIL
-FUNCTION TxW_I32( w, nCode, n ) ; TxW_Code( w, nCode ) ; TxW_Line( w, PadL( hb_ntos( n ), 6 ) ) ; RETURN NIL
+FUNCTION TxW_I16( w, nCode, n ) ; TxW_Code( w, nCode ) ; TxW_Line( w, TxW_Pad6( n ) ) ; RETURN NIL
+FUNCTION TxW_I32( w, nCode, n ) ; TxW_Code( w, nCode ) ; TxW_Line( w, TxW_Pad6( n ) ) ; RETURN NIL
 FUNCTION TxW_I64( w, nCode, n ) ; TxW_Code( w, nCode ) ; TxW_Line( w, hb_ntos( n ) ) ; RETURN NIL
 FUNCTION TxW_Bool( w, nCode, l ) ; TxW_Code( w, nCode ) ; TxW_Line( w, IIf( l, "     1", "     0" ) ) ; RETURN NIL
 
@@ -74,3 +74,8 @@ FUNCTION TxW_Binary( w, nCode, cData )
    NEXT
    TxW_Line( w, cHex )
 RETURN NIL
+
+/* {:>6} de Rust: rellena a la izquierda sin truncar (PadL de Harbour trunca) */
+STATIC FUNCTION TxW_Pad6( n )
+   LOCAL c := hb_ntos( n )
+RETURN IIf( Len( c ) >= 6, c, PadL( c, 6 ) )
