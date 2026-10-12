@@ -23,6 +23,10 @@ FUNCTION Ent_Clone( x )
       FOR EACH k IN hb_HKeys( x )
          r[ k ] := Ent_Clone( x[ k ] )
       NEXT
+      /* Dimension: "common" es el mismo objeto que base["common"]; se mantiene el enlace en la copia */
+      IF hb_HHasKey( x, "base" ) .AND. hb_HHasKey( x, "common" ) .AND. ValType( x[ "base" ] ) == "H"
+         r[ "common" ] := r[ "base" ][ "common" ]
+      ENDIF
       RETURN r
    ENDCASE
 RETURN x
