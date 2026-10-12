@@ -239,3 +239,23 @@
 #define LCT_WITHTOLERANCE 1
 #define LCT_WITHBLOCK     2
 #define LCT_NOANNOTATION  3
+
+/* entities/tolerance.rs: gdt_symbols (caracteres) */
+#define GDT_STRAIGHTNESS      "a"
+#define GDT_FLATNESS          "c"
+#define GDT_CIRCULARITY       "g"
+#define GDT_CYLINDRICITY      "e"
+#define GDT_LINE_PROFILE      "k"
+#define GDT_SURFACE_PROFILE   "d"
+#define GDT_PARALLELISM       "h"
+#define GDT_PERPENDICULARITY  "j"
+#define GDT_ANGULARITY        "n"
+#define GDT_POSITION          "p"
+#define GDT_CONCENTRICITY     "u"
+#define GDT_SYMMETRY          "i"
+#define GDT_CIRCULAR_RUNOUT   "r"
+#define GDT_TOTAL_RUNOUT      "t"
+#define GDT_DIAMETER          "n"
+#define GDT_MMC               "m"
+#define GDT_LMC               "l"
+#define GDT_RFS               "s"
