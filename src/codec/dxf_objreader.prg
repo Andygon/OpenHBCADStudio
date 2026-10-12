@@ -222,9 +222,9 @@ STATIC FUNCTION Dxo_ReadMLineStyle( s )
       CASE p[ DP_CODE ] == 2 ; st[ "name" ] := p[ DP_VALUE ]
       CASE p[ DP_CODE ] == 3 ; st[ "description" ] := p[ DP_VALUE ]
       CASE p[ DP_CODE ] == 51
-         v := Dp_AsDouble( p ) ; IF v != NIL ; st[ "start_angle" ] := v * OCX_PI / 180.0 ; ENDIF
+         v := Dp_AsDouble( p ) ; IF v != NIL ; st[ "start_angle" ] := v * ( OCX_PI / 180.0 ) ; ENDIF
       CASE p[ DP_CODE ] == 52
-         v := Dp_AsDouble( p ) ; IF v != NIL ; st[ "end_angle" ] := v * OCX_PI / 180.0 ; ENDIF
+         v := Dp_AsDouble( p ) ; IF v != NIL ; st[ "end_angle" ] := v * ( OCX_PI / 180.0 ) ; ENDIF
       CASE p[ DP_CODE ] == 62
          v := Dp_AsI16( p )
          IF v != NIL
