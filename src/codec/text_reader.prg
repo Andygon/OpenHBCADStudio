@@ -74,7 +74,7 @@ STATIC FUNCTION TxR_ReadLine( r )
    LOCAL c := TxR_RawLine( r )
    IF c == NIL ; RETURN NIL ; ENDIF
    c := TxR_Decode( r, c )
-   IF CP_HasLegacyEscape( c ) ; c := CP_DecodeCifEscapes( c ) ; ENDIF   // MIF pendiente (ver code_page.prg)
+   IF CP_HasLegacyEscape( c ) ; c := CP_DecodeLegacyEscapes( c ) ; ENDIF     // MIF: sin tablas multibyte (ver code_page.prg)
 RETURN c
 
 STATIC FUNCTION TxR_ProcessString( c )
