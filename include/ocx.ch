@@ -206,3 +206,8 @@
 #define SST_QUADRATIC_BSPLINE 5
 #define SST_CUBIC_BSPLINE 6
 #define SST_BEZIER 8
+
+/* entities/attribute_definition.rs: MTextFlag (HorizontalAlignment/VerticalAlignment usan los mismos valores que TXH_/TXV_) */
+#define MTF_SINGLELINE 0
+#define MTF_MULTILINE 2
+#define MTF_CONSTANTMULTILINE 4
