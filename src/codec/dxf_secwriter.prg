@@ -4,7 +4,8 @@
    Licencia del original: MPL-2.0. Sin tests propios en el original (se prueba por roundtrip: tests/t_dxf_rw.prg).
    Portado: cabecera (con $TDUCREATE/$TDUUPDATE), summary_info, classes, tablas, blocks, entities (la mayoria de tipos incl. MULTILEADER/MESH),
    graphic_data comun, normal_plotstyle_handle, active_viewport_ids, xdata, DXF binario (Dxw_WriteBinaryString), EOF.
-   PENDIENTE: valid_handles/safe_entity_owner (no filtra), preview_data de BLOCK_RECORD, prepare_database_references/table_keys, ACDSDATA,
+   valid_handles (Dxw_BuildValidHandles, sin Unknown/Associative/loft) y safe_entity_owner portados; preview_data 310 portado.
+   PENDIENTE: prepare_database_references/table_keys, ACDSDATA,
    3DSOLID/REGION/BODY (ACIS).
    Nota (quirk fiel al original): TEXT escribe oblique_angle (51) en radianes sin convertir.
    st = { w, nVer, nextHandle, lPaper, d, hViewportIds, nNormalPlotstyle }. Prefijo Swr_ / Dxw_.
@@ -292,12 +293,12 @@ STATIC PROCEDURE Swr_TableHeader( w, d, cName, nCount, hTable )
    Sw_WriteI16( w, 70, nCount )
 RETURN
 
-STATIC PROCEDURE Swr_CommonTable( w, d, h, hOwner )
-   LOCAL aR := hb_HGetDef( d[ "reactors_by_handle" ], h, NIL ), r, aOk := {}, hX := hb_HGetDef( d[ "xdic_by_handle" ], h, NIL )
+STATIC PROCEDURE Swr_CommonTable( st, d, h, hOwner )
+   LOCAL w := st[ 1 ], aR := hb_HGetDef( d[ "reactors_by_handle" ], h, NIL ), r, aOk := {}, hX := hb_HGetDef( d[ "xdic_by_handle" ], h, NIL )
    Sw_WriteHandle( w, 5, h )
    IF aR != NIL
       FOR EACH r IN aR
-         IF ! Hd_IsNull( r ) ; AAdd( aOk, r ) ; ENDIF
+         IF ! Hd_IsNull( r ) .AND. Swr_Valid( st, r ) ; AAdd( aOk, r ) ; ENDIF
       NEXT
    ENDIF
    IF Len( aOk ) > 0
@@ -305,7 +306,7 @@ STATIC PROCEDURE Swr_CommonTable( w, d, h, hOwner )
       FOR EACH r IN aOk ; Sw_WriteHandle( w, 330, r ) ; NEXT
       Sw_WriteString( w, 102, "}" )
    ENDIF
-   IF hX != NIL .AND. ! Hd_IsNull( hX )
+   IF hX != NIL .AND. ! Hd_IsNull( hX ) .AND. Swr_Valid( st, hX )
       Sw_WriteString( w, 102, "{ACAD_XDICTIONARY" ) ; Sw_WriteHandle( w, 360, hX ) ; Sw_WriteString( w, 102, "}" )
    ENDIF
    Sw_WriteHandle( w, 330, hOwner )
@@ -314,7 +315,7 @@ RETURN
 STATIC PROCEDURE Swr_LayerEntry( st, d, l, hOwner, h )
    LOCAL w := st[ 1 ], nFl := 0, nCi, c := l[ "color" ], tc, cB, nPs
    Sw_WriteString( w, 0, "LAYER" )
-   Swr_CommonTable( w, d, h, hOwner )
+   Swr_CommonTable( st, d, h, hOwner )
    Sw_WriteSubclass( w, "AcDbSymbolTableRecord" ) ; Sw_WriteSubclass( w, "AcDbLayerTableRecord" )
    Sw_WriteString( w, 2, l[ "name" ] )
    IF l[ "flags" ][ "frozen" ] ; nFl := hb_bitOr( nFl, 1 ) ; ENDIF
@@ -353,7 +354,7 @@ RETURN
 STATIC PROCEDURE Swr_LtypeEntry( st, d, lt, hOwner )
    LOCAL w := st[ 1 ], e, c, nFl, hS, s
    Sw_WriteString( w, 0, "LTYPE" )
-   Swr_CommonTable( w, d, lt[ "handle" ], hOwner )
+   Swr_CommonTable( st, d, lt[ "handle" ], hOwner )
    Sw_WriteSubclass( w, "AcDbSymbolTableRecord" ) ; Sw_WriteSubclass( w, "AcDbLinetypeTableRecord" )
    Sw_WriteString( w, 2, lt[ "name" ] )
    Sw_WriteI16( w, 70, IIf( lt[ "xref_dependent" ], 16, 0 ) )
@@ -394,7 +395,7 @@ RETURN
 STATIC PROCEDURE Swr_StyleEntry( st, d, s, hOwner )
    LOCAL w := st[ 1 ], nFl := 0, nGen := 0, cTt
    Sw_WriteString( w, 0, "STYLE" )
-   Swr_CommonTable( w, d, s[ "handle" ], hOwner )
+   Swr_CommonTable( st, d, s[ "handle" ], hOwner )
    Sw_WriteSubclass( w, "AcDbSymbolTableRecord" ) ; Sw_WriteSubclass( w, "AcDbTextStyleTableRecord" )
    Sw_WriteString( w, 2, IIf( s[ "is_shape_file" ], "", s[ "name" ] ) )
    IF s[ "is_shape_file" ] ; nFl := hb_bitOr( nFl, 1 ) ; ENDIF
@@ -423,7 +424,7 @@ STATIC PROCEDURE Swr_AppIdEntry( st, d, a, hOwner )
    LOCAL w := st[ 1 ]
    IF Len( a[ "name" ] ) == 0 ; RETURN ; ENDIF
    Sw_WriteString( w, 0, "APPID" )
-   Swr_CommonTable( w, d, a[ "handle" ], hOwner )
+   Swr_CommonTable( st, d, a[ "handle" ], hOwner )
    Sw_WriteSubclass( w, "AcDbSymbolTableRecord" ) ; Sw_WriteSubclass( w, "AcDbRegAppTableRecord" )
    Sw_WriteString( w, 2, a[ "name" ] ) ; Sw_WriteI16( w, 70, 0 )
 RETURN
@@ -540,7 +541,7 @@ RETURN
 STATIC PROCEDURE Swr_VportEntry( st, d, vp, hOwner )
    LOCAL w := st[ 1 ], nF := 0, nM := 0, nI := 0, rgb
    Sw_WriteString( w, 0, "VPORT" )
-   Swr_CommonTable( w, d, vp[ "handle" ], hOwner )
+   Swr_CommonTable( st, d, vp[ "handle" ], hOwner )
    Sw_WriteSubclass( w, "AcDbSymbolTableRecord" ) ; Sw_WriteSubclass( w, "AcDbViewportTableRecord" )
    Sw_WriteString( w, 2, vp[ "name" ] )
    IF vp[ "xref_dependent" ] ; nF := hb_bitOr( nF, 16 ) ; ENDIF
@@ -591,7 +592,7 @@ RETURN
 STATIC PROCEDURE Swr_ViewEntry( st, d, vw, hOwner )
    LOCAL w := st[ 1 ], nF := 0, nM := 0, rgb
    Sw_WriteString( w, 0, "VIEW" )
-   Swr_CommonTable( w, d, vw[ "handle" ], hOwner )
+   Swr_CommonTable( st, d, vw[ "handle" ], hOwner )
    Sw_WriteSubclass( w, "AcDbSymbolTableRecord" ) ; Sw_WriteSubclass( w, "AcDbViewTableRecord" )
    Sw_WriteString( w, 2, vw[ "name" ] )
    IF vw[ "paper_space" ] ; nF := hb_bitOr( nF, 1 ) ; ENDIF
@@ -634,7 +635,7 @@ RETURN
 STATIC PROCEDURE Swr_UcsEntry( st, d, u, hOwner )
    LOCAL w := st[ 1 ], nF := 0
    Sw_WriteString( w, 0, "UCS" )
-   Swr_CommonTable( w, d, u[ "handle" ], hOwner )
+   Swr_CommonTable( st, d, u[ "handle" ], hOwner )
    Sw_WriteSubclass( w, "AcDbSymbolTableRecord" ) ; Sw_WriteSubclass( w, "AcDbUCSTableRecord" )
    Sw_WriteString( w, 2, u[ "name" ] )
    IF u[ "xref_dependent" ] ; nF := hb_bitOr( nF, 16 ) ; ENDIF
@@ -649,17 +650,24 @@ STATIC PROCEDURE Swr_UcsEntry( st, d, u, hOwner )
 RETURN
 
 STATIC PROCEDURE Swr_BlockRecordEntry( st, d, br, hOwner )
-   LOCAL w := st[ 1 ], h
+   LOCAL w := st[ 1 ], h, aRef
    Sw_WriteString( w, 0, "BLOCK_RECORD" )
-   Swr_CommonTable( w, d, br[ "handle" ], hOwner )
+   Swr_CommonTable( st, d, br[ "handle" ], hOwner )
    Sw_WriteSubclass( w, "AcDbSymbolTableRecord" ) ; Sw_WriteSubclass( w, "AcDbBlockTableRecord" )
    Sw_WriteString( w, 2, br[ "name" ] )
    Sw_WriteHandle( w, 340, br[ "layout" ] )
-   IF Len( br[ "insert_handles" ] ) > 0
+   aRef := {}
+   FOR EACH h IN br[ "insert_handles" ]
+      IF Swr_Valid( st, h ) ; AAdd( aRef, h ) ; ENDIF
+   NEXT
+   IF Len( aRef ) > 0
       Sw_WriteString( w, 102, "{BLKREFS" )
-      FOR EACH h IN br[ "insert_handles" ] ; Sw_WriteHandle( w, 331, h ) ; NEXT
+      FOR EACH h IN aRef ; Sw_WriteHandle( w, 331, h ) ; NEXT
       Sw_WriteString( w, 102, "}" )
    ENDIF
+   FOR h := 1 TO hb_BLen( br[ "preview_data" ] ) STEP 127
+      Sw_WriteBinary( w, 310, hb_BSubStr( br[ "preview_data" ], h, 127 ) )
+   NEXT
    IF st[ 2 ] >= Dxv_FromVersionString( "AC1021" )
       Sw_WriteI16( w, 70, br[ "units" ] ) ; Sw_WriteByte( w, 280, IIf( br[ "explodable" ], 1, 0 ) ) ; Sw_WriteI16( w, 281, IIf( br[ "scale_uniformly" ], 1, 0 ) )
    ENDIF
@@ -735,14 +743,17 @@ STATIC PROCEDURE Swr_Normal( w, v )
 RETURN
 
 STATIC PROCEDURE Swr_CommonEntity( st, c, hOwner )
-   LOCAL w := st[ 1 ], h, tc
-   Sw_WriteHandle( w, 5, c[ "handle" ] ) ; Sw_WriteHandle( w, 330, hOwner )
-   IF c[ "xdictionary_handle" ] != NIL .AND. ! Hd_IsNull( c[ "xdictionary_handle" ] )
+   LOCAL w := st[ 1 ], h, tc, aR := {}
+   Sw_WriteHandle( w, 5, c[ "handle" ] ) ; Sw_WriteHandle( w, 330, Swr_SafeOwner( st, hOwner ) )
+   IF c[ "xdictionary_handle" ] != NIL .AND. ! Hd_IsNull( c[ "xdictionary_handle" ] ) .AND. Swr_Valid( st, c[ "xdictionary_handle" ] )
       Sw_WriteString( w, 102, "{ACAD_XDICTIONARY" ) ; Sw_WriteHandle( w, 360, c[ "xdictionary_handle" ] ) ; Sw_WriteString( w, 102, "}" )
    ENDIF
-   IF Len( c[ "reactors" ] ) > 0
+   FOR EACH h IN c[ "reactors" ]
+      IF Len( st[ 8 ] ) == 0 .OR. hb_HHasKey( st[ 8 ], h ) ; AAdd( aR, h ) ; ENDIF
+   NEXT
+   IF Len( aR ) > 0
       Sw_WriteString( w, 102, "{ACAD_REACTORS" )
-      FOR EACH h IN c[ "reactors" ] ; Sw_WriteHandle( w, 330, h ) ; NEXT
+      FOR EACH h IN aR ; Sw_WriteHandle( w, 330, h ) ; NEXT
       Sw_WriteString( w, 102, "}" )
    ENDIF
    Sw_WriteSubclass( w, "AcDbEntity" )
@@ -769,21 +780,24 @@ STATIC PROCEDURE Swr_CommonEntity( st, c, hOwner )
    ENDIF
    IF st[ 2 ] >= Dxv_FromVersionString( "AC1024" )
       FOR EACH h IN { c[ "full_visual_style_handle" ], c[ "face_visual_style_handle" ], c[ "edge_visual_style_handle" ] }
-         IF h != NIL .AND. ! Hd_IsNull( h ) ; Sw_WriteHandle( w, 348, h ) ; ENDIF
+         IF h != NIL .AND. ! Hd_IsNull( h ) .AND. Swr_Valid( st, h ) ; Sw_WriteHandle( w, 348, h ) ; ENDIF
       NEXT
    ENDIF
 RETURN
 
-/* write_dimension_base. valid_handles: PENDIENTE (como Swr_CommonEntity) */
+/* write_dimension_base (sin safe_entity_owner, como el original) */
 STATIC PROCEDURE Swr_DimBase( st, b, vDef, nFlags, hOwner )
-   LOCAL w := st[ 1 ], c := b[ "common" ], h, tc, n, cTxt
+   LOCAL w := st[ 1 ], c := b[ "common" ], h, tc, n, cTxt, aR := {}
    Sw_WriteHandle( w, 5, c[ "handle" ] ) ; Sw_WriteHandle( w, 330, hOwner )
-   IF c[ "xdictionary_handle" ] != NIL .AND. ! Hd_IsNull( c[ "xdictionary_handle" ] )
+   IF c[ "xdictionary_handle" ] != NIL .AND. ! Hd_IsNull( c[ "xdictionary_handle" ] ) .AND. Swr_Valid( st, c[ "xdictionary_handle" ] )
       Sw_WriteString( w, 102, "{ACAD_XDICTIONARY" ) ; Sw_WriteHandle( w, 360, c[ "xdictionary_handle" ] ) ; Sw_WriteString( w, 102, "}" )
    ENDIF
-   IF Len( c[ "reactors" ] ) > 0
+   FOR EACH h IN c[ "reactors" ]
+      IF Swr_Valid( st, h ) ; AAdd( aR, h ) ; ENDIF
+   NEXT
+   IF Len( aR ) > 0
       Sw_WriteString( w, 102, "{ACAD_REACTORS" )
-      FOR EACH h IN c[ "reactors" ] ; Sw_WriteHandle( w, 330, h ) ; NEXT
+      FOR EACH h IN aR ; Sw_WriteHandle( w, 330, h ) ; NEXT
       Sw_WriteString( w, 102, "}" )
    ENDIF
    Sw_WriteSubclass( w, "AcDbEntity" ) ; Sw_WriteString( w, 8, c[ "layer" ] )
@@ -1159,14 +1173,17 @@ STATIC PROCEDURE Swr_HatchEdge( w, nVer, g )
    ENDCASE
 RETURN
 
-/* valid_handles (estado del escritor) pendiente: se trata como vacio (no filtra) */
-STATIC PROCEDURE Swr_HatchPath( w, nVer, pa )
-   LOCAL g, h
+STATIC PROCEDURE Swr_HatchPath( st, nVer, pa )
+   LOCAL g, h, w := st[ 1 ], aB := {}
    Sw_WriteI32( w, 92, pa[ "flags" ] )
    IF ! Bpf_IsPolyline( pa[ "flags" ] ) ; Sw_WriteI32( w, 93, Len( pa[ "edges" ] ) ) ; ENDIF
    FOR EACH g IN pa[ "edges" ] ; Swr_HatchEdge( w, nVer, g ) ; NEXT
-   Sw_WriteI32( w, 97, Len( pa[ "boundary_handles" ] ) )
-   FOR EACH h IN pa[ "boundary_handles" ] ; Sw_WriteHandle( w, 330, h ) ; NEXT
+   /* asociados: con valid_handles solo los no nulos y presentes */
+   FOR EACH h IN pa[ "boundary_handles" ]
+      IF Len( st[ 8 ] ) == 0 .OR. ( ! Hd_IsNull( h ) .AND. hb_HHasKey( st[ 8 ], h ) ) ; AAdd( aB, h ) ; ENDIF
+   NEXT
+   Sw_WriteI32( w, 97, Len( aB ) )
+   FOR EACH h IN aB ; Sw_WriteHandle( w, 330, h ) ; NEXT
 RETURN
 
 STATIC PROCEDURE Swr_HatchGradient( w, e )
@@ -1194,9 +1211,19 @@ STATIC PROCEDURE Swr_HatchPattern( w, e )
 RETURN
 
 STATIC PROCEDURE Swr_Hatch( st, e, hOwner )
-   LOCAL w := st[ 1 ], c := e[ "common" ], pa, lAs := .F., lDer := .F., sd
+   LOCAL w := st[ 1 ], c := e[ "common" ], pa, lAs := .F., lDer := .F., sd, h
    FOR EACH pa IN e[ "paths" ]
-      IF Len( pa[ "boundary_handles" ] ) > 0 ; lAs := .T. ; ENDIF
+      IF e[ "is_mpolygon" ]
+         FOR EACH h IN pa[ "boundary_handles" ]
+            IF ! Hd_IsNull( h ) ; lAs := .T. ; ENDIF
+         NEXT
+      ELSEIF Len( st[ 8 ] ) == 0
+         IF Len( pa[ "boundary_handles" ] ) > 0 ; lAs := .T. ; ENDIF
+      ELSE
+         FOR EACH h IN pa[ "boundary_handles" ]
+            IF ! Hd_IsNull( h ) .AND. hb_HHasKey( st[ 8 ], h ) ; lAs := .T. ; ENDIF
+         NEXT
+      ENDIF
       IF Bpf_IsDerived( pa[ "flags" ] ) ; lDer := .T. ; ENDIF
    NEXT
    lAs := lAs .AND. e[ "is_associative" ]
@@ -1209,7 +1236,7 @@ STATIC PROCEDURE Swr_Hatch( st, e, hOwner )
    Sw_WriteDouble( w, 210, e[ "normal" ][ 1 ] ) ; Sw_WriteDouble( w, 220, e[ "normal" ][ 2 ] ) ; Sw_WriteDouble( w, 230, e[ "normal" ][ 3 ] )
    Sw_WriteString( w, 2, e[ "pattern" ][ "name" ] ) ; Sw_WriteI16( w, 70, IIf( e[ "is_solid" ], 1, 0 ) ) ; Sw_WriteI16( w, 71, IIf( lAs, 1, 0 ) )
    Sw_WriteI32( w, 91, Len( e[ "paths" ] ) )
-   FOR EACH pa IN e[ "paths" ] ; Swr_HatchPath( w, st[ 2 ], pa ) ; NEXT
+   FOR EACH pa IN e[ "paths" ] ; Swr_HatchPath( st, st[ 2 ], pa ) ; NEXT
    Sw_WriteI16( w, 75, e[ "style" ] ) ; Sw_WriteI16( w, 76, e[ "pattern_type" ] )
    IF ! e[ "is_solid" ] ; Swr_HatchPattern( w, e ) ; ENDIF
    IF e[ "is_mpolygon" ]
@@ -1656,8 +1683,38 @@ FUNCTION Dxw_WriteString( d ) ; RETURN Dxw_WriteWith( d, TxW_New( NIL ) )
 /* DxfWriter::new_binary + write_to_vec: devuelve los bytes del DXF binario */
 FUNCTION Dxw_WriteBinaryString( d ) ; RETURN Dxw_WriteWith( d, BnW_New( NIL ) )
 
+/* build_valid_handles: handles que apareceran en el DXF (objetos, block records y sus entidades, indice de entidades, atributos de INSERT,
+   registros y cabeceras de tablas). Hash handle -> .T. ; vacio = sin filtro. PENDIENTE: Unknown/Associative/DynamicBlock "no restaurables" y loft_input_entities (sin modelo). */
+STATIC FUNCTION Dxw_BuildValidHandles( d )
+   LOCAL h := hb_Hash(), k, br, e, a, t
+   FOR EACH k IN hb_HKeys( d[ "objects" ] ) ; h[ k ] := .T. ; NEXT
+   FOR EACH br IN Tb_Values( d[ "block_records" ] )
+      h[ br[ "handle" ] ] := .T.
+      FOR EACH k IN br[ "entity_handles" ] ; h[ k ] := .T. ; NEXT
+   NEXT
+   FOR EACH k IN hb_HKeys( d[ "entity_index" ] ) ; h[ k ] := .T. ; NEXT
+   FOR EACH e IN d[ "entities" ]
+      IF e[ "_type" ] == "INSERT"
+         FOR EACH a IN e[ "attributes" ] ; h[ a[ "common" ][ "handle" ] ] := .T. ; NEXT
+      ENDIF
+   NEXT
+   FOR EACH t IN { "layers", "line_types", "text_styles", "dim_styles", "app_ids", "views", "vports", "ucss" }
+      FOR EACH e IN Tb_Values( d[ t ] ) ; h[ e[ "handle" ] ] := .T. ; NEXT
+      h[ Tb_Handle( d[ t ] ) ] := .T.
+   NEXT
+   h[ Tb_Handle( d[ "block_records" ] ) ] := .T.
+RETURN h
+
+/* valid_handles.is_empty() || contains(h) */
+STATIC FUNCTION Swr_Valid( st, h ) ; RETURN Len( st[ 8 ] ) == 0 .OR. hb_HHasKey( st[ 8 ], h )
+
+/* safe_entity_owner: si el propietario no saldra en el DXF, *Model_Space */
+STATIC FUNCTION Swr_SafeOwner( st, hOwner )
+   IF Hd_IsNull( hOwner ) .OR. Len( st[ 8 ] ) == 0 .OR. hb_HHasKey( st[ 8 ], hOwner ) .OR. Hd_IsNull( st[ 9 ] ) ; RETURN hOwner ; ENDIF
+RETURN st[ 9 ]
+
 STATIC FUNCTION Dxw_WriteWith( d, w )
-   LOCAL st, o, nNp := Hd_Null(), e
+   LOCAL st, o, nNp := Hd_Null(), e, br
    Doc_SynchronizeHandleAllocator( d )
    /* normal_plotstyle_handle: default_handle del DictionaryWithDefault que tiene la entrada "Normal" */
    FOR EACH o IN hb_HValues( d[ "objects" ] )
@@ -1668,12 +1725,13 @@ STATIC FUNCTION Dxw_WriteWith( d, w )
          IF ! Hd_IsNull( nNp ) ; EXIT ; ENDIF
       ENDIF
    NEXT
-   st := { w, d[ "version" ], d[ "next_handle" ] + 1, .F., d, hb_Hash(), nNp }
+   br := Tb_Get( d[ "block_records" ], "*Model_Space" )
+   st := { w, d[ "version" ], d[ "next_handle" ] + 1, .F., d, hb_Hash(), nNp, Dxw_BuildValidHandles( d ), IIf( br != NIL, br[ "handle" ], Hd_Null() ) }
    Swr_Header( st, d )
    Swr_Classes( st, d )
    Swr_Tables( st, d )
    Swr_Blocks( st, d )
    Swr_Entities( st, d )
-   Dxo_WriteObjects( w, d, d[ "version" ] )
+   Dxo_WriteObjects( w, d, d[ "version" ], st[ 8 ] )
    Sw_WriteString( w, 0, "EOF" )
 RETURN Sw_Output( w )
