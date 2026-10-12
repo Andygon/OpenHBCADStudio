@@ -81,7 +81,7 @@ STATIC FUNCTION Dxo_RootForTest( d )
 RETURN nB
 
 PROCEDURE T_DxfRw()
-   LOCAL d, d2, d5, e, l, es, c, tx, s1, s2, s3, s4, ms, x, ok, u, pa
+   LOCAL d, d2, d5, e, l, es, c, tx, s1, s2, s3, s4, ms, x, ok, u, pa, h
    /* test_dxf_roundtrip_line_normal */
    d := Doc_New() ; l := Eln_New()
    l[ "start" ] := Vc3_New( 1.0, 2.0, 3.0 ) ; l[ "end" ] := Vc3_New( 4.0, 5.0, 6.0 ) ; l[ "normal" ] := Vc3_New( 0.0, 1.0, 0.0 )
@@ -499,4 +499,30 @@ PROCEDURE T_DxfRw()
    d2 := RT( d2 )
    es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
    Chk( Len( es ) == 2 .AND. es[ 2 ][ "_type" ] == "HATCH" .AND. Len( es[ 2 ][ "paths" ] ) == 1 .AND. Len( es[ 2 ][ "paths" ][ 1 ][ "boundary_handles" ] ) == 1 .AND. es[ 2 ][ "paths" ][ 1 ][ "boundary_handles" ][ 1 ] == es[ 1 ][ "common" ][ "handle" ] .AND. es[ 2 ][ "is_associative" ] .AND. Len( es[ 2 ][ "common" ][ "reactors" ] ) == 0, "dxf_rw: [extra] valid_handles: frontera valida se conserva, reactor invalido se descarta" )
+   /* [extra] prepare_table_keys: renombrar una capa in situ no deja la entidad apuntando a un nombre ausente de la tabla; el original no cambia */
+   d2 := Doc_New()
+   l := Lyr_New( "Muros" ) ; Tb_Add( d2[ "layers" ], l ) ; x := Eln_New() ; x[ "common" ][ "layer" ] := "Muros" ; Doc_AddEntity( d2, x )
+   l[ "name" ] := "Paredes"
+   d2 := Dxr_ReadString( Dxw_WriteString( d2 ) )
+   es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
+   Chk( ValType( d2 ) == "H" .AND. Len( es ) == 1 .AND. es[ 1 ][ "common" ][ "layer" ] == "Paredes" .AND. Tb_Get( d2[ "layers" ], "Paredes" ) != NIL .AND. ! Tb_Contains( d2[ "layers" ], "Muros" ) .AND. l[ "name" ] == "Paredes", "dxf_rw: [extra] prepare_table_keys" )
+   /* [extra] prepare_database_references: la LINE frontera de un HATCH asociado recibe el reactor del HATCH en la copia escrita; el original no cambia */
+   d2 := Doc_New()
+   x := Eln_New() ; Doc_AddEntity( d2, x )
+   l := Ehh_WithPattern( Hpt_New( "SOLID" ) ) ; pa := Bpa_External() ; Bpa_AddBoundaryHandle( pa, x[ "common" ][ "handle" ] )
+   Bpa_AddEdge( pa, Bed_Polyline( { Vc2_New( 0.0, 0.0 ), Vc2_New( 5.0, 0.0 ), Vc2_New( 5.0, 5.0 ) }, .T. ) ) ; AAdd( l[ "paths" ], pa )
+   l[ "is_associative" ] := .T. ; Doc_AddEntity( d2, l )
+   h := l[ "common" ][ "handle" ]
+   x := d2
+   d2 := RT( x )
+   es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
+   Chk( Len( es ) == 2 .AND. Len( es[ 1 ][ "common" ][ "reactors" ] ) == 1 .AND. es[ 1 ][ "common" ][ "reactors" ][ 1 ] == h .AND. Len( Doc_ModelSpaceEntities( x )[ 1 ][ "common" ][ "reactors" ] ) == 0, "dxf_rw: [extra] prepare_database_references: reactor de HATCH en la frontera" )
+   /* HATCH asociado sin fronteras validas pasa a no asociativo */
+   d2 := Doc_New()
+   l := Ehh_WithPattern( Hpt_New( "SOLID" ) ) ; pa := Bpa_External() ; Bpa_AddBoundaryHandle( pa, 424242 )
+   Bpa_AddEdge( pa, Bed_Polyline( { Vc2_New( 0.0, 0.0 ), Vc2_New( 5.0, 0.0 ), Vc2_New( 5.0, 5.0 ) }, .T. ) ) ; AAdd( l[ "paths" ], pa )
+   l[ "is_associative" ] := .T. ; Doc_AddEntity( d2, l )
+   d2 := RT( d2 )
+   es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
+   Chk( Len( es ) == 1 .AND. ! es[ 1 ][ "is_associative" ] .AND. Len( es[ 1 ][ "paths" ][ 1 ][ "boundary_handles" ] ) == 0, "dxf_rw: [extra] prepare_database_references: HATCH invalido deja de ser asociativo" )
 RETURN
