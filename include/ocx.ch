@@ -530,3 +530,15 @@
 #define BEV_LONG 4
 #define BEV_HANDLE 5
 #define BEV_SHORT 6
+
+#define RSU_NONE        0
+#define RSU_CENTIMETERS 2
+#define RSU_INCHES      5
+
+#define PPE_BYTES 0
+#define PPE_BITS  1
+#define PRK_UNDEFINED      0
+#define PRK_SOFT_OWNERSHIP 1
+#define PRK_HARD_OWNERSHIP 2
+#define PRK_SOFT_POINTER   3
+#define PRK_HARD_POINTER   4
