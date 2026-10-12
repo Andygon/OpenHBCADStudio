@@ -521,3 +521,12 @@
 #define SPR_PRESENTATION 3
 #define SPR_MAXIMUM 4
 #define SPR_CUSTOM 5
+
+/* objects/block_visibility.rs: BlockEvalValue = { nKind, xValue } */
+#define BEV_NONE 0
+#define BEV_REAL 1
+#define BEV_POINT 2
+#define BEV_TEXT 3
+#define BEV_LONG 4
+#define BEV_HANDLE 5
+#define BEV_SHORT 6
