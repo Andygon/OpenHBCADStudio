@@ -51,7 +51,7 @@ STATIC FUNCTION Sample()
 RETURN c
 
 PROCEDURE T_DxfRw()
-   LOCAL d, d2, e, l, es, c, tx, s1, s2, s3, s4, ms, x, ok
+   LOCAL d, d2, e, l, es, c, tx, s1, s2, s3, s4, ms, x, ok, u
    /* test_dxf_roundtrip_line_normal */
    d := Doc_New() ; l := Eln_New()
    l[ "start" ] := Vc3_New( 1.0, 2.0, 3.0 ) ; l[ "end" ] := Vc3_New( 4.0, 5.0, 6.0 ) ; l[ "normal" ] := Vc3_New( 0.0, 1.0, 0.0 )
@@ -211,7 +211,12 @@ PROCEDURE T_DxfRw()
       ENDIF
       x := Tb_Get( d[ "block_records" ], "CAJA" )
       Chk( x != NIL .AND. Len( x[ "entity_handles" ] ) == 1 .AND. x[ "block_entity_handle" ] == 97 .AND. x[ "block_end_handle" ] == 99, "[extra] muestra: bloque CAJA (LINE, handles BLOCK/ENDBLK)" )
+      u := Ucs_FromOriginAxes( "Plano", Vc3_New( 1.0, 2.0, 3.0 ), Vc3_New( 0.0, 1.0, 0.0 ), Vc3_New( -1.0, 0.0, 0.0 ) )
+      u[ "elevation" ] := 2.5 ; u[ "ortho_type" ] := 3 ; u[ "xref_dependent" ] := .T.
+      u[ "handle" ] := Doc_AllocateHandle( d ) ; Tb_AddOrReplace( d[ "ucss" ], u )
       s1 := Dxw_WriteString( d ) ; d2 := Dxr_ReadString( s1 )
+      u := IIf( ValType( d2 ) == "H", Tb_Get( d2[ "ucss" ], "Plano" ), NIL )
+      Chk( u != NIL .AND. Near( u[ "origin" ][ 3 ], 3.0, 0.000000001 ) .AND. Near( u[ "y_axis" ][ 1 ], -1.0, 0.000000001 ) .AND. Near( u[ "elevation" ], 2.5, 0.000000001 ) .AND. u[ "ortho_type" ] == 3 .AND. u[ "xref_dependent" ] .AND. ! u[ "xref_resolved" ], "[extra] tabla UCS: escribir y releer" )
       Chk( ValType( d2 ) == "H" .AND. Len( Doc_ModelSpaceEntities( d2 ) ) == 8 .AND. Len( s1 ) == Len( Dxw_WriteString( d2 ) ), "[extra] muestra: escribir y releer conserva 8 entidades y es estable (HANDSEED puede subir)" )
    ENDIF
 RETURN
