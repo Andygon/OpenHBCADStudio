@@ -878,6 +878,7 @@ RETURN Sr_CommonCode( s, p, e[ "common" ] )
 
 /* envoltorio publico para dxf_secmleader.prg */
 FUNCTION Sr_EntBaseP( s, p, e ) ; RETURN Sr_EntBase( s, p, e )
+FUNCTION Sr_TrueColorBitsP( c ) ; RETURN Sr_TrueColorBits( c )   /* envoltorio publico para las pruebas */
 
 STATIC FUNCTION Sr_ReadPoint( s )
    LOCAL e := Ept_New(), loc := PR_New(), nor := PR_New(), p, v, n, pt
@@ -1164,7 +1165,7 @@ RETURN e
 /* true_color_bits: acepta ambas grafias (con o sin signo); NIL si no es entero de 32 bits */
 STATIC FUNCTION Sr_TrueColorBits( c )
    LOCAL n
-   c := AllTrim( c )
+   c := AllTrim( StrTran( StrTran( StrTran( c, Chr( 13 ) ), Chr( 10 ) ), Chr( 9 ) ) )
    IF Len( c ) == 0 .OR. ! hb_RegexLike( "^[+-]?[0-9]+$", c ) ; RETURN NIL ; ENDIF
    n := Val( c )
    IF n >= -2147483648 .AND. n <= 2147483647 ; RETURN n ; ENDIF
@@ -2444,6 +2445,7 @@ STATIC FUNCTION Sr_ReadEntityOfType( s, cT )
    CASE cT == "TEXT" ; RETURN Sr_ReadText( s )
    CASE cT == "INSERT" ; RETURN Sr_ReadInsert( s )
    CASE cT == "ATTDEF" ; RETURN Sr_ReadAttdefAttrib( s, .T. )
+   CASE cT == "ATTRIB" ; RETURN Sr_ReadAttdefAttrib( s, .F. )
    CASE cT == "MTEXT" ; RETURN Sr_ReadMText( s )
    CASE cT == "SPLINE" ; RETURN Sr_ReadSpline( s )
    CASE cT == "POLYLINE" ; RETURN Sr_ReadPolyline( s )
