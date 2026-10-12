@@ -455,3 +455,9 @@
 #define UDF_ADJUST_FOR_BACKGROUND 8
 #define UDF_CLIP_INSIDE 16
 #define UDF_DEFAULT 2
+
+/* notification.rs: NotificationType */
+#define NTY_NOT_IMPLEMENTED 0
+#define NTY_NOT_SUPPORTED   1
+#define NTY_WARNING         2
+#define NTY_ERROR           3
