@@ -71,6 +71,36 @@ PROCEDURE T_DxfRw()
    es := Doc_ModelSpaceEntities( RT( d ) ) ; e := es[ 1 ]
    Chk( Len( es ) == 1 .AND. e[ "_type" ] == "ARC" .AND. Near( e[ "normal" ][ 1 ], 1.0, 0.000000001 ) .AND. Near( e[ "thickness" ], 3.0, 0.000000001 ), "test_dxf_roundtrip_arc_normal" )
    Chk( Near( e[ "end_angle" ], 90.0, 0.000001 ), "[extra] arc: angulos grados<->radianes simetricos" )
+   /* [extra] elipse / solid / trace / 3dface / ray / xline */
+   d := Doc_New()
+   e := Eel_New() ; e[ "center" ] := Vc3_New( 1.0, 2.0, 3.0 ) ; e[ "major_axis" ] := Vc3_New( 4.0, 0.0, 0.0 ) ; e[ "minor_axis_ratio" ] := 0.25 ; e[ "start_parameter" ] := 0.5 ; e[ "end_parameter" ] := 2.0 ; e[ "normal" ] := Vc3_New( 0.0, 0.0, -1.0 ) ; Doc_AddEntity( d, e )
+   e := Eso_New( Vc3_New( 0.0, 0.0, 0.0 ), Vc3_New( 1.0, 0.0, 0.0 ), Vc3_New( 0.0, 1.0, 0.0 ), Vc3_New( 1.0, 1.0, 0.0 ) ) ; e[ "thickness" ] := 2.0 ; Doc_AddEntity( d, e )
+   e := Eso_New( Vc3_New( 0.0, 0.0, 0.0 ), Vc3_New( 2.0, 0.0, 0.0 ), Vc3_New( 0.0, 2.0, 0.0 ), Vc3_New( 0.0, 2.0, 0.0 ) ) ; e[ "is_trace" ] := .T. ; Doc_AddEntity( d, e )
+   e := Ef3_New( Vc3_New( 0.0, 0.0, 1.0 ), Vc3_New( 1.0, 0.0, 1.0 ), Vc3_New( 1.0, 1.0, 2.0 ), Vc3_New( 0.0, 1.0, 2.0 ) ) ; e[ "invisible_edges" ] := 5 ; Doc_AddEntity( d, e )
+   Doc_AddEntity( d, Ery_New( Vc3_New( 1.0, 1.0, 0.0 ), Vc3_New( 0.0, 1.0, 0.0 ) ) )
+   Doc_AddEntity( d, Exl_New( Vc3_New( 2.0, 2.0, 0.0 ), Vc3_New( 1.0, 0.0, 0.0 ) ) )
+   es := Doc_ModelSpaceEntities( RT( d ) )
+   Chk( Len( es ) == 6, "[extra] roundtrip 6 entidades nuevas" )
+   IF Len( es ) == 6
+      Chk( es[ 1 ][ "_type" ] == "ELLIPSE" .AND. Near( es[ 1 ][ "minor_axis_ratio" ], 0.25, 0.000000001 ) .AND. Near( es[ 1 ][ "end_parameter" ], 2.0, 0.000000001 ) .AND. Near( es[ 1 ][ "normal" ][ 3 ], -1.0, 0.000000001 ) .AND. Near( es[ 1 ][ "major_axis" ][ 1 ], 4.0, 0.000000001 ), "[extra] roundtrip ellipse" )
+      Chk( es[ 2 ][ "_type" ] == "SOLID" .AND. ! es[ 2 ][ "is_trace" ] .AND. Near( es[ 2 ][ "thickness" ], 2.0, 0.000000001 ) .AND. Near( es[ 2 ][ "fourth_corner" ][ 2 ], 1.0, 0.000000001 ), "[extra] roundtrip solid" )
+      Chk( es[ 3 ][ "_type" ] == "SOLID" .AND. es[ 3 ][ "is_trace" ] .AND. Near( es[ 3 ][ "second_corner" ][ 1 ], 2.0, 0.000000001 ), "[extra] roundtrip trace" )
+      Chk( es[ 4 ][ "_type" ] == "3DFACE" .AND. es[ 4 ][ "invisible_edges" ] == 5 .AND. Near( es[ 4 ][ "third_corner" ][ 3 ], 2.0, 0.000000001 ), "[extra] roundtrip 3dface" )
+      Chk( es[ 5 ][ "_type" ] == "RAY" .AND. Near( es[ 5 ][ "direction" ][ 2 ], 1.0, 0.000000001 ) .AND. Near( es[ 5 ][ "base_point" ][ 1 ], 1.0, 0.000000001 ), "[extra] roundtrip ray" )
+      Chk( es[ 6 ][ "_type" ] == "XLINE" .AND. Near( es[ 6 ][ "direction" ][ 1 ], 1.0, 0.000000001 ) .AND. Near( es[ 6 ][ "base_point" ][ 2 ], 2.0, 0.000000001 ), "[extra] roundtrip xline" )
+   ENDIF
+   /* [extra] ATTDEF + INSERT con ATTRIB */
+   d := Doc_New()
+   e := Ead_New( "NOMBRE", "Nombre:", "def" ) ; e[ "insertion_point" ] := Vc3_New( 1.0, 1.0, 0.0 ) ; e[ "height" ] := 3.0 ; e[ "rotation" ] := OCX_PI / 2.0 ; e[ "flags" ][ "constant" ] := .T. ; Doc_AddEntity( d, e )
+   e := Ein_New( "BLK", Vc3_New( 5.0, 5.0, 0.0 ) ) ; l := Eat_New( "NOMBRE", "Pedro" ) ; l[ "height" ] := 1.5 ; l[ "text_style" ] := "Standard" ; l[ "lock_position" ] := .T. ; AAdd( e[ "attributes" ], l ) ; Doc_AddEntity( d, e )
+   s1 := Dxw_WriteString( d ) ; d2 := Dxr_ReadString( s1 )
+   Chk( "ATTDEF" $ s1 .AND. "ATTRIB" $ s1 .AND. "SEQEND" $ s1, "[extra] escritura contiene ATTDEF, ATTRIB y SEQEND" )
+   es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
+   Chk( Len( es ) == 2, "[extra] roundtrip ATTDEF + INSERT" )
+   IF Len( es ) == 2
+      Chk( es[ 1 ][ "_type" ] == "ATTDEF" .AND. es[ 1 ][ "tag" ] == "NOMBRE" .AND. es[ 1 ][ "prompt" ] == "Nombre:" .AND. es[ 1 ][ "default_value" ] == "def" .AND. es[ 1 ][ "flags" ][ "constant" ] .AND. Near( es[ 1 ][ "rotation" ], OCX_PI / 2.0, 0.000000001 ) .AND. Near( es[ 1 ][ "height" ], 3.0, 0.000000001 ), "[extra] roundtrip attdef" )
+      Chk( es[ 2 ][ "_type" ] == "INSERT" .AND. Len( es[ 2 ][ "attributes" ] ) == 1 .AND. es[ 2 ][ "attributes" ][ 1 ][ "tag" ] == "NOMBRE" .AND. es[ 2 ][ "attributes" ][ 1 ][ "value" ] == "Pedro" .AND. es[ 2 ][ "attributes" ][ 1 ][ "lock_position" ] .AND. Near( es[ 2 ][ "attributes" ][ 1 ][ "height" ], 1.5, 0.000000001 ), "[extra] roundtrip insert con attrib" )
+   ENDIF
    /* lwpolyline / text / insert / point / bloque */
    d := Doc_New()
    e := Elw_New() ; AAdd( e[ "vertices" ], Elv_FromCoords( 0.0, 0.0 ) ) ; AAdd( e[ "vertices" ], Elv_WithBulge( Vc2_New( 4.0, 0.0 ), 0.5 ) ) ; e[ "is_closed" ] := .T. ; Doc_AddEntity( d, e )
