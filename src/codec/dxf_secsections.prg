@@ -1806,6 +1806,61 @@ STATIC FUNCTION Sr_ReadMline( s )
    e[ "vertices" ] := aVerts ; e[ "style_element_count" ] := nEl
 RETURN e
 
+STATIC FUNCTION Sr_ReadLeader( s )
+   LOCAL e := Eld_New(), p, n, v, rNor := PR_New(), rHor := PR_New(), rBlk := PR_New(), rAnn := PR_New(), lRV := .F., rCur := PR_New(), pt
+   e[ "creation_type" ] := LCT_NOANNOTATION
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      n := p[ DP_CODE ]
+      DO CASE
+      CASE n == 8 ; e[ "common" ][ "layer" ] := p[ DP_VALUE ]
+      CASE n == 62
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "common" ][ "color" ] := Cl_FromIndex( v ) ; ENDIF
+      CASE n == 3 ; e[ "dimension_style" ] := p[ DP_VALUE ]
+      CASE n == 71
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "arrow_enabled" ] := ( v != 0 ) ; ENDIF
+      CASE n == 72
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "path_type" ] := IIf( v == 1, LPT_SPLINE, LPT_STRAIGHT ) ; ENDIF
+      CASE n == 73
+         v := Dp_AsI16( p )
+         IF v != NIL
+            e[ "creation_type" ] := IIf( v >= 0 .AND. v <= 2, v, LCT_NOANNOTATION )
+         ENDIF
+      CASE n == 74
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "hookline_direction" ] := IIf( v == 1, 1, 0 ) ; ENDIF
+      CASE n == 75
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "hookline_enabled" ] := ( v != 0 ) ; ENDIF
+      CASE n == 40
+         v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "text_height" ] := v ; ENDIF
+      CASE n == 41
+         v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "text_width" ] := v ; ENDIF
+      CASE n == 10
+         IF lRV
+            pt := PR_GetPoint( rCur ) ; IF pt != NIL ; AAdd( e[ "vertices" ], pt ) ; ENDIF
+         ENDIF
+         rCur := PR_New() ; PR_AddCoordinate( rCur, p ) ; lRV := .T.
+      CASE n == 20 .OR. n == 30 ; PR_AddCoordinate( rCur, p )
+      CASE n == 340
+         v := Sr_HexVal( p ) ; IF v != NIL ; e[ "annotation_handle" ] := v ; ENDIF
+      CASE n == 77
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "override_color" ] := Cl_FromIndex( v ) ; ENDIF
+      CASE n == 210 .OR. n == 220 .OR. n == 230 ; PR_AddCoordinate( rNor, p )
+      CASE n == 211 .OR. n == 221 .OR. n == 231 ; PR_AddCoordinate( rHor, p )
+      CASE n == 212 .OR. n == 222 .OR. n == 232 ; PR_AddCoordinate( rBlk, p )
+      CASE n == 213 .OR. n == 223 .OR. n == 233 ; PR_AddCoordinate( rAnn, p )
+      OTHERWISE ; Sr_EntBase( s, p, e )
+      ENDCASE
+   ENDDO
+   IF lRV
+      pt := PR_GetPoint( rCur ) ; IF pt != NIL ; AAdd( e[ "vertices" ], pt ) ; ENDIF
+   ENDIF
+   pt := PR_GetPoint( rNor ) ; IF pt != NIL ; e[ "normal" ] := pt ; ENDIF
+   pt := PR_GetPoint( rHor ) ; IF pt != NIL ; e[ "horizontal_direction" ] := pt ; ENDIF
+   pt := PR_GetPoint( rBlk ) ; IF pt != NIL ; e[ "block_offset" ] := pt ; ENDIF
+   pt := PR_GetPoint( rAnn ) ; IF pt != NIL ; e[ "annotation_offset" ] := pt ; ENDIF
+   IF Len( e[ "vertices" ] ) > 0 ; e[ "origin" ] := e[ "vertices" ][ 1 ] ; ENDIF
+RETURN e
+
 STATIC FUNCTION Sr_ReadEntityOfType( s, cT )
    LOCAL p
    DO CASE
@@ -1830,6 +1885,7 @@ STATIC FUNCTION Sr_ReadEntityOfType( s, cT )
    CASE cT == "DIMENSION" ; RETURN Sr_ReadDimension( s )
    CASE cT == "TOLERANCE" ; RETURN Sr_ReadTolerance( s )
    CASE cT == "SHAPE" ; RETURN Sr_ReadShape( s )
+   CASE cT == "LEADER" ; RETURN Sr_ReadLeader( s )
    CASE cT == "MLINE" ; RETURN Sr_ReadMline( s )
    CASE cT == "WIPEOUT" ; RETURN Sr_ReadWipeout( s )
    CASE cT == "ARC_DIMENSION" ; RETURN Sr_ReadExtDimension( s, .T. )
