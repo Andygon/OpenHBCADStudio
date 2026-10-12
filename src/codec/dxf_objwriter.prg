@@ -2,7 +2,7 @@
    OpenHBCADStudio - src/codec/dxf_objwriter.prg
    Origen Rust: opencadcodec/src/io/dxf/writer/section_writer.rs (write_objects, write_dictionary, write_layout,
    find_root_dict_handle). Licencia del original: MPL-2.0. Prefijo Dxo_.
-   PENDIENTE: solo se escriben DICTIONARY, LAYOUT, XRECORD y GROUP (sin las entradas avanzadas de MATERIAL en XRECORD); el resto de tipos, valid_handles y xdata de objetos no estan portados.
+   PENDIENTE: solo se escriben DICTIONARY, LAYOUT, XRECORD, GROUP y MLINESTYLE (sin las entradas avanzadas de MATERIAL en XRECORD); el resto de tipos, valid_handles y xdata de objetos no estan portados.
    El original no tiene #[test] para estas funciones; los tests [extra] estan en t_dxf_rw.prg.
 ----------------------------------------------------------------------------*/
 #include "ocx.ch"
@@ -20,7 +20,7 @@ STATIC FUNCTION Dxo_FindRootDictHandle( d )
 RETURN nBest
 
 /* tipos de objeto que este escritor emite: las entradas de diccionario a otros tipos se omiten (equivale al filtro valid_handles de Rust) */
-STATIC FUNCTION Dxo_IsWritten( o ) ; RETURN o[ "_type" ] == "Dictionary" .OR. o[ "_type" ] == "Layout" .OR. o[ "_type" ] == "XRecord" .OR. o[ "_type" ] == "Group"
+STATIC FUNCTION Dxo_IsWritten( o ) ; RETURN o[ "_type" ] == "Dictionary" .OR. o[ "_type" ] == "Layout" .OR. o[ "_type" ] == "XRecord" .OR. o[ "_type" ] == "Group" .OR. o[ "_type" ] == "MLineStyle"
 
 STATIC PROCEDURE Dxo_WriteDictionary( w, d, dic )
    LOCAL aR := dic[ "reactors" ], hX, e, lForced
@@ -161,6 +161,28 @@ STATIC PROCEDURE Dxo_WriteXRecord( w, x )
    NEXT
 RETURN
 
+STATIC FUNCTION Dxo_ColorIndex( c )
+   DO CASE
+   CASE c[ 1 ] == CK_BYLAYER ; RETURN 256
+   CASE c[ 1 ] == CK_NONE ; RETURN 257
+   CASE c[ 1 ] == CK_BYBLOCK ; RETURN 0
+   CASE c[ 1 ] == CK_INDEX ; RETURN c[ 2 ]
+   ENDCASE
+RETURN 256
+
+STATIC PROCEDURE Dxo_WriteMLineStyle( w, st )
+   LOCAL e
+   Sw_WriteString( w, 0, "MLINESTYLE" ) ; Sw_WriteHandle( w, 5, st[ "handle" ] ) ; Sw_WriteHandle( w, 330, st[ "owner" ] )
+   Sw_WriteSubclass( w, "AcDbMlineStyle" )
+   Sw_WriteString( w, 2, st[ "name" ] ) ; Sw_WriteI16( w, 70, Mlsf_ToBits( st[ "flags" ] ) ) ; Sw_WriteString( w, 3, st[ "description" ] )
+   Sw_WriteI16( w, 62, Dxo_ColorIndex( st[ "fill_color" ] ) )
+   Sw_WriteDouble( w, 51, st[ "start_angle" ] * 180.0 / OCX_PI ) ; Sw_WriteDouble( w, 52, st[ "end_angle" ] * 180.0 / OCX_PI )
+   Sw_WriteI16( w, 71, Len( st[ "elements" ] ) )
+   FOR EACH e IN st[ "elements" ]
+      Sw_WriteDouble( w, 49, e[ "offset" ] ) ; Sw_WriteI16( w, 62, Dxo_ColorIndex( e[ "color" ] ) ) ; Sw_WriteString( w, 6, e[ "linetype" ] )
+   NEXT
+RETURN
+
 STATIC PROCEDURE Dxo_WriteGroup( w, g )
    LOCAL h
    Sw_WriteString( w, 0, "GROUP" ) ; Sw_WriteHandle( w, 5, g[ "handle" ] ) ; Sw_WriteHandle( w, 330, g[ "owner" ] )
@@ -187,6 +209,7 @@ PROCEDURE Dxo_WriteObjects( w, d )
          CASE o[ "_type" ] == "Dictionary" ; Dxo_WriteDictionary( w, d, o )
          CASE o[ "_type" ] == "Layout" ; Dxo_WriteLayout( w, o )
          CASE o[ "_type" ] == "XRecord" ; Dxo_WriteXRecord( w, o )
+         CASE o[ "_type" ] == "MLineStyle" ; Dxo_WriteMLineStyle( w, o )
          CASE o[ "_type" ] == "Group" ; Dxo_WriteGroup( w, o )
          ENDCASE
       ENDIF
