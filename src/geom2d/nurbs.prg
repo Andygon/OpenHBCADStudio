@@ -1,10 +1,11 @@
 /*----------------------------------------------------------------------------
    OpenHBCADStudio - src/geom2d/nurbs.prg
    Origen Rust: opencadkernel/src/geom2d/nurbs.rs (1619 lineas)
-   Estado: PARCIAL - traducido: new, new_strict, accesores, is_rational, domain,
+   Estado: COMPLETO salvo tests de parameter_at pendientes. Traducido: new, new_strict, accesores, is_rational, domain,
    point_at_knot, derivative_at_knot, derivative_at, point_at, parameter_at,
    tessellate, is_closed.
    + insert_knot, reversed, elevated, bezier_segments, split_at, trimmed, span_containing
+   + interpolate, interpolate_periodic, fit_polyline (simplify_polyline, rounded_polyline).
    (tests en tests/t_nurbs_edit.prg).
    Pendiente: fit_polyline, interpolate, interpolate_periodic y sus tests.
    NurbsCurve = { nDegree, aKnots, aCtrl, aWeights } (indices NC_*). Option -> NIL.
@@ -486,3 +487,103 @@ FUNCTION NC_Interpolate( aPts, aT0, aT1, nParam )
    AAdd( aKn, aK[n] ) ; AAdd( aKn, aK[n] ) ; AAdd( aKn, aK[n] ) ; AAdd( aKn, aK[n] )
    aW := Array( Len( aCtrl ) ) ; AFill( aW, 1.0 )
 RETURN { 3, aKn, aCtrl, aW }
+
+// ---- interpolate_periodic (nurbs.rs 801) ----
+FUNCTION NC_InterpolatePeriodic( aPts, nParam )
+   LOCAL r := Spl_InterpolatePeriodic( aPts, nParam ), aW
+   IF r == NIL ; RETURN NIL ; ENDIF
+   aW := AFill( Array( Len( r[1] ) ), 1.0 )
+RETURN { 3, r[2], r[1], aW }
+
+// ---- fit_polyline (nurbs.rs 652) ----
+FUNCTION NC_FitPolyline( aPtsIn, nTol )
+   LOCAL aPts := {}, p, nAllow
+   IF ! OCX_ISFINITE( nTol ) .OR. nTol < 0.0 ; RETURN NIL ; ENDIF
+   FOR EACH p IN aPtsIn
+      IF ! OCX_ISFINITE( p[1] ) .OR. ! OCX_ISFINITE( p[2] ) ; RETURN NIL ; ENDIF
+   NEXT
+   FOR EACH p IN aPtsIn
+      IF Len( aPts ) == 0 .OR. ! ( ATail( aPts )[1] == p[1] .AND. ATail( aPts )[2] == p[2] ) ; AAdd( aPts, p ) ; ENDIF
+   NEXT
+   IF Len( aPts ) < 2 ; RETURN NIL ; ENDIF
+   IF nTol == 0.0 ; RETURN NC_New( 1, aPts, {}, NIL ) ; ENDIF
+   nAllow := nTol * 0.5
+   aPts := NC_SimplifyPolyline( aPts, nAllow )
+   IF Len( aPts ) == 2 ; RETURN NC_New( 1, aPts, {}, NIL ) ; ENDIF
+RETURN NC_RoundedPolyline( aPts, nAllow )
+
+STATIC FUNCTION NC_SimplifyPolyline( aPts, nTol )
+   LOCAL aKeep, aRanges, aR, nStart, nEnd, nFar, nDist, aFrom, aAlong, nSq, nPrevPar, nRev, i, nPar, nHere, aOut := {}, nIdx
+   IF Len( aPts ) <= 2 .OR. nTol == 0.0 ; RETURN AClone( aPts ) ; ENDIF
+   aKeep := AFill( Array( Len( aPts ) ), .F. )
+   aKeep[1] := .T. ; aKeep[ Len( aPts ) ] := .T.
+   aRanges := { { 0, Len( aPts ) - 1 } }
+   DO WHILE Len( aRanges ) > 0
+      aR := ATail( aRanges ) ; ASize( aRanges, Len( aRanges ) - 1 )
+      nStart := aR[1] ; nEnd := aR[2]
+      nFar := NIL ; nDist := nTol
+      aFrom := aPts[ nStart + 1 ]
+      aAlong := V2_Sub( aPts[ nEnd + 1 ], aFrom )
+      nSq := V2_LengthSquared( aAlong )
+      nPrevPar := 0.0 ; nRev := NIL
+      FOR i := nStart + 1 TO nEnd - 1
+         nPar := IIf( nSq > 0.0, V2_Dot( V2_Sub( aPts[ i + 1 ], aFrom ), aAlong ) / nSq, 0.0 )
+         IF nPar + 0.000000000001 < nPrevPar
+            nRev := i ; EXIT
+         ENDIF
+         nPrevPar := nPar
+         nHere := V2_DistanceToSegment( aPts[ i + 1 ], aFrom, aPts[ nEnd + 1 ] )
+         IF nHere > nDist
+            nDist := nHere ; nFar := i
+         ENDIF
+      NEXT
+      IF nRev == NIL .AND. nPrevPar > 1.0 + 0.000000000001
+         nRev := nEnd - 1
+      ENDIF
+      nIdx := IIf( nRev != NIL, nRev, nFar )
+      IF nIdx != NIL
+         aKeep[ nIdx + 1 ] := .T.
+         AAdd( aRanges, { nStart, nIdx } )
+         AAdd( aRanges, { nIdx, nEnd } )
+      ENDIF
+   ENDDO
+   FOR i := 1 TO Len( aPts )
+      IF aKeep[i] ; AAdd( aOut, aPts[i] ) ; ENDIF
+   NEXT
+RETURN aOut
+
+STATIC FUNCTION NC_PushLineSeg( aSegs, aFrom, aTo )
+   LOCAL nLen := V2_Distance( aFrom, aTo )
+   IF nLen == 0.0 ; RETURN NIL ; ENDIF
+   AAdd( aSegs, { { aFrom, V2_Lerp( aFrom, aTo, 1.0 / 3.0 ), V2_Lerp( aFrom, aTo, 2.0 / 3.0 ), aTo }, nLen } )
+RETURN NIL
+
+STATIC FUNCTION NC_RoundedPolyline( aPts, nAllow )
+   LOCAL aSegs := {}, aCur := aPts[1], i, aPrev, aCorner, aNext, aIn, aOut, nTrim, aEntry, aExit, aCtrl, aKnots := { 0.0, 0.0, 0.0, 0.0 }, nPar, k, aW
+   FOR i := 1 TO Len( aPts ) - 2
+      aPrev := aPts[i] ; aCorner := aPts[i+1] ; aNext := aPts[i+2]
+      aIn := V2_Normalize( V2_Sub( aCorner, aPrev ) )
+      IF aIn == NIL ; RETURN NIL ; ENDIF
+      aOut := V2_Normalize( V2_Sub( aNext, aCorner ) )
+      IF aOut == NIL ; RETURN NIL ; ENDIF
+      nTrim := Min( Min( nAllow, V2_Distance( aPrev, aCorner ) * 0.5 ), V2_Distance( aCorner, aNext ) * 0.5 )
+      aEntry := V2_Sub( aCorner, V2_Mul( aIn, nTrim ) )
+      aExit := V2_Add( aCorner, V2_Mul( aOut, nTrim ) )
+      NC_PushLineSeg( aSegs, aCur, aEntry )
+      IF V2_Distance( aEntry, aExit ) > 0.0
+         AAdd( aSegs, { { aEntry, aCorner, aCorner, aExit }, V2_Distance( aEntry, aCorner ) + V2_Distance( aCorner, aExit ) } )
+      ENDIF
+      aCur := aExit
+   NEXT
+   NC_PushLineSeg( aSegs, aCur, ATail( aPts ) )
+   IF Len( aSegs ) == 0 ; RETURN NIL ; ENDIF
+   aCtrl := AClone( aSegs[1][1] )
+   nPar := aSegs[1][2]
+   FOR i := 2 TO Len( aSegs )
+      AAdd( aKnots, nPar ) ; AAdd( aKnots, nPar ) ; AAdd( aKnots, nPar )
+      FOR k := 2 TO 4 ; AAdd( aCtrl, aSegs[i][1][k] ) ; NEXT
+      nPar += aSegs[i][2]
+   NEXT
+   FOR k := 1 TO 4 ; AAdd( aKnots, nPar ) ; NEXT
+   aW := AFill( Array( Len( aCtrl ) ), 1.0 )
+RETURN NC_NewStrict( 3, aCtrl, aKnots, aW )
