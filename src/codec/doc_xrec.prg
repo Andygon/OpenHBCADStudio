@@ -74,9 +74,9 @@ RETURN NIL
 /* xrecord y xrecord_mut: el mismo objeto (referencia) */
 FUNCTION Doc_Xrecord( d, nOwner, cKey )
    LOCAL nDic := Doc_ExtensionDictionaryHandle( d, nOwner ), nRec
-   IF nDic == NIL .OR. ! hb_HHasKey( d[ "objects" ], nDic ) .OR. d[ "objects" ][ nDic ][ "_type" ] != "Dictionary" ; RETURN NIL ; ENDIF
+   IF nDic == NIL .OR. ! hb_HHasKey( d[ "objects" ], nDic ) .OR. ! ( d[ "objects" ][ nDic ][ "_type" ] == "Dictionary" ) ; RETURN NIL ; ENDIF
    nRec := Dic_Get( d[ "objects" ][ nDic ], cKey )
-   IF nRec == NIL .OR. ! hb_HHasKey( d[ "objects" ], nRec ) .OR. d[ "objects" ][ nRec ][ "_type" ] != "XRecord" ; RETURN NIL ; ENDIF
+   IF nRec == NIL .OR. ! hb_HHasKey( d[ "objects" ], nRec ) .OR. ! ( d[ "objects" ][ nRec ][ "_type" ] == "XRecord" ) ; RETURN NIL ; ENDIF
 RETURN d[ "objects" ][ nRec ]
 
 FUNCTION Doc_XrecordMut( d, nOwner, cKey ) ; RETURN Doc_Xrecord( d, nOwner, cKey )
@@ -133,17 +133,17 @@ PROCEDURE Doc_ResolveXrecordBackedProperties( d )
       ENDIF
    NEXT
    FOR EACH o IN hb_HValues( d[ "objects" ] )
-      IF Doc_Ty( o ) != "Dictionary" ; LOOP ; ENDIF
+      IF ! ( Doc_Ty( o ) == "Dictionary" ) ; LOOP ; ENDIF
       FOR EACH cName IN { "DIFFUSE", "SPECULAR", "REFLECTION", "OPACITY", "BUMP", "REFRACTION", "NORMAL" }
          r := Dic_Get( o, cName )
          IF r == NIL .OR. ! hb_HHasKey( d[ "objects" ], r ) ; LOOP ; ENDIF
-         xr := d[ "objects" ][ r ] ; IF xr[ "_type" ] != "XRecord" ; LOOP ; ENDIF
+         xr := d[ "objects" ][ r ] ; IF ! ( xr[ "_type" ] == "XRecord" ) ; LOOP ; ENDIF
          tex := Doc_MaterialCheckerTexture( xr[ "entries" ] )
          IF tex != NIL ; hMaps[ hb_ntos( o[ "handle" ] ) + "|" + cName ] := tex ; ENDIF
       NEXT
    NEXT
    FOR EACH m IN hb_HValues( d[ "objects" ] )
-      IF Doc_Ty( m ) != "Material" .OR. m[ "xdictionary_handle" ] == NIL ; LOOP ; ENDIF
+      IF ! ( Doc_Ty( m ) == "Material" ) .OR. m[ "xdictionary_handle" ] == NIL ; LOOP ; ENDIF
       nDic := m[ "xdictionary_handle" ]
       IF hb_HHasKey( hAdv, nDic )
          m[ "advanced_data_present" ] := .T.
