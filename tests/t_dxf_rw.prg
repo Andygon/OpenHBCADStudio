@@ -383,4 +383,10 @@ PROCEDURE T_DxfRw()
    d2 := RT( d2 )
    es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
    Chk( Len( es ) == 1 .AND. es[ 1 ][ "_type" ] == "MLINE" .AND. Len( es[ 1 ][ "vertices" ] ) == 3 .AND. es[ 1 ][ "scale_factor" ] == 2.5 .AND. es[ 1 ][ "justification" ] == 2 .AND. Eml_IsClosed( es[ 1 ] ) .AND. es[ 1 ][ "style_element_count" ] == x[ "style_element_count" ] .AND. Len( es[ 1 ][ "vertices" ][ 2 ][ "segments" ] ) == Len( x[ "vertices" ][ 2 ][ "segments" ] ) .AND. es[ 1 ][ "vertices" ][ 2 ][ "position" ][ 1 ] == 10.0, "[extra] MLINE releido" )
+   /* [extra] LEADER */
+   d2 := Doc_New()
+   x := Eld_New() ; AAdd( x[ "vertices" ], Vc3_New( 1.0, 2.0, 0.0 ) ) ; AAdd( x[ "vertices" ], Vc3_New( 5.0, 6.0, 0.0 ) ) ; x[ "path_type" ] := LPT_SPLINE ; x[ "hookline_direction" ] := 1 ; x[ "hookline_enabled" ] := .T. ; x[ "override_color" ] := Cl_Index( 3 ) ; x[ "annotation_handle" ] := 99 ; Doc_AddEntity( d2, x )
+   d2 := RT( d2 )
+   es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
+   Chk( Len( es ) == 1 .AND. es[ 1 ][ "_type" ] == "LEADER" .AND. Len( es[ 1 ][ "vertices" ] ) == 2 .AND. es[ 1 ][ "path_type" ] == LPT_SPLINE .AND. es[ 1 ][ "hookline_direction" ] == 1 .AND. es[ 1 ][ "hookline_enabled" ] .AND. es[ 1 ][ "override_color" ][ 2 ] == 3 .AND. es[ 1 ][ "annotation_handle" ] == 99 .AND. es[ 1 ][ "origin" ][ 1 ] == 1.0 .AND. es[ 1 ][ "creation_type" ] == LCT_WITHTEXT, "[extra] LEADER releido" )
 RETURN
