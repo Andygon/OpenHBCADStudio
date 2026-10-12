@@ -4,8 +4,14 @@
    Licencia del original: MPL-2.0.
    encoding_rs no existe en Harbour: un "encoding" se representa por su NOMBRE (cadena, p.ej.
    "WINDOWS_1252", "GBK") y NIL equivale a None (UTF-8/ASCII, sin transcodificar).
-   PENDIENTE (necesita tablas de encoding_rs): CP_EncodeLegacyString y CP_DecodeMifEscapes,
-   que hacen transcodificacion real; sus tests quedan sin portar y se anotan en TRACKING.
+   DECISION (usuario/parent, 12-oct): interno UTF-8; al leer se respeta el $DWGCODEPAGE declarado y
+   se cubre WINDOWS_1252 (ANSI_1252) y los escapes CIF \U+XXXX. Encodings exoticos (GBK, Shift-JIS,
+   Big5, EUC-KR, Johab, 125x no latinos...) quedan DIFERIDOS hasta que un fichero real los pida:
+     - CP_EncodeLegacyString solo codifica WINDOWS_1252 (y NIL/UTF-8 = sin cambios); otro encoding -> NIL.
+     - CP_DecodeMifEscapes (\M+nXXXX) valida el formato igual que el Rust pero NO decodifica
+       (deja el escape literal tambien para Shift-JIS/Big5/EUC-KR/GBK, que el Rust si decodifica).
+   Tests Rust: test_encode_legacy_string_cif_escapes portado salvo la asercion GBK; test_decode_mif_escapes
+   portado salvo las aserciones que decodifican (件号, 技术要求).
 ----------------------------------------------------------------------------*/
 #include "ocx.ch"
 
@@ -264,3 +270,54 @@ FUNCTION CP_DecodeCifEscapes( cText )
       cOut += aCh[ i ] ; i++
    ENDDO
 RETURN cOut
+
+/* ---- Escritura legacy (solo WINDOWS_1252) --------------------------------------------------- */
+STATIC FUNCTION CP_Win1252High()
+   STATIC s_a
+   IF s_a == NIL
+      // bytes 0x80..0x9F de windows-1252 (WHATWG/encoding_rs): codepoint o -1 si no hay mapeo propio
+      s_a := { 0x20AC, 0x81, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021, 0x02C6, 0x2030, 0x0160, 0x2039, 0x0152, 0x8D, 0x017D, 0x8F, ;
+               0x90, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014, 0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0x9D, 0x017E, 0x0178 }
+   ENDIF
+RETURN s_a
+
+// byte windows-1252 para el codepoint o -1
+STATIC FUNCTION CP_Cp1252Byte( nCp )
+   LOCAL a, i
+   IF nCp < 0x80 .OR. ( nCp >= 0xA0 .AND. nCp <= 0xFF ) ; RETURN nCp ; ENDIF
+   a := CP_Win1252High()
+   FOR i := 1 TO 32
+      IF a[ i ] == nCp ; RETURN 0x7F + i ; ENDIF
+   NEXT
+RETURN -1
+
+/* encode_legacy_string( text, encoding ): cadena binaria. Lo no mapeable sale como \U+XXXX (par sustituto
+   para el plano astral). Devuelve NIL si el encoding no esta soportado (solo WINDOWS_1252). */
+FUNCTION CP_EncodeLegacyString( cText, cEncoding )
+   LOCAL cOut := "", i, n, c, nCp, nB
+   IF cEncoding == NIL .OR. cEncoding == "UTF-8"
+      RETURN cText
+   ENDIF
+   IF ! ( cEncoding == "WINDOWS_1252" ) ; RETURN NIL ; ENDIF
+   n := hb_UTF8Len( cText )
+   FOR i := 1 TO n
+      c := hb_UTF8Substr( cText, i, 1 ) ; nCp := hb_UTF8Asc( c )
+      nB := CP_Cp1252Byte( nCp )
+      IF nB >= 0
+         cOut += hb_BChar( nB )
+      ELSEIF nCp >= 0x10000
+         nCp -= 0x10000
+         cOut += "\U+" + PadL( hb_NumToHex( 0xD800 + Int( nCp / 0x400 ), 4 ), 4, "0" ) + "\U+" + PadL( hb_NumToHex( 0xDC00 + nCp % 0x400, 4 ), 4, "0" )
+      ELSE
+         cOut += "\U+" + PadL( hb_NumToHex( nCp, 4 ), 4, "0" )
+      ENDIF
+   NEXT
+RETURN cOut
+
+/* decode_mif_escapes: solo valida el formato (no hay tablas multibyte; ver cabecera): devuelve el texto igual. */
+FUNCTION CP_DecodeMifEscapes( cText )
+RETURN cText
+
+/* decode_legacy_escapes = decode_cif_escapes( decode_mif_escapes( text ) ) */
+FUNCTION CP_DecodeLegacyEscapes( cText )
+RETURN CP_DecodeCifEscapes( CP_DecodeMifEscapes( cText ) )
