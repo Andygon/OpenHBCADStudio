@@ -158,3 +158,30 @@
 #define XV_SCALEFACTOR 12
 #define XV_INTEGER16 13
 #define XV_INTEGER32 14
+
+/* entities/text.rs: TextHorizontalAlignment / TextVerticalAlignment (orden del enum) */
+#define TXH_LEFT 0
+#define TXH_CENTER 1
+#define TXH_RIGHT 2
+#define TXH_ALIGNED 3
+#define TXH_MIDDLE 4
+#define TXH_FIT 5
+#define TXV_BASELINE 0
+#define TXV_BOTTOM 1
+#define TXV_MIDDLE 2
+#define TXV_TOP 3
+/* entities/mtext.rs: AttachmentPoint, DrawingDirection; multileader.rs: LineSpacingStyle (discriminantes Rust) */
+#define MTA_TOPLEFT 1
+#define MTA_TOPCENTER 2
+#define MTA_TOPRIGHT 3
+#define MTA_MIDDLELEFT 4
+#define MTA_MIDDLECENTER 5
+#define MTA_MIDDLERIGHT 6
+#define MTA_BOTTOMLEFT 7
+#define MTA_BOTTOMCENTER 8
+#define MTA_BOTTOMRIGHT 9
+#define MTD_LEFTTORIGHT 1
+#define MTD_TOPTOBOTTOM 3
+#define MTD_BYSTYLE 5
+#define LSS_ATLEAST 1
+#define LSS_EXACTLY 2
