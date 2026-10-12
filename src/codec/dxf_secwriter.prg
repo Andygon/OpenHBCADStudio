@@ -532,11 +532,11 @@ RETURN
 
 STATIC FUNCTION Swr_Deg( n ) ; RETURN n * 180.0 / OCX_PI
 
-/* write_attribute_text_value: DXF es por lineas, un salto dentro del valor se escribe como \\P */
+/* write_attribute_text_value: DXF es por lineas, un salto dentro del valor se escribe como \P */
 STATIC FUNCTION Swr_AttrText( c )
-   c := StrTran( c, Chr( 13 ) + Chr( 10 ), "\\P" )
-   c := StrTran( c, Chr( 13 ), "\\P" )
-RETURN StrTran( c, Chr( 10 ), "\\P" )
+   c := StrTran( c, Chr( 13 ) + Chr( 10 ), "\P" )
+   c := StrTran( c, Chr( 13 ), "\P" )
+RETURN StrTran( c, Chr( 10 ), "\P" )
 
 /* write_attdef / write_attrib. PENDIENTE: la cola multilinea (R2018+, AC1032: write_attribute_mtext, 101 Embedded Object) */
 STATIC PROCEDURE Swr_AttdefAttrib( st, e, hOwner, lDef )
@@ -557,8 +557,66 @@ STATIC PROCEDURE Swr_AttdefAttrib( st, e, hOwner, lDef )
    IF ! lDef ; Swr_XData( w, c[ "extended_data" ] ) ; ENDIF
 RETURN
 
+/* write_mtext_value: \n y \r se sustituyen por \P; trozos de 250 bytes por codigo 3 y el resto por el 1 */
+STATIC PROCEDURE Swr_MTextValue( w, c )
+   c := Swr_AttrText( c )
+   DO WHILE Len( c ) > 250
+      Sw_WriteString( w, 3, Left( c, 250 ) ) ; c := SubStr( c, 251 )
+   ENDDO
+   Sw_WriteString( w, 1, c )
+RETURN
+
+STATIC PROCEDURE Swr_MTextBody( st, e, hOwner )
+   LOCAL w := st[ 1 ], c := e[ "common" ], cd := e[ "column_data" ], lMan, nCnt, h, nI, tc
+   Sw_WriteEntityType( w, "MTEXT" ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbMText" )
+   Sw_WritePoint3d( w, 10, e[ "insertion_point" ] ) ; Sw_WriteDouble( w, 40, e[ "height" ] ) ; Sw_WriteDouble( w, 41, e[ "rectangle_width" ] )
+   Sw_WriteI16( w, 71, e[ "attachment_point" ] ) ; Sw_WriteI16( w, 72, e[ "drawing_direction" ] )
+   Swr_MTextValue( w, e[ "value" ] ) ; Sw_WriteString( w, 7, e[ "style" ] )
+   IF e[ "rotation" ] != 0.0 ; Sw_WriteDouble( w, 50, Swr_Deg( e[ "rotation" ] ) ) ; ENDIF
+   IF e[ "extents_width" ] > 0.0 ; Sw_WriteDouble( w, 42, e[ "extents_width" ] ) ; ENDIF
+   IF e[ "extents_height" ] > 0.0 ; Sw_WriteDouble( w, 43, e[ "extents_height" ] ) ; ENDIF
+   Sw_WriteI16( w, 73, e[ "line_spacing_style" ] ) ; Sw_WriteDouble( w, 44, e[ "line_spacing_factor" ] )
+   IF e[ "rectangle_height" ] != NIL ; Sw_WriteDouble( w, 46, e[ "rectangle_height" ] ) ; ENDIF
+   IF e[ "background_fill_flags" ] != 0
+      Sw_WriteI32( w, 90, e[ "background_fill_flags" ] ) ; Sw_WriteDouble( w, 45, e[ "background_scale" ] )
+      tc := Cl_ToTrueColorValue( e[ "background_color" ] )
+      IF tc != NIL
+         Sw_WriteI32( w, 421, tc )
+      ELSEIF Cl_IndexOf( e[ "background_color" ] ) != NIL
+         Sw_WriteI16( w, 63, Cl_IndexOf( e[ "background_color" ] ) )
+      ENDIF
+      IF e[ "background_transparency" ] != 0 ; Sw_WriteI32( w, 441, e[ "background_transparency" ] ) ; ENDIF
+   ENDIF
+   lMan := ( cd[ "column_type" ] == 2 .AND. ! cd[ "auto_height" ] )
+   IF cd[ "column_type" ] != 0 .AND. st[ 2 ] >= Dxv_FromVersionString( "AC1032" )
+      Swr_Normal( w, e[ "normal" ] )
+      nCnt := IIf( lMan, Len( cd[ "heights" ] ), cd[ "column_count" ] )
+      Sw_WriteString( w, 101, "Embedded Object" ) ; Sw_WriteI16( w, 70, e[ "attachment_point" ] )
+      Sw_WritePoint3d( w, 10, Vc3_New( OCX_COS( e[ "rotation" ] ), OCX_SIN( e[ "rotation" ] ), 0.0 ) ) ; Sw_WritePoint3d( w, 11, e[ "insertion_point" ] )
+      Sw_WriteDouble( w, 40, e[ "rectangle_width" ] ) ; Sw_WriteDouble( w, 41, IIf( e[ "rectangle_height" ] == NIL, 0.0, e[ "rectangle_height" ] ) )
+      Sw_WriteDouble( w, 42, e[ "extents_width" ] ) ; Sw_WriteDouble( w, 43, e[ "extents_height" ] )
+      Sw_WriteI16( w, 71, cd[ "column_type" ] ) ; Sw_WriteI16( w, 72, Max( 0, Min( nCnt, 32767 ) ) )
+      Sw_WriteDouble( w, 44, cd[ "width" ] ) ; Sw_WriteDouble( w, 45, cd[ "gutter" ] )
+      Sw_WriteI16( w, 73, IIf( cd[ "auto_height" ], 1, 0 ) ) ; Sw_WriteI16( w, 74, IIf( cd[ "flow_reversed" ], 1, 0 ) )
+      IF lMan
+         FOR EACH h IN cd[ "heights" ] ; Sw_WriteDouble( w, 46, h ) ; NEXT
+      ENDIF
+      RETURN
+   ENDIF
+   IF cd[ "column_type" ] != 0
+      nCnt := IIf( lMan, Min( Len( cd[ "heights" ] ), 32767 ), Max( 0, Min( cd[ "column_count" ], 32767 ) ) )
+      Sw_WriteI16( w, 75, cd[ "column_type" ] ) ; Sw_WriteI16( w, 76, nCnt )
+      Sw_WriteI16( w, 78, IIf( cd[ "flow_reversed" ], 1, 0 ) ) ; Sw_WriteI16( w, 79, IIf( cd[ "auto_height" ], 1, 0 ) )
+      Sw_WriteDouble( w, 48, cd[ "width" ] ) ; Sw_WriteDouble( w, 49, cd[ "gutter" ] )
+      IF lMan
+         FOR nI := 1 TO Min( nCnt, Len( cd[ "heights" ] ) ) ; Sw_WriteDouble( w, 50, cd[ "heights" ][ nI ] ) ; NEXT
+      ENDIF
+   ENDIF
+   Swr_Normal( w, e[ "normal" ] )
+RETURN
+
 STATIC PROCEDURE Swr_WriteEntity( st, e, hOwner )
-   LOCAL w := st[ 1 ], c := e[ "common" ], t := e[ "_type" ], v, hSeq, att
+   LOCAL w := st[ 1 ], c := e[ "common" ], t := e[ "_type" ], v, hSeq, att, nI
    DO CASE
    CASE t == "POINT"
       Sw_WriteEntityType( w, "POINT" ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbPoint" )
@@ -606,6 +664,21 @@ STATIC PROCEDURE Swr_WriteEntity( st, e, hOwner )
       IF e[ "alignment_point" ] != NIL ; Sw_WritePoint3d( w, 11, e[ "alignment_point" ] ) ; ENDIF
       Swr_Normal( w, e[ "normal" ] )
       Sw_WriteSubclass( w, "AcDbText" ) ; Sw_WriteI16( w, 73, e[ "vertical_alignment" ] )
+   CASE t == "MTEXT"
+      Swr_MTextBody( st, e, hOwner )
+   CASE t == "SPLINE"
+      Sw_WriteEntityType( w, "SPLINE" ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbSpline" )
+      Swr_Normal( w, e[ "normal" ] ) ; Sw_WriteI16( w, 70, Spf_Write( e ) ) ; Sw_WriteI16( w, 71, e[ "degree" ] )
+      Sw_WriteI16( w, 72, Len( e[ "knots" ] ) ) ; Sw_WriteI16( w, 73, Len( e[ "control_points" ] ) ) ; Sw_WriteI16( w, 74, Len( e[ "fit_points" ] ) )
+      Sw_WriteDouble( w, 42, e[ "knot_tolerance" ] ) ; Sw_WriteDouble( w, 43, e[ "control_tolerance" ] ) ; Sw_WriteDouble( w, 44, e[ "fit_tolerance" ] )
+      IF ! Vc3_Eq( e[ "begin_tangent" ], Vc3_Zero() ) ; Sw_WritePoint3d( w, 12, e[ "begin_tangent" ] ) ; ENDIF
+      IF ! Vc3_Eq( e[ "end_tangent" ], Vc3_Zero() ) ; Sw_WritePoint3d( w, 13, e[ "end_tangent" ] ) ; ENDIF
+      FOR EACH v IN e[ "knots" ] ; Sw_WriteDouble( w, 40, v ) ; NEXT
+      FOR nI := 1 TO Len( e[ "control_points" ] )
+         Sw_WritePoint3d( w, 10, e[ "control_points" ][ nI ] )
+         IF e[ "flags" ][ "rational" ] ; Sw_WriteDouble( w, 41, IIf( nI <= Len( e[ "weights" ] ), e[ "weights" ][ nI ], 1.0 ) ) ; ENDIF
+      NEXT
+      FOR EACH v IN e[ "fit_points" ] ; Sw_WritePoint3d( w, 11, v ) ; NEXT
    CASE t == "ATTDEF"
       Swr_AttdefAttrib( st, e, hOwner, .T. )
    CASE t == "ELLIPSE"
