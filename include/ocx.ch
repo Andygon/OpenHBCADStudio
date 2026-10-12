@@ -142,3 +142,19 @@
 #define GVT_BINARYDATA 9
 #define GVT_HANDLE 10
 #endif
+
+/* XDataValue (opencadcodec xdata/mod.rs): { nKind, xValue } */
+#define XV_STRING 1
+#define XV_CONTROLSTRING 2
+#define XV_LAYERNAME 3
+#define XV_BINARYDATA 4
+#define XV_HANDLE 5
+#define XV_POINT3D 6
+#define XV_POSITION3D 7
+#define XV_DISPLACEMENT3D 8
+#define XV_DIRECTION3D 9
+#define XV_REAL 10
+#define XV_DISTANCE 11
+#define XV_SCALEFACTOR 12
+#define XV_INTEGER16 13
+#define XV_INTEGER32 14
