@@ -54,6 +54,26 @@ FUNCTION Ent_IsInvisible( e ) ; RETURN e[ "common" ][ "invisible" ]
 FUNCTION Ent_SetInvisible( e, l ) ; e[ "common" ][ "invisible" ] := l ; RETURN NIL
 FUNCTION Ent_EntityType( e ) ; RETURN iif( e[ "_type" ] == "UNDERLAY", Eul_EntityName( e ), iif( e[ "_type" ] == "POLYLINE2D" .OR. e[ "_type" ] == "POLYLINE3D" .OR. e[ "_type" ] == "POLYGON_MESH" .OR. e[ "_type" ] == "POLYFACE_MESH", "POLYLINE", e[ "_type" ] ) )
 
+/* EntityType::preserve_storage_data_from (mod.rs). Origen y destino deben tener el mismo _type (lo comprueba el llamador, como en Rust).
+   La variante Extended (extended_entity.rs) se anadira al portar ese modulo. */
+FUNCTION Ent_PreserveStorageDataFrom( e, s )
+   LOCAL a, i
+   Ec_PreserveStorageDataFrom( e[ "common" ], s[ "common" ] )
+   IF e[ "_type" ] == "UNKNOWN" .AND. s[ "_type" ] == "UNKNOWN"
+      e[ "raw_dwg_data" ] := s[ "raw_dwg_data" ]
+      IF s[ "raw_dxf_codes" ] == NIL
+         e[ "raw_dxf_codes" ] := NIL
+      ELSE
+         a := {}
+         FOR i := 1 TO Len( s[ "raw_dxf_codes" ] )
+            AAdd( a, AClone( s[ "raw_dxf_codes" ][ i ] ) )
+         NEXT
+         e[ "raw_dxf_codes" ] := a
+      ENDIF
+      e[ "dwg_source_version" ] := s[ "dwg_source_version" ]
+   ENDIF
+RETURN NIL
+
 /* --- trait Entity: despacho por tipo --- */
 FUNCTION Ent_BoundingBox( e )
    DO CASE
