@@ -461,4 +461,12 @@ PROCEDURE T_DxfRw()
    es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
    Chk( hb_BLeft( x, 18 ) == "AutoCAD Binary DXF" .AND. Len( es ) == 2 .AND. es[ 1 ][ "_type" ] == "MESH" .AND. es[ 1 ][ "edges" ][ 4 ][ "crease" ] == 1.5 .AND. es[ 2 ][ "_type" ] == "MULTILEADER" .AND. es[ 2 ][ "context" ][ "text_string" ] == "Hola", "dxf_rw: [extra] DXF binario roundtrip" )
    Chk( ValType( Dxr_ReadString( "AutoCAD Binary DXF" ) ) == "C", "dxf_rw: [extra] sentinel binario truncado da error" )
+   /* [extra] $TDUCREATE/$TDUUPDATE (universal_*_or_local) y graphic_data comun (92/160 + 310 en trozos de 127 bytes) */
+   d2 := Doc_New()
+   d2[ "header" ][ "universal_create_date_julian" ] := 2460000.5 ; d2[ "header" ][ "update_date_julian" ] := 2460001.25 ; d2[ "header" ][ "universal_update_date_julian" ] := 0.0
+   x := Emu_WithText( "G", Vc3_Zero(), {} ) ; x[ "common" ][ "graphic_data" ] := Replicate( Chr( 1 ) + Chr( 255 ) + "abc", 60 ) ; Doc_AddEntity( d2, x )
+   d2 := RT( d2 )
+   es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
+   Chk( ValType( d2 ) == "H" .AND. d2[ "header" ][ "universal_create_date_julian" ] == 2460000.5 .AND. d2[ "header" ][ "universal_update_date_julian" ] == 2460001.25 .AND. Len( es ) == 1 .AND. es[ 1 ][ "common" ][ "graphic_data" ] != NIL ;
+      .AND. hb_BLen( es[ 1 ][ "common" ][ "graphic_data" ] ) == 300 .AND. es[ 1 ][ "common" ][ "graphic_data" ] == Replicate( Chr( 1 ) + Chr( 255 ) + "abc", 60 ), "dxf_rw: [extra] TDU* y graphic_data" )
 RETURN
