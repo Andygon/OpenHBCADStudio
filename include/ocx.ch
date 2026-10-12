@@ -751,3 +751,8 @@
 #define ASC_LINESEGMENT3D 4
 #define ASC_NURB3D 5
 #define ASC_CURVE3D 6
+
+/* document.rs: PreviewFormat */
+#define PVF_BMP 0
+#define PVF_WMF 1
+#define PVF_PNG 2
