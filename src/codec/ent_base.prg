@@ -52,7 +52,7 @@ FUNCTION Ent_Transparency( e ) ; RETURN e[ "common" ][ "transparency" ]
 FUNCTION Ent_SetTransparency( e, t ) ; e[ "common" ][ "transparency" ] := t ; RETURN NIL
 FUNCTION Ent_IsInvisible( e ) ; RETURN e[ "common" ][ "invisible" ]
 FUNCTION Ent_SetInvisible( e, l ) ; e[ "common" ][ "invisible" ] := l ; RETURN NIL
-FUNCTION Ent_EntityType( e ) ; RETURN iif( e[ "_type" ] == "POLYLINE2D", "POLYLINE", e[ "_type" ] )
+FUNCTION Ent_EntityType( e ) ; RETURN iif( e[ "_type" ] == "POLYLINE2D" .OR. e[ "_type" ] == "POLYLINE3D", "POLYLINE", e[ "_type" ] )
 
 /* --- trait Entity: despacho por tipo --- */
 FUNCTION Ent_BoundingBox( e )
@@ -72,6 +72,7 @@ FUNCTION Ent_BoundingBox( e )
    CASE e[ "_type" ] == "SPLINE" ; RETURN Esp_BoundingBox( e )
    CASE e[ "_type" ] == "POLYLINE2D" ; RETURN Pl2_BoundingBox( e )
    CASE e[ "_type" ] == "POLYLINE" ; RETURN Plh_BoundingBox( e )
+   CASE e[ "_type" ] == "POLYLINE3D" ; RETURN P3d_BoundingBox( e )
    ENDCASE
 RETURN NIL
 
@@ -92,6 +93,7 @@ FUNCTION Ent_Translate( e, vOffset )
    CASE e[ "_type" ] == "SPLINE" ; Esp_Translate( e, vOffset )
    CASE e[ "_type" ] == "POLYLINE2D" ; Pl2_Translate( e, vOffset )
    CASE e[ "_type" ] == "POLYLINE" ; Plh_Translate( e, vOffset )
+   CASE e[ "_type" ] == "POLYLINE3D" ; P3d_Translate( e, vOffset )
    ENDCASE
 RETURN NIL
 
@@ -113,6 +115,7 @@ FUNCTION Ent_ApplyTransform( e, t )
    CASE e[ "_type" ] == "SPLINE" ; Esp_Transform( e, t )
    CASE e[ "_type" ] == "POLYLINE2D" ; Pl2_Transform( e, t )
    CASE e[ "_type" ] == "POLYLINE" ; Plh_Transform( e, t )
+   CASE e[ "_type" ] == "POLYLINE3D" ; P3d_Transform( e, t )
    OTHERWISE ; Ent_Translate( e, Tf_Apply( t, Vc3_Zero() ) )
    ENDCASE
 RETURN NIL
