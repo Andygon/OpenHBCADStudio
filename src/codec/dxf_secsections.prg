@@ -1738,6 +1738,74 @@ STATIC FUNCTION Sr_ReadWipeout( s )
    pt := PR_GetPoint( rV ) ; e[ "v_vector" ] := IIf( pt == NIL, Vc3_New( 0.0, 1.0, 0.0 ), pt )
 RETURN e
 
+STATIC FUNCTION Sr_MlFinalize( aVerts, rPos, rDir, rMit, aSeg, aPar, aFill, lPar )
+   LOCAL pt, vPos, vDir, vMit
+   IF lPar
+      AAdd( aSeg, hb_Hash( "parameters", aPar, "area_fill_parameters", aFill ) )
+   ENDIF
+   pt := PR_GetPoint( rPos ) ; vPos := IIf( pt == NIL, Vc3_Zero(), pt )
+   pt := PR_GetPoint( rDir ) ; vDir := IIf( pt == NIL, Vc3_New( 1.0, 0.0, 0.0 ), pt )
+   pt := PR_GetPoint( rMit ) ; vMit := IIf( pt == NIL, Vc3_New( 0.0, 1.0, 0.0 ), pt )
+   AAdd( aVerts, hb_Hash( "position", vPos, "direction", vDir, "miter", vMit, "segments", aSeg ) )
+RETURN NIL
+
+STATIC FUNCTION Sr_ReadMline( s )
+   LOCAL e := Eml_New(), p, n, v, rStart := PR_New(), rNor := PR_New(), pt
+   LOCAL rPos := PR_New(), rDir := PR_New(), rMit := PR_New(), aVerts := {}, lRV := .F., nEl := 0
+   LOCAL aSeg := {}, aPar := {}, aFill := {}, lRP := .F., lRA := .F.
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      n := p[ DP_CODE ]
+      DO CASE
+      CASE n == 8 ; e[ "common" ][ "layer" ] := p[ DP_VALUE ]
+      CASE n == 62
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "common" ][ "color" ] := Cl_FromIndex( v ) ; ENDIF
+      CASE n == 2 ; e[ "style_name" ] := p[ DP_VALUE ]
+      CASE n == 40
+         v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "scale_factor" ] := v ; ENDIF
+      CASE n == 70
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "justification" ] := Mlj_From( v ) ; ENDIF
+      CASE n == 71
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "flags" ] := hb_bitAnd( v, 15 ) ; ENDIF
+      CASE n == 73
+         v := Dp_AsI16( p ) ; IF v != NIL ; nEl := Max( 0, v ) ; ENDIF
+      CASE n == 10 .OR. n == 20 .OR. n == 30 ; PR_AddCoordinate( rStart, p )
+      CASE n == 210 .OR. n == 220 .OR. n == 230 ; PR_AddCoordinate( rNor, p )
+      CASE n == 340
+         v := Sr_HexVal( p ) ; IF v != NIL ; e[ "style_handle" ] := v ; ENDIF
+      CASE n == 11
+         IF lRV
+            Sr_MlFinalize( aVerts, rPos, rDir, rMit, aSeg, aPar, aFill, lRP )
+         ENDIF
+         rPos := PR_New() ; PR_AddCoordinate( rPos, p ) ; rDir := PR_New() ; rMit := PR_New()
+         aSeg := {} ; aPar := {} ; aFill := {} ; lRP := .F. ; lRA := .F. ; lRV := .T.
+      CASE n == 21 .OR. n == 31 ; PR_AddCoordinate( rPos, p )
+      CASE n == 12 .OR. n == 22 .OR. n == 32 ; PR_AddCoordinate( rDir, p )
+      CASE n == 13 .OR. n == 23 .OR. n == 33 ; PR_AddCoordinate( rMit, p )
+      CASE n == 74
+         IF lRP
+            AAdd( aSeg, hb_Hash( "parameters", aPar, "area_fill_parameters", aFill ) )
+         ENDIF
+         lRP := .T. ; lRA := .F. ; aPar := {} ; aFill := {}
+      CASE n == 75 ; lRA := .T.
+      CASE n == 41
+         v := Dp_AsDouble( p )
+         IF v != NIL
+            IF lRA ; AAdd( aFill, v ) ; ELSEIF lRP ; AAdd( aPar, v ) ; ENDIF
+         ENDIF
+      CASE n == 42
+         v := Dp_AsDouble( p ) ; IF v != NIL ; AAdd( aFill, v ) ; ENDIF
+      OTHERWISE ; Sr_EntBase( s, p, e )
+      ENDCASE
+   ENDDO
+   IF lRV
+      Sr_MlFinalize( aVerts, rPos, rDir, rMit, aSeg, aPar, aFill, lRP )
+   ENDIF
+   pt := PR_GetPoint( rStart ) ; IF pt != NIL ; e[ "start_point" ] := pt ; ENDIF
+   pt := PR_GetPoint( rNor ) ; IF pt != NIL ; e[ "normal" ] := pt ; ENDIF
+   e[ "vertices" ] := aVerts ; e[ "style_element_count" ] := nEl
+RETURN e
+
 STATIC FUNCTION Sr_ReadEntityOfType( s, cT )
    LOCAL p
    DO CASE
@@ -1762,6 +1830,7 @@ STATIC FUNCTION Sr_ReadEntityOfType( s, cT )
    CASE cT == "DIMENSION" ; RETURN Sr_ReadDimension( s )
    CASE cT == "TOLERANCE" ; RETURN Sr_ReadTolerance( s )
    CASE cT == "SHAPE" ; RETURN Sr_ReadShape( s )
+   CASE cT == "MLINE" ; RETURN Sr_ReadMline( s )
    CASE cT == "WIPEOUT" ; RETURN Sr_ReadWipeout( s )
    CASE cT == "ARC_DIMENSION" ; RETURN Sr_ReadExtDimension( s, .T. )
    CASE cT == "LARGE_RADIAL_DIMENSION" ; RETURN Sr_ReadExtDimension( s, .F. )
