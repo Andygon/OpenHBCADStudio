@@ -1992,6 +1992,77 @@ STATIC FUNCTION Sr_ReadImage( s )
    pt := PR_GetPoint( rV ) ; e[ "v_vector" ] := IIf( pt == NIL, Vc3_New( 0.0, 1.0, 0.0 ), pt )
 RETURN e
 
+STATIC FUNCTION Sr_ReadHelix( s )
+   LOCAL e := Ehx_New(), sp := e[ "spline" ], p, v, n, pt, lH := .F., lC := .F., lF := .F.
+   LOCAL nor := PR_New(), cp := PR_New(), fp := PR_New(), bt := PR_New(), et := PR_New(), rAb := PR_New(), rSp := PR_New(), rAv := PR_New()
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      n := p[ DP_CODE ]
+      DO CASE
+      CASE n == 100 ; lH := ( p[ DP_VALUE ] == "AcDbHelix" )
+      CASE n == 8 ; e[ "common" ][ "layer" ] := p[ DP_VALUE ]
+      CASE n == 62
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "common" ][ "color" ] := Cl_FromIndex( v ) ; ENDIF
+      CASE n == 90 .AND. lH
+         v := Dp_AsI32( p ) ; IF v != NIL ; e[ "major_version" ] := v ; ENDIF
+      CASE n == 91 .AND. lH
+         v := Dp_AsI32( p ) ; IF v != NIL ; e[ "maintenance_version" ] := v ; ENDIF
+      CASE n == 290
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "handedness" ] := ( v != 0 ) ; ENDIF
+      CASE n == 280
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "constraint" ] := Hxc_FromCode( hb_bitAnd( v, 255 ) ) ; ENDIF
+      CASE ( n == 10 .OR. n == 20 .OR. n == 30 ) .AND. lH ; PR_AddCoordinate( rAb, p )
+      CASE ( n == 11 .OR. n == 21 .OR. n == 31 ) .AND. lH ; PR_AddCoordinate( rSp, p )
+      CASE ( n == 12 .OR. n == 22 .OR. n == 32 ) .AND. lH ; PR_AddCoordinate( rAv, p )
+      CASE n == 40 .AND. lH
+         v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "radius" ] := v ; ENDIF
+      CASE n == 41 .AND. lH
+         v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "turns" ] := v ; ENDIF
+      CASE n == 42 .AND. lH
+         v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "turn_height" ] := v ; ENDIF
+      CASE n == 70 ; v := Dp_AsI16( p ) ; IF v != NIL ; Spf_Read( sp, v ) ; ENDIF
+      CASE n == 71 ; v := Dp_AsI16( p ) ; IF v != NIL ; sp[ "degree" ] := v ; ENDIF
+      CASE n == 40 ; v := Dp_AsDouble( p ) ; IF v != NIL ; AAdd( sp[ "knots" ], v ) ; ENDIF
+      CASE n == 41 ; v := Dp_AsDouble( p ) ; IF v != NIL ; AAdd( sp[ "weights" ], v ) ; ENDIF
+      CASE n == 42 ; v := Dp_AsDouble( p ) ; IF v != NIL ; sp[ "knot_tolerance" ] := v ; ENDIF
+      CASE n == 43 ; v := Dp_AsDouble( p ) ; IF v != NIL ; sp[ "control_tolerance" ] := v ; ENDIF
+      CASE n == 44 ; v := Dp_AsDouble( p ) ; IF v != NIL ; sp[ "fit_tolerance" ] := v ; ENDIF
+      CASE n == 12 .OR. n == 22 .OR. n == 32 ; PR_AddCoordinate( bt, p )
+      CASE n == 13 .OR. n == 23 .OR. n == 33 ; PR_AddCoordinate( et, p )
+      CASE n == 10 .OR. n == 20 .OR. n == 30
+         IF n == 10
+            IF lC
+               pt := PR_GetPoint( cp ) ; IF pt != NIL ; AAdd( sp[ "control_points" ], pt ) ; ENDIF
+            ENDIF
+            cp := PR_New() ; lC := .T.
+         ENDIF
+         PR_AddCoordinate( cp, p )
+      CASE n == 11 .OR. n == 21 .OR. n == 31
+         IF n == 11
+            IF lF
+               pt := PR_GetPoint( fp ) ; IF pt != NIL ; AAdd( sp[ "fit_points" ], pt ) ; ENDIF
+            ENDIF
+            fp := PR_New() ; lF := .T.
+         ENDIF
+         PR_AddCoordinate( fp, p )
+      CASE n == 210 .OR. n == 220 .OR. n == 230 ; PR_AddCoordinate( nor, p )
+      OTHERWISE ; Sr_EntBase( s, p, e )
+      ENDCASE
+   ENDDO
+   IF lC
+      pt := PR_GetPoint( cp ) ; IF pt != NIL ; AAdd( sp[ "control_points" ], pt ) ; ENDIF
+   ENDIF
+   IF lF
+      pt := PR_GetPoint( fp ) ; IF pt != NIL ; AAdd( sp[ "fit_points" ], pt ) ; ENDIF
+   ENDIF
+   pt := PR_GetPoint( nor ) ; IF pt != NIL ; sp[ "normal" ] := pt ; ENDIF
+   pt := PR_GetPoint( bt ) ; IF pt != NIL ; sp[ "begin_tangent" ] := pt ; ENDIF
+   pt := PR_GetPoint( et ) ; IF pt != NIL ; sp[ "end_tangent" ] := pt ; ENDIF
+   pt := PR_GetPoint( rAb ) ; IF pt != NIL ; e[ "axis_base_point" ] := pt ; ENDIF
+   pt := PR_GetPoint( rSp ) ; IF pt != NIL ; e[ "start_point" ] := pt ; ENDIF
+   pt := PR_GetPoint( rAv ) ; IF pt != NIL ; e[ "axis_vector" ] := pt ; ENDIF
+RETURN e
+
 STATIC FUNCTION Sr_ReadEntityOfType( s, cT )
    LOCAL p
    DO CASE
@@ -2016,6 +2087,7 @@ STATIC FUNCTION Sr_ReadEntityOfType( s, cT )
    CASE cT == "DIMENSION" ; RETURN Sr_ReadDimension( s )
    CASE cT == "TOLERANCE" ; RETURN Sr_ReadTolerance( s )
    CASE cT == "SHAPE" ; RETURN Sr_ReadShape( s )
+   CASE cT == "HELIX" ; RETURN Sr_ReadHelix( s )
    CASE cT == "IMAGE" ; RETURN Sr_ReadImage( s )
    CASE cT == "VIEWPORT" ; RETURN Sr_ReadViewport( s )
    CASE cT == "LEADER" ; RETURN Sr_ReadLeader( s )
