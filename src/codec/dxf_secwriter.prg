@@ -427,6 +427,23 @@ STATIC PROCEDURE Swr_AppIdEntry( st, d, a, hOwner )
    Sw_WriteString( w, 2, a[ "name" ] ) ; Sw_WriteI16( w, 70, 0 )
 RETURN
 
+STATIC PROCEDURE Swr_UcsEntry( st, d, u, hOwner )
+   LOCAL w := st[ 1 ], nF := 0
+   Sw_WriteString( w, 0, "UCS" )
+   Swr_CommonTable( w, d, u[ "handle" ], hOwner )
+   Sw_WriteSubclass( w, "AcDbSymbolTableRecord" ) ; Sw_WriteSubclass( w, "AcDbUCSTableRecord" )
+   Sw_WriteString( w, 2, u[ "name" ] )
+   IF u[ "xref_dependent" ] ; nF := hb_bitOr( nF, 16 ) ; ENDIF
+   IF u[ "xref_resolved" ] ; nF := hb_bitOr( nF, 32 ) ; ENDIF
+   IF u[ "xref_reference" ] ; nF := hb_bitOr( nF, 64 ) ; ENDIF
+   Sw_WriteI16( w, 70, nF )
+   Sw_WritePoint3d( w, 10, u[ "origin" ] ) ; Sw_WritePoint3d( w, 11, u[ "x_axis" ] ) ; Sw_WritePoint3d( w, 12, u[ "y_axis" ] )
+   IF st[ 2 ] >= Dxv_FromVersionString( "AC1015" )
+      Sw_WriteI16( w, 71, u[ "ortho_type" ] ) ; Sw_WriteI16( w, 79, u[ "ortho_view_type" ] ) ; Sw_WriteDouble( w, 146, u[ "elevation" ] )
+      IF ! Hd_IsNull( u[ "base_ucs_handle" ] ) ; Sw_WriteHandle( w, 346, u[ "base_ucs_handle" ] ) ; ENDIF
+   ENDIF
+RETURN
+
 STATIC PROCEDURE Swr_BlockRecordEntry( st, d, br, hOwner )
    LOCAL w := st[ 1 ], h
    Sw_WriteString( w, 0, "BLOCK_RECORD" )
@@ -472,6 +489,10 @@ PROCEDURE Swr_Tables( st, d )
    t := d[ "text_styles" ]
    Swr_TableHeader( w, d, "STYLE", Tb_Len( t ), Tb_Handle( t ) )
    FOR EACH e IN Tb_Values( t ) ; Swr_StyleEntry( st, d, e, Tb_Handle( t ) ) ; NEXT
+   Sw_WriteString( w, 0, "ENDTAB" )
+   t := d[ "ucss" ]
+   Swr_TableHeader( w, d, "UCS", Tb_Len( t ), Tb_Handle( t ) )
+   FOR EACH e IN Tb_Values( t ) ; Swr_UcsEntry( st, d, e, Tb_Handle( t ) ) ; NEXT
    Sw_WriteString( w, 0, "ENDTAB" )
    t := d[ "app_ids" ]
    Swr_TableHeader( w, d, "APPID", Tb_Len( t ), Tb_Handle( t ) )
