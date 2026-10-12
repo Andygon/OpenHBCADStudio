@@ -125,4 +125,12 @@ PROCEDURE T_DxfReader()
    d[ "objects" ][ 172 ] := e ; d := Rt( d ) ; e := IIf( ValType( d ) == "H" .AND. hb_HHasKey( d[ "objects" ], 172 ), d[ "objects" ][ 172 ], NIL )
    Chk( e != NIL .AND. Len( e[ "boundary_points" ] ) == 2 .AND. e[ "boundary_points" ][ 2 ][ 2 ] == 4.0 .AND. e[ "front_clip" ] == 1.5 .AND. e[ "back_clip" ] == 7.0 ;
       .AND. ! e[ "display_enabled" ] .AND. Mx4_Eq( e[ "clip_bound_transform" ], Mx4_Translation( 5.0, 6.0, 7.0 ) ) .AND. Mx4_Eq( e[ "inverse_block_transform" ], Mx4_Identity() ), "dxf_reader: [extra] spatial_filter completo" )
+   /* [extra] xdata de objetos: roundtrip por object_xdata (DICTIONARYVAR sin xdata propio) */
+   d := Doc_New() ; e := Dvr_New( "X", "v" ) ; e[ "handle" ] := 180
+   d[ "objects" ][ 180 ] := e
+   m := Xd_New() ; a := Xr_New( "MIAPP" ) ; Xr_AddValue( a, Xv_New( XV_STRING, "hola" ) ) ; Xr_AddValue( a, Xv_New( XV_INTEGER16, 7 ) ) ; Xd_AddRecord( m, a )
+   d[ "object_xdata" ][ 180 ] := m
+   d := Rt( d )
+   Chk( ValType( d ) == "H" .AND. hb_HHasKey( d[ "object_xdata" ], 180 ) .AND. Len( Xd_Records( d[ "object_xdata" ][ 180 ] ) ) == 1 ;
+      .AND. Xr_ApplicationName( Xd_Records( d[ "object_xdata" ][ 180 ] )[ 1 ] ) == "MIAPP" .AND. Len( Xr_Values( Xd_Records( d[ "object_xdata" ][ 180 ] )[ 1 ] ) ) == 2, "dxf_reader: [extra] object_xdata roundtrip" )
 RETURN
