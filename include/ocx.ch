@@ -112,4 +112,7 @@
 #define IC_SECOND 3
 #define IC_FIRSTEP 4
 #define IC_SECONDEP 5
+#define SX_NONE 0
+#define SX_POINT 1
+#define SX_OVERLAP 2
 #endif
