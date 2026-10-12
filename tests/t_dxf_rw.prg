@@ -284,6 +284,16 @@ PROCEDURE T_DxfRw()
          Chk( x != NIL .AND. x[ "name" ] == "1:50" .AND. Near( x[ "drawing_units" ], 50.0, 0.000000001 ) .AND. ! x[ "is_unit_scale" ] .AND. u != NIL .AND. u[ "value" ] == "7", "[extra] OBJECTS: SCALE y DICTIONARYVAR escribir y releer" )
          /* regresion: != con literal es prefijo-inexacto en Harbour (SET EXACT OFF); ahora se usa == negado */
          Chk( ! ( "ACADANNOTATIVE" == "ACAD" ) .AND. Ec_HasLinetype( hb_HSet( Ec_New(), "linetype", "ByLayerX" ) ), "[extra] comparacion de cadenas exacta (!= no es prefijo)" )
+         x := Sot_ForBlock( 1 ) ; x[ "handle" ] := Doc_AllocateHandle( d ) ; x[ "owner_handle" ] := d[ "header" ][ "named_objects_dict_handle" ]
+         Sot_AddEntry( x, 100, 900 ) ; Sot_AddEntry( x, 101, 800 )
+         d[ "objects" ][ x[ "handle" ] ] := x
+         d5 := Dxr_ReadString( Dxw_WriteString( d ) )
+         u := IIf( ValType( d5 ) == "H", hb_HGetDef( d5[ "objects" ], x[ "handle" ], NIL ), NIL )
+         Chk( u != NIL .AND. Sot_Len( u ) == 2 .AND. u[ "block_owner_handle" ] == 1 .AND. Sot_Contains( u, 100 ) .AND. Sot_Contains( u, 101 ) .AND. u[ "raw_dxf_codes" ] != NIL, "[extra] OBJECTS: SORTENTSTABLE escribir y releer (codigos crudos)" )
+         u[ "raw_dxf_codes" ] := NIL
+         d5 := Dxr_ReadString( Dxw_WriteString( d5 ) )
+         u := IIf( ValType( d5 ) == "H", hb_HGetDef( d5[ "objects" ], x[ "handle" ], NIL ), NIL )
+         Chk( u != NIL .AND. Sot_Len( u ) == 2 .AND. Sot_GetSortHandle( u, 100 ) > Sot_GetSortHandle( u, 101 ), "[extra] OBJECTS: SORTENTSTABLE sin codigos crudos reasigna handles en orden" )
       ENDIF
       x := NIL
       IF ValType( d2 ) == "H"
