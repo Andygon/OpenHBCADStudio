@@ -31,4 +31,44 @@
 #define OCX_PI_24 0.130899693899574718269    /* PI/24 */
 #define OCX_PI_9  0.349065850398865915384    /* PI/9  */
 #define OCX_PI_36 0.087266462599716478846    /* PI/36 */
+/* Curve = { nKind, aData }. Kinds y campos de cada forma (curve.rs) */
+#define CV_LINE     1
+#define CV_CIRCLE   2
+#define CV_ARC      3
+#define CV_ELLIPSE  4
+#define CV_POLYLINE 5
+#define CV_NURBS    6
+#define CV_RAY      7
+#define CV_XLINE    8
+#define CV_KIND 1
+#define CV_DATA 2
+#define LN_START 1
+#define LN_END   2
+#define CI_CENTRE 1
+#define CI_RADIUS 2
+#define AR_CENTRE 1
+#define AR_RADIUS 2
+#define AR_START  3
+#define AR_END    4
+#define EA_ELLIPSE 1
+#define EA_START   2
+#define EA_END     3
+#define RY_ORIGIN 1
+#define RY_DIR    2
+#define XL_BASE   1
+#define XL_DIR    2
+#define EXT_BOUNDED  1
+#define EXT_FORWARD  2
+#define EXT_INFINITE 3
+/* NurbsCurve = { nDegree, aKnots, aCtrl, aWeights } */
+#define NC_DEGREE  1
+#define NC_KNOTS   2
+#define NC_CTRL    3
+#define NC_WEIGHTS 4
+#define OCX_MAX_ANGLE_DEFAULT_SEGS 20.0
+#define OCX_SQRT2_2 0.70710678118654752440
+/* Transform = { aXAxis, aYAxis, aOrigin } */
+#define TR_X 1
+#define TR_Y 2
+#define TR_O 3
 #endif
