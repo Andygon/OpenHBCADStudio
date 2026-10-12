@@ -303,6 +303,36 @@ STATIC FUNCTION Dxo_ReadSortEnts( s, nVer )
    t[ "raw_dxf_codes" ] := aRaw ; t[ "raw_dxf_version" ] := nVer
 RETURN t
 
+STATIC FUNCTION Dxo_ReadImageDef( s )
+   LOCAL df := Imd_New( "" ), p, v
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      DO CASE
+      CASE p[ DP_CODE ] == 5
+         v := Sr_HexVal( p ) ; IF v != NIL ; df[ "handle" ] := v ; ENDIF
+      CASE p[ DP_CODE ] == 330
+         v := Sr_HexVal( p ) ; IF v != NIL ; df[ "owner" ] := v ; ENDIF
+      CASE p[ DP_CODE ] == 1 ; df[ "file_name" ] := p[ DP_VALUE ]
+      CASE p[ DP_CODE ] == 10
+         v := Dp_AsDouble( p ) ; IF v != NIL ; df[ "size_in_pixels" ][ 1 ] := Dxo_U32( v ) ; ENDIF
+      CASE p[ DP_CODE ] == 20
+         v := Dp_AsDouble( p ) ; IF v != NIL ; df[ "size_in_pixels" ][ 2 ] := Dxo_U32( v ) ; ENDIF
+      CASE p[ DP_CODE ] == 11
+         v := Dp_AsDouble( p ) ; IF v != NIL ; df[ "pixel_size" ][ 1 ] := v ; ENDIF
+      CASE p[ DP_CODE ] == 21
+         v := Dp_AsDouble( p ) ; IF v != NIL ; df[ "pixel_size" ][ 2 ] := v ; ENDIF
+      CASE p[ DP_CODE ] == 280
+         v := Dp_AsI16( p ) ; IF v != NIL ; df[ "is_loaded" ] := ( v != 0 ) ; ENDIF
+      ENDCASE
+   ENDDO
+RETURN df
+
+/* f64 as u32 de Rust: satura en 0 y 4294967295, NaN -> 0 */
+STATIC FUNCTION Dxo_U32( n )
+   IF OCX_ISNAN( n ) .OR. n <= 0.0 ; RETURN 0 ; ENDIF
+   IF n >= 4294967295.0 ; RETURN 4294967295 ; ENDIF
+RETURN Int( n )
+
 STATIC FUNCTION Dxo_ReadDictionary( s )
    LOCAL d := Dic_New(), p, cKey := NIL, v
    DO WHILE ( p := Sr_Next( s ) ) != NIL
@@ -450,6 +480,8 @@ PROCEDURE Dxo_ReadObjects( s, d )
             o := Dxo_ReadDictVar( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
          CASE p[ DP_VALUE ] == "SORTENTSTABLE"
             o := Dxo_ReadSortEnts( s, d[ "version" ] ) ; d[ "objects" ][ o[ "handle" ] ] := o
+         CASE p[ DP_VALUE ] == "IMAGEDEF"
+            o := Dxo_ReadImageDef( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
          CASE p[ DP_VALUE ] == "GROUP"
             o := Dxo_ReadGroup( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
          OTHERWISE
