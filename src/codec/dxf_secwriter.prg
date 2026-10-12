@@ -427,6 +427,57 @@ STATIC PROCEDURE Swr_AppIdEntry( st, d, a, hOwner )
    Sw_WriteString( w, 2, a[ "name" ] ) ; Sw_WriteI16( w, 70, 0 )
 RETURN
 
+STATIC PROCEDURE Swr_VportEntry( st, d, vp, hOwner )
+   LOCAL w := st[ 1 ], nF := 0, nM := 0, nI := 0, rgb
+   Sw_WriteString( w, 0, "VPORT" )
+   Swr_CommonTable( w, d, vp[ "handle" ], hOwner )
+   Sw_WriteSubclass( w, "AcDbSymbolTableRecord" ) ; Sw_WriteSubclass( w, "AcDbViewportTableRecord" )
+   Sw_WriteString( w, 2, vp[ "name" ] )
+   IF vp[ "xref_dependent" ] ; nF := hb_bitOr( nF, 16 ) ; ENDIF
+   IF vp[ "xref_resolved" ] ; nF := hb_bitOr( nF, 32 ) ; ENDIF
+   IF vp[ "xref_reference" ] ; nF := hb_bitOr( nF, 64 ) ; ENDIF
+   Sw_WriteI16( w, 70, nF )
+   Sw_WriteDouble( w, 10, vp[ "lower_left" ][ 1 ] ) ; Sw_WriteDouble( w, 20, vp[ "lower_left" ][ 2 ] )
+   Sw_WriteDouble( w, 11, vp[ "upper_right" ][ 1 ] ) ; Sw_WriteDouble( w, 21, vp[ "upper_right" ][ 2 ] )
+   Sw_WriteDouble( w, 12, vp[ "view_center" ][ 1 ] ) ; Sw_WriteDouble( w, 22, vp[ "view_center" ][ 2 ] )
+   Sw_WriteDouble( w, 13, vp[ "snap_base" ][ 1 ] ) ; Sw_WriteDouble( w, 23, vp[ "snap_base" ][ 2 ] )
+   Sw_WriteDouble( w, 14, vp[ "snap_spacing" ][ 1 ] ) ; Sw_WriteDouble( w, 24, vp[ "snap_spacing" ][ 2 ] )
+   Sw_WriteDouble( w, 15, vp[ "grid_spacing" ][ 1 ] ) ; Sw_WriteDouble( w, 25, vp[ "grid_spacing" ][ 2 ] )
+   Sw_WriteDouble( w, 16, vp[ "view_direction" ][ 1 ] ) ; Sw_WriteDouble( w, 26, vp[ "view_direction" ][ 2 ] ) ; Sw_WriteDouble( w, 36, vp[ "view_direction" ][ 3 ] )
+   Sw_WriteDouble( w, 17, vp[ "view_target" ][ 1 ] ) ; Sw_WriteDouble( w, 27, vp[ "view_target" ][ 2 ] ) ; Sw_WriteDouble( w, 37, vp[ "view_target" ][ 3 ] )
+   Sw_WriteDouble( w, 40, vp[ "view_height" ] ) ; Sw_WriteDouble( w, 41, vp[ "aspect_ratio" ] ) ; Sw_WriteDouble( w, 42, vp[ "lens_length" ] )
+   Sw_WriteDouble( w, 43, vp[ "front_clip" ] ) ; Sw_WriteDouble( w, 44, vp[ "back_clip" ] )
+   Sw_WriteDouble( w, 50, vp[ "snap_rotation" ] * 180.0 / OCX_PI ) ; Sw_WriteDouble( w, 51, vp[ "view_twist" ] * 180.0 / OCX_PI )
+   IF vp[ "perspective" ] ; nM := hb_bitOr( nM, 1 ) ; ENDIF
+   IF vp[ "front_clipping" ] ; nM := hb_bitOr( nM, 2 ) ; ENDIF
+   IF vp[ "back_clipping" ] ; nM := hb_bitOr( nM, 4 ) ; ENDIF
+   IF vp[ "ucsfollow" ] ; nM := hb_bitOr( nM, 8 ) ; ENDIF
+   IF vp[ "front_clip_at_eye" ] ; nM := hb_bitOr( nM, 16 ) ; ENDIF
+   Sw_WriteI16( w, 71, nM ) ; Sw_WriteI16( w, 72, vp[ "circle_zoom" ] ) ; Sw_WriteI16( w, 73, IIf( vp[ "fast_zoom" ], 1, 0 ) )
+   IF vp[ "ucsicon_lower" ] ; nI := hb_bitOr( nI, 1 ) ; ENDIF
+   IF vp[ "ucsicon_origin" ] ; nI := hb_bitOr( nI, 2 ) ; ENDIF
+   Sw_WriteI16( w, 74, nI ) ; Sw_WriteI16( w, 75, IIf( vp[ "snap_on" ], 1, 0 ) ) ; Sw_WriteI16( w, 76, IIf( vp[ "grid_on" ], 1, 0 ) )
+   Sw_WriteI16( w, 77, IIf( vp[ "snap_style" ], 1, 0 ) ) ; Sw_WriteI16( w, 78, vp[ "snap_isopair" ] )
+   IF st[ 2 ] >= Dxv_FromVersionString( "AC1015" )
+      Sw_WriteI16( w, 281, Vrm_ToValue( vp[ "render_mode" ] ) ) ; Sw_WriteI16( w, 65, IIf( vp[ "ucs_per_viewport" ], 1, 0 ) )
+      Sw_WritePoint3d( w, 110, vp[ "ucs_origin" ] ) ; Sw_WritePoint3d( w, 111, vp[ "ucs_x_axis" ] ) ; Sw_WritePoint3d( w, 112, vp[ "ucs_y_axis" ] )
+      Sw_WriteI16( w, 79, vp[ "ucs_ortho_type" ] ) ; Sw_WriteDouble( w, 146, vp[ "ucs_elevation" ] )
+      IF ! Hd_IsNull( vp[ "named_ucs_handle" ] ) ; Sw_WriteHandle( w, 345, vp[ "named_ucs_handle" ] ) ; ENDIF
+      IF ! Hd_IsNull( vp[ "base_ucs_handle" ] ) ; Sw_WriteHandle( w, 346, vp[ "base_ucs_handle" ] ) ; ENDIF
+   ENDIF
+   IF st[ 2 ] >= Dxv_FromVersionString( "AC1021" )
+      Sw_WriteI16( w, 60, Vgf_ToBits( vp[ "grid_flags" ] ) ) ; Sw_WriteI16( w, 61, vp[ "grid_major" ] )
+      IF ! Hd_IsNull( vp[ "background_handle" ] ) ; Sw_WriteHandle( w, 332, vp[ "background_handle" ] ) ; ENDIF
+      IF ! Hd_IsNull( vp[ "visual_style_handle" ] ) ; Sw_WriteHandle( w, 348, vp[ "visual_style_handle" ] ) ; ENDIF
+      IF ! Hd_IsNull( vp[ "sun_handle" ] ) ; Sw_WriteHandle( w, 361, vp[ "sun_handle" ] ) ; ENDIF
+      Sw_WriteBool( w, 292, vp[ "use_default_lights" ] ) ; Sw_WriteI16( w, 282, vp[ "default_lighting_type" ] )
+      Sw_WriteDouble( w, 141, vp[ "brightness" ] ) ; Sw_WriteDouble( w, 142, vp[ "contrast" ] )
+      Sw_WriteColor( w, 63, vp[ "ambient_color" ] )
+      rgb := Cl_ToTrueColorValue( vp[ "ambient_color" ] )
+      IF rgb != NIL ; Sw_WriteI32( w, 421, rgb ) ; ENDIF
+   ENDIF
+RETURN
+
 STATIC PROCEDURE Swr_ViewEntry( st, d, vw, hOwner )
    LOCAL w := st[ 1 ], nF := 0, nM := 0, rgb
    Sw_WriteString( w, 0, "VIEW" )
@@ -518,6 +569,10 @@ RETURN xd
 PROCEDURE Swr_Tables( st, d )
    LOCAL w := st[ 1 ], t, e, h
    Sw_WriteSectionStart( w, "TABLES" )
+   t := d[ "vports" ]
+   Swr_TableHeader( w, d, "VPORT", Tb_Len( t ), Tb_Handle( t ) )
+   FOR EACH e IN Tb_Values( t ) ; Swr_VportEntry( st, d, e, Tb_Handle( t ) ) ; NEXT
+   Sw_WriteString( w, 0, "ENDTAB" )
    t := d[ "line_types" ]
    Swr_TableHeader( w, d, "LTYPE", Tb_Len( t ), Tb_Handle( t ) )
    FOR EACH e IN Tb_Values( t ) ; Swr_LtypeEntry( st, d, e, Tb_Handle( t ) ) ; NEXT
