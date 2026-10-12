@@ -700,6 +700,22 @@ STATIC FUNCTION Dxo_ReadLayout( s )
 RETURN l
 
 /* read_objects: parcial (ver cabecera) */
+/* read_unknown_object_full: objeto no soportado -> Unknown con handle, owner y el resto de codigos en bruto */
+STATIC FUNCTION Dxo_ReadUnknownObject( s, cName )
+   LOCAL o := Obj_NewUnknown( cName, Hd_Null(), Hd_Null() ), p, v, aRaw := {}
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      IF p[ DP_CODE ] == 5
+         v := Sr_HexVal( p ) ; IF v != NIL ; o[ "handle" ] := v ; ENDIF
+      ELSEIF p[ DP_CODE ] == 330 .AND. Hd_IsNull( o[ "owner" ] )
+         v := Sr_HexVal( p ) ; IF v != NIL ; o[ "owner" ] := v ; ENDIF
+      ELSE
+         AAdd( aRaw, { p[ DP_CODE ], p[ DP_VALUE ] } )
+      ENDIF
+   ENDDO
+   IF Len( aRaw ) > 0 ; o[ "raw_dxf_codes" ] := aRaw ; ENDIF
+RETURN o
+
 /* object_has_own_dxf_xdata (solo los tipos que este port modela) */
 FUNCTION Dxo_HasOwnXdata( o )
    LOCAL t := o[ "_type" ]
@@ -762,7 +778,7 @@ PROCEDURE Dxo_ReadObjects( s, d )
          CASE p[ DP_VALUE ] == "GROUP"
             o := Dxo_ReadGroup( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
          OTHERWISE
-            Sr_SkipEntity( s )
+            o := Dxo_ReadUnknownObject( s, p[ DP_VALUE ] ) ; d[ "objects" ][ o[ "handle" ] ] := o
          ENDCASE
          Dxo_ReadObjXdata( s, d )
       ENDIF
