@@ -427,4 +427,10 @@ PROCEDURE T_DxfRw()
    d2 := RT( d2 )
    es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
    Chk( Len( es ) == 1 .AND. es[ 1 ][ "_type" ] == "HATCH" .AND. es[ 1 ][ "is_mpolygon" ] .AND. es[ 1 ][ "mpolygon_hatch_color" ][ 2 ] == 5 .AND. es[ 1 ][ "gradient_color" ][ "enabled" ] .AND. es[ 1 ][ "gradient_color" ][ "name" ] == "LINEAR" .AND. Len( es[ 1 ][ "gradient_color" ][ "colors" ] ) == 2 .AND. es[ 1 ][ "gradient_color" ][ "colors" ][ 2 ][ "color" ][ 2 ] == 3 .AND. Len( es[ 1 ][ "paths" ] ) == 1, "[extra] MPOLYGON/gradiente releido" )
+   /* [extra] UNDERLAY (entidad) */
+   d2 := Doc_New()
+   x := Eul_AtPoint( UTY_DWF, Vc3_New( 1.0, 2.0, 0.0 ) ) ; x[ "x_scale" ] := 2.0 ; x[ "rotation" ] := OCX_PI ; x[ "clip_inverted" ] := .T. ; x[ "definition_handle" ] := 88 ; x[ "contrast" ] := 70 ; AAdd( x[ "clip_boundary_vertices" ], Vc2_New( 0.0, 1.0 ) ) ; AAdd( x[ "clip_boundary_vertices" ], Vc2_New( 3.0, 4.0 ) ) ; Doc_AddEntity( d2, x )
+   d2 := RT( d2 )
+   es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
+   Chk( Len( es ) == 1 .AND. es[ 1 ][ "_type" ] == "UNDERLAY" .AND. es[ 1 ][ "underlay_type" ] == UTY_DWF .AND. es[ 1 ][ "x_scale" ] == 2.0 .AND. Abs( es[ 1 ][ "rotation" ] - OCX_PI ) < 0.000000000001 .AND. es[ 1 ][ "clip_inverted" ] .AND. es[ 1 ][ "definition_handle" ] == 88 .AND. es[ 1 ][ "contrast" ] == 70 .AND. Len( es[ 1 ][ "clip_boundary_vertices" ] ) == 2 .AND. es[ 1 ][ "clip_boundary_vertices" ][ 2 ][ 2 ] == 4.0, "[extra] UNDERLAY entidad releido" )
 RETURN
