@@ -20,7 +20,7 @@ STATIC FUNCTION Dxo_FindRootDictHandle( d )
 RETURN nBest
 
 /* tipos de objeto que este escritor emite: las entradas de diccionario a otros tipos se omiten (equivale al filtro valid_handles de Rust) */
-STATIC FUNCTION Dxo_IsWritten( o ) ; RETURN o[ "_type" ] == "Dictionary" .OR. o[ "_type" ] == "Layout" .OR. o[ "_type" ] == "XRecord" .OR. o[ "_type" ] == "Group" .OR. o[ "_type" ] == "MLineStyle"
+STATIC FUNCTION Dxo_IsWritten( o ) ; RETURN o[ "_type" ] == "Dictionary" .OR. o[ "_type" ] == "Layout" .OR. o[ "_type" ] == "XRecord" .OR. o[ "_type" ] == "Group" .OR. o[ "_type" ] == "MLineStyle" .OR. o[ "_type" ] == "Scale" .OR. o[ "_type" ] == "DictionaryVariable"
 
 STATIC PROCEDURE Dxo_WriteDictionary( w, d, dic )
    LOCAL aR := dic[ "reactors" ], hX, e, lForced
@@ -183,6 +183,21 @@ STATIC PROCEDURE Dxo_WriteMLineStyle( w, st )
    NEXT
 RETURN
 
+STATIC PROCEDURE Dxo_WriteScale( w, sc )
+   Sw_WriteString( w, 0, "SCALE" ) ; Sw_WriteHandle( w, 5, sc[ "handle" ] ) ; Sw_WriteHandle( w, 330, sc[ "owner_handle" ] )
+   Sw_WriteSubclass( w, "AcDbScale" ) ; Sw_WriteI16( w, 70, 0 ) ; Sw_WriteString( w, 300, sc[ "name" ] )
+   Sw_WriteDouble( w, 140, sc[ "paper_units" ] ) ; Sw_WriteDouble( w, 141, sc[ "drawing_units" ] ) ; Sw_WriteBool( w, 290, sc[ "is_unit_scale" ] )
+RETURN
+
+STATIC PROCEDURE Dxo_WriteDictVar( w, dv )
+   Sw_WriteString( w, 0, "DICTIONARYVAR" ) ; Sw_WriteHandle( w, 5, dv[ "handle" ] )
+   IF ! Hd_IsNull( dv[ "owner_handle" ] )
+      Sw_WriteString( w, 102, "{ACAD_REACTORS" ) ; Sw_WriteHandle( w, 330, dv[ "owner_handle" ] ) ; Sw_WriteString( w, 102, "}" )
+   ENDIF
+   Sw_WriteHandle( w, 330, dv[ "owner_handle" ] ) ; Sw_WriteSubclass( w, "DictionaryVariables" )
+   Sw_WriteByte( w, 280, dv[ "schema_number" ] ) ; Sw_WriteString( w, 1, dv[ "value" ] )
+RETURN
+
 STATIC PROCEDURE Dxo_WriteGroup( w, g )
    LOCAL h
    Sw_WriteString( w, 0, "GROUP" ) ; Sw_WriteHandle( w, 5, g[ "handle" ] ) ; Sw_WriteHandle( w, 330, g[ "owner" ] )
@@ -210,6 +225,8 @@ PROCEDURE Dxo_WriteObjects( w, d )
          CASE o[ "_type" ] == "Layout" ; Dxo_WriteLayout( w, o )
          CASE o[ "_type" ] == "XRecord" ; Dxo_WriteXRecord( w, o )
          CASE o[ "_type" ] == "MLineStyle" ; Dxo_WriteMLineStyle( w, o )
+         CASE o[ "_type" ] == "Scale" ; Dxo_WriteScale( w, o )
+         CASE o[ "_type" ] == "DictionaryVariable" ; Dxo_WriteDictVar( w, o )
          CASE o[ "_type" ] == "Group" ; Dxo_WriteGroup( w, o )
          ENDCASE
       ENDIF
