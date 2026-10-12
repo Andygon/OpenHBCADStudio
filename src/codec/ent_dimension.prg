@@ -138,7 +138,7 @@ STATIC FUNCTION SelectedLineSectorRadians( vVertex, vD1, vD2, vArcPoint, vPrefNo
    NEXT
 RETURN NIL
 
-STATIC FUNCTION ToDeg( n ) ; RETURN n * 180.0 / OCX_PI
+STATIC FUNCTION ToDeg( n ) ; RETURN n * ( 180.0 / OCX_PI )
 STATIC FUNCTION AngleBetween( vVertex, vA, vB )
    LOCAL v1 := Vc3_Normalize( Vc3_Sub( vA, vVertex ) ), v2 := Vc3_Normalize( Vc3_Sub( vB, vVertex ) )
 RETURN ToDeg( OCX_ACOS( Vc3_Dot( v1, v2 ) ) )
