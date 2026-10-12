@@ -50,6 +50,24 @@ STATIC FUNCTION Sample()
    FOR i := 1 TO Len( a ) STEP 2 ; c += a[ i ] + Chr( 13 ) + Chr( 10 ) + a[ i + 1 ] + Chr( 13 ) + Chr( 10 ) ; NEXT
 RETURN c
 
+STATIC FUNCTION Dxo_CountLayouts( d )
+   LOCAL o, n := 0
+   FOR EACH o IN hb_HValues( d[ "objects" ] )
+      IF o[ "_type" ] == "Layout"
+         n++
+      ENDIF
+   NEXT
+RETURN n
+
+STATIC FUNCTION Dxo_RootForTest( d )
+   LOCAL h, nB := 0, nC := 0
+   FOR EACH h IN hb_HKeys( d[ "objects" ] )
+      IF d[ "objects" ][ h ][ "_type" ] == "Dictionary" .AND. Hd_IsNull( d[ "objects" ][ h ][ "owner" ] ) .AND. Len( d[ "objects" ][ h ][ "entries" ] ) >= nC
+         nB := h ; nC := Len( d[ "objects" ][ h ][ "entries" ] )
+      ENDIF
+   NEXT
+RETURN nB
+
 PROCEDURE T_DxfRw()
    LOCAL d, d2, e, l, es, c, tx, s1, s2, s3, s4, ms, x, ok, u
    /* test_dxf_roundtrip_line_normal */
@@ -230,6 +248,12 @@ PROCEDURE T_DxfRw()
       Chk( x != NIL .AND. Near( x[ "height" ], 12.5, 0.000000001 ) .AND. Near( x[ "twist_angle" ], OCX_PI / 2.0, 0.000000001 ) .AND. Near( x[ "center" ][ 2 ], 4.0, 0.000000001 ) .AND. x[ "perspective" ] .AND. ! x[ "front_clipping" ] .AND. x[ "ucs_associated" ] .AND. Near( x[ "ucs_origin" ][ 3 ], 7.0, 0.000000001 ), "[extra] tabla VIEW: escribir y releer" )
       x := IIf( ValType( d2 ) == "H", Tb_Get( d2[ "dim_styles" ], "Cota1" ), NIL )
       Chk( x != NIL .AND. Near( x[ "dimscale" ], 2.5, 0.000000001 ) .AND. Near( x[ "dimtxt" ], 0.35, 0.000000001 ) .AND. x[ "dimtol" ] .AND. ! x[ "dimlim" ] .AND. x[ "dimdec" ] == 3 .AND. x[ "dimpost" ] == "mm" .AND. x[ "annotative" ] .AND. x[ "dimclrd" ] == 5 .AND. x[ "dimlwd" ] == 25, "[extra] tabla DIMSTYLE: escribir y releer" )
+      IF ValType( d2 ) == "H"
+         ok := Dxo_CountLayouts( d ) ; x := Dxo_CountLayouts( d2 )
+         Chk( ok >= 1 .AND. ok == x, "[extra] OBJECTS: los LAYOUT sobreviven a escribir y releer (" + hb_ntos( ok ) + ")" )
+         ok := d[ "objects" ][ Dxo_RootForTest( d ) ] ; x := d2[ "objects" ][ Dxo_RootForTest( d2 ) ]
+         Chk( Len( x[ "entries" ] ) >= 1 .AND. Len( x[ "entries" ] ) <= Len( ok[ "entries" ] ), "[extra] OBJECTS: diccionario raiz conserva entradas escribibles" )
+      ENDIF
       x := NIL
       IF ValType( d2 ) == "H"
          FOR EACH e IN Tb_Values( d2[ "vports" ] )
