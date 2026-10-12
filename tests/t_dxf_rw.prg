@@ -300,6 +300,19 @@ PROCEDURE T_DxfRw()
          d5 := Dxr_ReadString( Dxw_WriteString( d ) )
          u := IIf( ValType( d5 ) == "H", hb_HGetDef( d5[ "objects" ], x[ "handle" ], NIL ), NIL )
          Chk( u != NIL .AND. u[ "file_name" ] == "foto.png" .AND. u[ "size_in_pixels" ][ 1 ] == 640 .AND. u[ "size_in_pixels" ][ 2 ] == 480 .AND. Near( u[ "pixel_size" ][ 2 ], 0.25, 0.000000001 ) .AND. u[ "is_loaded" ], "[extra] OBJECTS: IMAGEDEF escribir y releer" )
+         x := Udf_Dwf( "plano.dwf", "Hoja1" ) ; x[ "_type" ] := "UnderlayDefinition" ; x[ "handle" ] := Doc_AllocateHandle( d ) ; x[ "owner_handle" ] := d[ "header" ][ "named_objects_dict_handle" ]
+         x[ "unloaded" ] := .T.
+         d[ "objects" ][ x[ "handle" ] ] := x
+         d5 := Dxr_ReadString( Dxw_WriteString( d ) )
+         u := IIf( ValType( d5 ) == "H", hb_HGetDef( d5[ "objects" ], x[ "handle" ], NIL ), NIL )
+         Chk( u != NIL .AND. u[ "underlay_type" ] == UTY_DWF .AND. u[ "file_path" ] == "plano.dwf" .AND. u[ "page_name" ] == "Hoja1" .AND. u[ "unloaded" ], "[extra] OBJECTS: DWFDEFINITION escribir y releer (NOLOAD)" )
+         x := Mst_New( "Mio" ) ; x[ "handle" ] := Doc_AllocateHandle( d ) ; x[ "owner_handle" ] := d[ "header" ][ "named_objects_dict_handle" ]
+         x[ "line_color" ] := Cl_FromIndex( 5 ) ; x[ "text_height" ] := 2.5 ; x[ "text_frame" ] := .T. ; x[ "content_type" ] := MST_CT_BLOCK ; x[ "line_weight" ] := Lw_Value( 50 ) ; x[ "text_style_handle" ] := 42
+         d[ "objects" ][ x[ "handle" ] ] := x
+         d5 := Dxr_ReadString( Dxw_WriteString( d ) )
+         u := IIf( ValType( d5 ) == "H", hb_HGetDef( d5[ "objects" ], x[ "handle" ], NIL ), NIL )
+         Chk( u != NIL .AND. u[ "name" ] == "Mio" .AND. Cl_Eq( u[ "line_color" ], Cl_FromIndex( 5 ) ) .AND. Near( u[ "text_height" ], 2.5, 0.000000001 ) .AND. u[ "text_frame" ] ;
+            .AND. u[ "content_type" ] == MST_CT_BLOCK .AND. Lw_Eq( u[ "line_weight" ], Lw_Value( 50 ) ) .AND. u[ "text_style_handle" ] == 42, "[extra] OBJECTS: MLEADERSTYLE escribir y releer" )
       ENDIF
       x := NIL
       IF ValType( d2 ) == "H"
