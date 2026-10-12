@@ -61,6 +61,11 @@ FUNCTION Ent_BoundingBox( e )
    CASE e[ "_type" ] == "POINT" ; RETURN Ept_BoundingBox( e )
    CASE e[ "_type" ] == "CIRCLE" ; RETURN Eci_BoundingBox( e )
    CASE e[ "_type" ] == "ARC" ; RETURN Ear_BoundingBox( e )
+   CASE e[ "_type" ] == "ELLIPSE" ; RETURN Eel_BoundingBox( e )
+   CASE e[ "_type" ] == "RAY" ; RETURN Ery_BoundingBox( e )
+   CASE e[ "_type" ] == "XLINE" ; RETURN Exl_BoundingBox( e )
+   CASE e[ "_type" ] == "SOLID" ; RETURN Eso_BoundingBox( e )
+   CASE e[ "_type" ] == "3DFACE" ; RETURN Ef3_BoundingBox( e )
    ENDCASE
 RETURN NIL
 
@@ -70,6 +75,11 @@ FUNCTION Ent_Translate( e, vOffset )
    CASE e[ "_type" ] == "POINT" ; Ept_Translate( e, vOffset )
    CASE e[ "_type" ] == "CIRCLE" ; Eci_Translate( e, vOffset )
    CASE e[ "_type" ] == "ARC" ; Ear_Translate( e, vOffset )
+   CASE e[ "_type" ] == "ELLIPSE" ; Eel_Translate( e, vOffset )
+   CASE e[ "_type" ] == "RAY" ; Ery_Translate( e, vOffset )
+   CASE e[ "_type" ] == "XLINE" ; Exl_Translate( e, vOffset )
+   CASE e[ "_type" ] == "SOLID" ; Eso_Translate( e, vOffset )
+   CASE e[ "_type" ] == "3DFACE" ; Ef3_Translate( e, vOffset )
    ENDCASE
 RETURN NIL
 
@@ -80,13 +90,24 @@ FUNCTION Ent_ApplyTransform( e, t )
    CASE e[ "_type" ] == "POINT" ; Ept_Transform( e, t )
    CASE e[ "_type" ] == "CIRCLE" ; Eci_Transform( e, t )
    CASE e[ "_type" ] == "ARC" ; Ear_Transform( e, t )
+   CASE e[ "_type" ] == "ELLIPSE" ; Eel_Transform( e, t )
+   CASE e[ "_type" ] == "RAY" ; Ery_Transform( e, t )
+   CASE e[ "_type" ] == "XLINE" ; Exl_Transform( e, t )
+   CASE e[ "_type" ] == "SOLID" ; Eso_Transform( e, t )
+   CASE e[ "_type" ] == "3DFACE" ; Ef3_Transform( e, t )
    OTHERWISE ; Ent_Translate( e, Tf_Apply( t, Vc3_Zero() ) )
    ENDCASE
 RETURN NIL
 
 /* apply_mirror: por defecto igual que apply_transform; las entidades que lo sobreescriben se anaden aqui */
 FUNCTION Ent_ApplyMirror( e, t )
-   IF e[ "_type" ] == "ARC" ; Ear_Mirror( e, t ) ; ELSE ; Ent_ApplyTransform( e, t ) ; ENDIF
+   DO CASE
+   CASE e[ "_type" ] == "ARC" ; Ear_Mirror( e, t )
+   CASE e[ "_type" ] == "ELLIPSE" ; Eel_Mirror( e, t )
+   CASE e[ "_type" ] == "SOLID" ; Eso_Mirror( e, t )
+   CASE e[ "_type" ] == "3DFACE" ; Ef3_Mirror( e, t )
+   OTHERWISE ; Ent_ApplyTransform( e, t )
+   ENDCASE
 RETURN NIL
 
 FUNCTION Ent_ApplyRotation( e, vAxis, nAngle ) ; Ent_ApplyTransform( e, Tf_FromRotation( vAxis, nAngle ) ) ; RETURN NIL
