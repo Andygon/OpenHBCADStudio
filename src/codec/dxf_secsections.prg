@@ -1464,6 +1464,114 @@ STATIC FUNCTION Sr_ReadRayXline( s, lRay )
    pt := PR_GetPoint( d ) ; IF pt != NIL ; e[ "direction" ] := Vc3_Normalize( pt ) ; ENDIF
 RETURN e
 
+/* Rust f64::to_radians = n * (PI/180) (constante precalculada, no (n*PI)/180) */
+STATIC FUNCTION Sr_ToRadians( n ) ; RETURN n * ( OCX_PI / 180.0 )
+
+/* read_dimension (variantes Aligned/Linear/Radius/Diameter/Angular2Ln/Angular3Pt/Ordinate; ARC_DIMENSION/LARGE_RADIAL: PENDIENTE read_extended_dimension) */
+STATIC FUNCTION Sr_ReadDimension( s )
+   LOCAL p, n, v, nTy := DMT_LINEAR, lUserPos := .F., lOrdX := .T., cText := "", cBlock := "", cStyle := "Standard", cLayer := "0"
+   LOCAL cColor := Cl_ByLayer(), nLw := Lw_ByLayer(), nRot := 0.0, nTxtRot := 0.0, nHoriz := 0.0, nExtRot := 0.0, nMeas := NIL, nLeader := 0.0
+   LOCAL nLsf := 1.0, nLss := 1, nAtt := DAP_MIDDLECENTER, rDef := PR_New(), rMid := PR_New(), rIns := PR_New(), r1 := PR_New(), r2 := PR_New()
+   LOCAL r3 := PR_New(), r4 := PR_New(), rNor := PR_New(), tmp := hb_Hash( "common", Ec_New() ), common, pt1, pt2, pt3, pt4, e, pt
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      n := p[ DP_CODE ]
+      DO CASE
+      CASE n == 8 ; cLayer := p[ DP_VALUE ]
+      CASE n == 62
+         v := Dp_AsI16( p ) ; IF v != NIL ; cColor := Cl_FromIndex( v ) ; ENDIF
+      CASE n == 370
+         v := Dp_AsI16( p ) ; IF v != NIL ; nLw := Lw_FromValue( v ) ; ENDIF
+      CASE n == 70
+         v := Dp_AsI16( p )
+         IF v != NIL
+            DO CASE
+            CASE hb_bitAnd( v, 15 ) == 1 ; nTy := DMT_ALIGNED
+            CASE hb_bitAnd( v, 15 ) == 2 ; nTy := DMT_ANGULAR
+            CASE hb_bitAnd( v, 15 ) == 3 ; nTy := DMT_DIAMETER
+            CASE hb_bitAnd( v, 15 ) == 4 ; nTy := DMT_RADIUS
+            CASE hb_bitAnd( v, 15 ) == 5 ; nTy := DMT_ANGULAR3PT
+            CASE hb_bitAnd( v, 15 ) == 6 ; nTy := DMT_ORDINATE
+            OTHERWISE ; nTy := DMT_LINEAR
+            ENDCASE
+            lUserPos := hb_bitAnd( v, 128 ) != 0
+            lOrdX := hb_bitAnd( v, 64 ) != 0
+         ENDIF
+      CASE n == 1 ; cText := p[ DP_VALUE ]
+      CASE n == 2 ; cBlock := p[ DP_VALUE ]
+      CASE n == 3 ; cStyle := p[ DP_VALUE ]
+      CASE n == 10 .OR. n == 20 .OR. n == 30 ; PR_AddCoordinate( rDef, p )
+      CASE n == 11 .OR. n == 21 .OR. n == 31 ; PR_AddCoordinate( rMid, p )
+      CASE n == 12 .OR. n == 22 .OR. n == 32 ; PR_AddCoordinate( rIns, p )
+      CASE n == 13 .OR. n == 23 .OR. n == 33 ; PR_AddCoordinate( r1, p )
+      CASE n == 14 .OR. n == 24 .OR. n == 34 ; PR_AddCoordinate( r2, p )
+      CASE n == 15 .OR. n == 25 .OR. n == 35 ; PR_AddCoordinate( r3, p )
+      CASE n == 16 .OR. n == 26 .OR. n == 36 ; PR_AddCoordinate( r4, p )
+      CASE n == 50
+         v := Dp_AsDouble( p ) ; IF v != NIL ; nRot := Sr_ToRadians( v ) ; ENDIF
+      CASE n == 52
+         v := Dp_AsDouble( p ) ; IF v != NIL ; nExtRot := Sr_ToRadians( v ) ; ENDIF
+      CASE n == 53
+         v := Dp_AsDouble( p ) ; IF v != NIL ; nTxtRot := Sr_ToRadians( v ) ; ENDIF
+      CASE n == 51
+         v := Dp_AsDouble( p ) ; IF v != NIL ; nHoriz := Sr_ToRadians( v ) ; ENDIF
+      CASE n == 41
+         v := Dp_AsDouble( p ) ; IF v != NIL ; nLsf := v ; ENDIF
+      CASE n == 71
+         v := Dp_AsI16( p ) ; IF v == NIL ; v := 5 ; ENDIF
+         nAtt := IIf( v >= 1 .AND. v <= 9 .AND. v != 5, v, DAP_MIDDLECENTER )
+      CASE n == 72
+         v := Dp_AsI16( p ) ; nLss := IIf( v == NIL, 1, v )
+      CASE n == 42
+         v := Dp_AsDouble( p ) ; IF v != NIL ; nMeas := v ; ENDIF
+      CASE n == 40
+         v := Dp_AsDouble( p ) ; IF v != NIL ; nLeader := v ; ENDIF
+      CASE n == 210 .OR. n == 220 .OR. n == 230 ; PR_AddCoordinate( rNor, p )
+      OTHERWISE ; Sr_EntBase( s, p, tmp )
+      ENDCASE
+   ENDDO
+   common := tmp[ "common" ]
+   IF Cl_IsTrueColor( common[ "color" ] ) ; cColor := common[ "color" ] ; ENDIF
+   pt1 := PR_GetPoint( r1 ) ; IF pt1 == NIL ; pt1 := Vc3_Zero() ; ENDIF
+   pt2 := PR_GetPoint( r2 ) ; IF pt2 == NIL ; pt2 := Vc3_Zero() ; ENDIF
+   pt3 := PR_GetPoint( r3 ) ; IF pt3 == NIL ; pt3 := Vc3_Zero() ; ENDIF
+   pt4 := PR_GetPoint( r4 ) ; IF pt4 == NIL ; pt4 := Vc3_Zero() ; ENDIF
+   pt := PR_GetPoint( rDef )
+   DO CASE
+   CASE nTy == DMT_ALIGNED
+      e := Dal_New( pt1, pt2 ) ; e[ "ext_line_rotation" ] := nExtRot
+      IF pt != NIL ; e[ "definition_point" ] := pt ; ENDIF
+   CASE nTy == DMT_LINEAR
+      e := Dli_Rotated( pt1, pt2, nRot ) ; e[ "ext_line_rotation" ] := nExtRot
+      IF pt != NIL ; e[ "definition_point" ] := pt ; ENDIF
+   CASE nTy == DMT_RADIUS
+      e := Dra_New( IIf( pt != NIL, pt, Vc3_Zero() ), pt3 ) ; e[ "leader_length" ] := nLeader
+   CASE nTy == DMT_DIAMETER
+      e := Ddi_New( pt3, IIf( pt != NIL, pt, Vc3_Zero() ) )
+   CASE nTy == DMT_ANGULAR
+      e := Da2_Default() ; e[ "first_point" ] := pt1 ; e[ "second_point" ] := pt2 ; e[ "angle_vertex" ] := pt3 ; e[ "dimension_arc" ] := pt4
+   CASE nTy == DMT_ANGULAR3PT
+      e := Da3_Default() ; e[ "first_point" ] := pt1 ; e[ "second_point" ] := pt2 ; e[ "angle_vertex" ] := pt3
+      IF pt != NIL ; e[ "definition_point" ] := pt ; ENDIF
+   OTHERWISE
+      e := Dor_New( pt1, pt2, lOrdX )
+      IF pt != NIL ; e[ "definition_point" ] := pt ; ENDIF
+   ENDCASE
+   e[ "base" ][ "text" ] := cText ; e[ "base" ][ "style_name" ] := cStyle
+   IF nMeas != NIL ; e[ "base" ][ "actual_measurement" ] := nMeas ; ENDIF
+   common[ "layer" ] := cLayer ; common[ "color" ] := cColor ; common[ "line_weight" ] := nLw
+   e[ "common" ] := common ; e[ "base" ][ "common" ] := common
+   e[ "base" ][ "block_name" ] := cBlock
+   pt := PR_GetPoint( rMid ) ; IF pt != NIL ; e[ "base" ][ "text_middle_point" ] := pt ; ENDIF
+   e[ "base" ][ "text_rotation" ] := nTxtRot ; e[ "base" ][ "horizontal_direction" ] := nHoriz ; e[ "base" ][ "text_user_positioned" ] := lUserPos
+   e[ "base" ][ "attachment_point" ] := nAtt ; e[ "base" ][ "line_spacing_style" ] := nLss
+   IF nLsf != 1.0 ; e[ "base" ][ "line_spacing_factor" ] := nLsf ; ENDIF
+   pt := PR_GetPoint( rNor ) ; IF pt != NIL ; e[ "base" ][ "normal" ] := pt ; ENDIF
+   pt := PR_GetPoint( rDef )
+   IF nTy != DMT_RADIUS .AND. pt != NIL ; Edm_SetDefinitionPoint( e, pt ) ; ENDIF
+   IF nTy == DMT_ORDINATE ; Dor_RefreshMeasurement( e ) ; ENDIF
+RETURN e
+
 STATIC FUNCTION Sr_ReadEntityOfType( s, cT )
    LOCAL p
    DO CASE
@@ -1485,6 +1593,7 @@ STATIC FUNCTION Sr_ReadEntityOfType( s, cT )
    CASE cT == "3DFACE" ; RETURN Sr_ReadSolidFace( s, .T. )
    CASE cT == "RAY" ; RETURN Sr_ReadRayXline( s, .T. )
    CASE cT == "XLINE" ; RETURN Sr_ReadRayXline( s, .F. )
+   CASE cT == "DIMENSION" ; RETURN Sr_ReadDimension( s )
    ENDCASE
    Sr_SkipEntity( s ) /* PENDIENTE: resto de tipos (original: read_unknown_entity / lectores propios) */
 RETURN NIL
