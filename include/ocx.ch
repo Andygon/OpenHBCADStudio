@@ -81,4 +81,8 @@
 #define CR_POINT 1
 #define CR_TA    2
 #define CR_TB    3
+/* Closest = { nT, aPoint, nDistance } */
+#define CL_T 1
+#define CL_P 2
+#define CL_D 3
 #endif
