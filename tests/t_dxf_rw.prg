@@ -274,6 +274,16 @@ PROCEDURE T_DxfRw()
          x := IIf( ValType( d5 ) == "H", hb_HGetDef( d5[ "objects" ], x[ "handle" ], NIL ), NIL )
          Chk( x != NIL .AND. x[ "name" ] == "Doble" .AND. x[ "description" ] == "dos lineas" .AND. Near( x[ "end_angle" ], OCX_PI, 0.000000001 ) .AND. Len( x[ "elements" ] ) == 2 .AND. x[ "elements" ][ 1 ][ "linetype" ] == "CENTER" ;
             .AND. Near( x[ "elements" ][ 2 ][ "offset" ], -0.25, 0.000000001 ) .AND. x[ "elements" ][ 2 ][ "linetype" ] == "BYLAYER" .AND. Cl_Eq( x[ "fill_color" ], Cl_FromIndex( 3 ) ), "[extra] OBJECTS: MLINESTYLE escribir y releer" )
+         x := Scl_New( "1:50", 1.0, 50.0 ) ; x[ "handle" ] := Doc_AllocateHandle( d ) ; x[ "owner_handle" ] := d[ "header" ][ "named_objects_dict_handle" ]
+         d[ "objects" ][ x[ "handle" ] ] := x
+         u := Dvr_New( "", "7" ) ; u[ "handle" ] := Doc_AllocateHandle( d ) ; u[ "owner_handle" ] := d[ "header" ][ "named_objects_dict_handle" ] ; u[ "schema_number" ] := 0
+         d[ "objects" ][ u[ "handle" ] ] := u
+         d5 := Dxr_ReadString( Dxw_WriteString( d ) )
+         x := IIf( ValType( d5 ) == "H", hb_HGetDef( d5[ "objects" ], x[ "handle" ], NIL ), NIL )
+         u := IIf( ValType( d5 ) == "H", hb_HGetDef( d5[ "objects" ], u[ "handle" ], NIL ), NIL )
+         Chk( x != NIL .AND. x[ "name" ] == "1:50" .AND. Near( x[ "drawing_units" ], 50.0, 0.000000001 ) .AND. ! x[ "is_unit_scale" ] .AND. u != NIL .AND. u[ "value" ] == "7", "[extra] OBJECTS: SCALE y DICTIONARYVAR escribir y releer" )
+         /* regresion: != con literal es prefijo-inexacto en Harbour (SET EXACT OFF); ahora se usa == negado */
+         Chk( ! ( "ACADANNOTATIVE" == "ACAD" ) .AND. Ec_HasLinetype( hb_HSet( Ec_New(), "linetype", "ByLayerX" ) ), "[extra] comparacion de cadenas exacta (!= no es prefijo)" )
       ENDIF
       x := NIL
       IF ValType( d2 ) == "H"
