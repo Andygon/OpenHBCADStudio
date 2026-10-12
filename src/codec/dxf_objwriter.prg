@@ -20,7 +20,7 @@ STATIC FUNCTION Dxo_FindRootDictHandle( d )
 RETURN nBest
 
 /* tipos de objeto que este escritor emite: las entradas de diccionario a otros tipos se omiten (equivale al filtro valid_handles de Rust) */
-STATIC FUNCTION Dxo_IsWritten( o ) ; RETURN o[ "_type" ] == "Dictionary" .OR. o[ "_type" ] == "Layout" .OR. o[ "_type" ] == "XRecord" .OR. o[ "_type" ] == "Group" .OR. o[ "_type" ] == "MLineStyle" .OR. o[ "_type" ] == "SortEntitiesTable" .OR. o[ "_type" ] == "ImageDefinition" .OR. o[ "_type" ] == "UnderlayDefinition" .OR. o[ "_type" ] == "MultiLeaderStyle" .OR. o[ "_type" ] == "Scale" .OR. o[ "_type" ] == "DictionaryVariable"
+STATIC FUNCTION Dxo_IsWritten( o ) ; RETURN o[ "_type" ] == "Dictionary" .OR. o[ "_type" ] == "Layout" .OR. o[ "_type" ] == "XRecord" .OR. o[ "_type" ] == "Group" .OR. o[ "_type" ] == "MLineStyle" .OR. o[ "_type" ] == "SortEntitiesTable" .OR. o[ "_type" ] == "ImageDefinition" .OR. o[ "_type" ] == "UnderlayDefinition" .OR. o[ "_type" ] == "MultiLeaderStyle" .OR. o[ "_type" ] == "PlotSettings" .OR. o[ "_type" ] == "Scale" .OR. o[ "_type" ] == "DictionaryVariable"
 
 STATIC PROCEDURE Dxo_WriteDictionary( w, d, dic )
    LOCAL aR := dic[ "reactors" ], hX, e, lForced
@@ -278,6 +278,31 @@ STATIC PROCEDURE Dxo_WriteMLeaderStyle( w, d, st )
    Sw_WriteBool( w, 295, st[ "property_changed" ] ) ; Sw_WriteBool( w, 296, st[ "is_annotative" ] ) ; Sw_WriteDouble( w, 143, st[ "break_gap_size" ] )
 RETURN
 
+STATIC PROCEDURE Dxo_WritePlotSettings( w, ps )
+   LOCAL h, m := ps[ "margins" ], pw := ps[ "plot_window" ]
+   Sw_WriteString( w, 0, "PLOTSETTINGS" ) ; Sw_WriteHandle( w, 5, ps[ "handle" ] )
+   IF Len( ps[ "reactors" ] ) > 0
+      Sw_WriteString( w, 102, "{ACAD_REACTORS" )
+      FOR EACH h IN ps[ "reactors" ] ; Sw_WriteHandle( w, 330, h ) ; NEXT
+      Sw_WriteString( w, 102, "}" )
+   ENDIF
+   IF ps[ "xdictionary_handle" ] != NIL
+      Sw_WriteString( w, 102, "{ACAD_XDICTIONARY" ) ; Sw_WriteHandle( w, 360, ps[ "xdictionary_handle" ] ) ; Sw_WriteString( w, 102, "}" )
+   ENDIF
+   Sw_WriteHandle( w, 330, ps[ "owner" ] ) ; Sw_WriteSubclass( w, "AcDbPlotSettings" )
+   Sw_WriteString( w, 1, ps[ "page_name" ] ) ; Sw_WriteString( w, 2, ps[ "printer_name" ] ) ; Sw_WriteString( w, 4, ps[ "paper_size" ] )
+   Sw_WriteString( w, 6, ps[ "plot_view_name" ] ) ; Sw_WriteString( w, 7, ps[ "current_style_sheet" ] )
+   Sw_WriteDouble( w, 40, m[ "left" ] ) ; Sw_WriteDouble( w, 41, m[ "bottom" ] ) ; Sw_WriteDouble( w, 42, m[ "right" ] ) ; Sw_WriteDouble( w, 43, m[ "top" ] )
+   Sw_WriteDouble( w, 44, ps[ "paper_width" ] ) ; Sw_WriteDouble( w, 45, ps[ "paper_height" ] ) ; Sw_WriteDouble( w, 46, ps[ "origin_x" ] ) ; Sw_WriteDouble( w, 47, ps[ "origin_y" ] )
+   Sw_WriteDouble( w, 48, pw[ "lower_left_x" ] ) ; Sw_WriteDouble( w, 49, pw[ "lower_left_y" ] ) ; Sw_WriteDouble( w, 140, pw[ "upper_right_x" ] ) ; Sw_WriteDouble( w, 141, pw[ "upper_right_y" ] )
+   Sw_WriteDouble( w, 142, ps[ "scale_numerator" ] ) ; Sw_WriteDouble( w, 143, ps[ "scale_denominator" ] ) ; Sw_WriteDouble( w, 147, ps[ "standard_scale_factor" ] )
+   Sw_WriteDouble( w, 148, ps[ "paper_image_origin_x" ] ) ; Sw_WriteDouble( w, 149, ps[ "paper_image_origin_y" ] )
+   Sw_WriteI16( w, 70, Pfl_ToBits( ps[ "flags" ] ) ) ; Sw_WriteI16( w, 72, Ppu_ToCode( ps[ "paper_units" ] ) ) ; Sw_WriteI16( w, 73, Prt_ToCode( ps[ "rotation" ] ) )
+   Sw_WriteI16( w, 74, Plt_ToCode( ps[ "plot_type" ] ) ) ; Sw_WriteI16( w, 75, Sct_ToCode( ps[ "scale_type" ] ) ) ; Sw_WriteI16( w, 76, Spm_ToCode( ps[ "shade_plot_mode" ] ) )
+   Sw_WriteI16( w, 77, Spr_ToCode( ps[ "shade_plot_resolution" ] ) ) ; Sw_WriteI16( w, 78, ps[ "shade_plot_dpi" ] )
+   IF ! Hd_IsNull( ps[ "visual_style_handle" ] ) ; Sw_WriteHandle( w, 333, ps[ "visual_style_handle" ] ) ; ENDIF
+RETURN
+
 STATIC PROCEDURE Dxo_WriteGroup( w, g )
    LOCAL h
    Sw_WriteString( w, 0, "GROUP" ) ; Sw_WriteHandle( w, 5, g[ "handle" ] ) ; Sw_WriteHandle( w, 330, g[ "owner" ] )
@@ -309,6 +334,7 @@ PROCEDURE Dxo_WriteObjects( w, d, nVer )
          CASE o[ "_type" ] == "ImageDefinition" ; Dxo_WriteImageDef( w, o )
          CASE o[ "_type" ] == "UnderlayDefinition" ; Dxo_WriteUnderlayDef( w, o )
          CASE o[ "_type" ] == "MultiLeaderStyle" ; Dxo_WriteMLeaderStyle( w, d, o )
+         CASE o[ "_type" ] == "PlotSettings" ; Dxo_WritePlotSettings( w, o )
          CASE o[ "_type" ] == "Scale" ; Dxo_WriteScale( w, o )
          CASE o[ "_type" ] == "DictionaryVariable" ; Dxo_WriteDictVar( w, o )
          CASE o[ "_type" ] == "Group" ; Dxo_WriteGroup( w, o )
