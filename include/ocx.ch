@@ -211,3 +211,23 @@
 #define MTF_SINGLELINE 0
 #define MTF_MULTILINE 2
 #define MTF_CONSTANTMULTILINE 4
+
+/* entities/dimension.rs: DimensionType y AttachmentPointType */
+#define DMT_LINEAR       0
+#define DMT_ALIGNED      1
+#define DMT_ANGULAR      2
+#define DMT_DIAMETER     3
+#define DMT_RADIUS       4
+#define DMT_ANGULAR3PT   5
+#define DMT_ORDINATE     6
+#define DMT_ARCLENGTH    8
+#define DMT_LARGERADIAL  9
+#define DAP_TOPLEFT      1
+#define DAP_TOPCENTER    2
+#define DAP_TOPRIGHT     3
+#define DAP_MIDDLELEFT   4
+#define DAP_MIDDLECENTER 5
+#define DAP_MIDDLERIGHT  6
+#define DAP_BOTTOMLEFT   7
+#define DAP_BOTTOMCENTER 8
+#define DAP_BOTTOMRIGHT  9
