@@ -331,4 +331,26 @@ PROCEDURE T_DxfRw()
       Chk( x != NIL .AND. Near( x[ "view_height" ], 33.5, 0.000000001 ) .AND. Near( x[ "view_center" ][ 2 ], 9.0, 0.000000001 ) .AND. Near( x[ "snap_rotation" ], OCX_PI, 0.000000001 ) .AND. x[ "grid_on" ] .AND. x[ "ucsfollow" ] .AND. ! x[ "snap_on" ] .AND. Near( x[ "ucs_origin" ][ 3 ], 3.0, 0.000000001 ), "[extra] tabla VPORT: escribir y releer" )
       Chk( ValType( d2 ) == "H" .AND. Len( Doc_ModelSpaceEntities( d2 ) ) == 8 .AND. Len( s1 ) == Len( Dxw_WriteString( d2 ) ), "[extra] muestra: escribir y releer conserva 8 entidades y es estable (HANDSEED puede subir)" )
    ENDIF
+   /* [extra] DIMENSION: roundtrip de las 7 variantes */
+   d2 := Doc_New()
+   x := Dal_New( Vc3_New( 0.0, 0.0, 0.0 ), Vc3_New( 10.0, 0.0, 0.0 ) ) ; x[ "common" ][ "layer" ] := "COTAS" ; Edm_SetDefinitionPoint( x, Vc3_New( 10.0, 3.0, 0.0 ) ) ; x[ "base" ][ "text" ] := "<>" ; Doc_AddEntity( d2, x )
+   x := Dli_Rotated( Vc3_New( 0.0, 0.0, 0.0 ), Vc3_New( 4.0, 3.0, 0.0 ), OCX_PI / 2.0 ) ; Edm_SetDefinitionPoint( x, Vc3_New( 6.0, 3.0, 0.0 ) ) ; x[ "base" ][ "text_user_positioned" ] := .T. ; x[ "base" ][ "text_middle_point" ] := Vc3_New( 5.0, 1.0, 0.0 ) ; Doc_AddEntity( d2, x )
+   x := Dra_New( Vc3_New( 0.0, 0.0, 0.0 ), Vc3_New( 5.0, 0.0, 0.0 ) ) ; x[ "leader_length" ] := 2.0 ; Doc_AddEntity( d2, x )
+   x := Ddi_New( Vc3_New( 0.0, 0.0, 0.0 ), Vc3_New( 8.0, 0.0, 0.0 ) ) ; Doc_AddEntity( d2, x )
+   x := Da2_Default() ; x[ "first_point" ] := Vc3_New( 1.0, 0.0, 0.0 ) ; x[ "second_point" ] := Vc3_New( 2.0, 0.0, 0.0 ) ; x[ "angle_vertex" ] := Vc3_New( 0.0, 3.0, 0.0 ) ; x[ "dimension_arc" ] := Vc3_New( 1.0, 1.0, 0.0 ) ; Edm_SetDefinitionPoint( x, Vc3_New( 0.0, 1.0, 0.0 ) ) ; Doc_AddEntity( d2, x )
+   x := Da3_New( Vc3_New( 0.0, 0.0, 0.0 ), Vc3_New( 1.0, 0.0, 0.0 ), Vc3_New( 0.0, 1.0, 0.0 ) ) ; Doc_AddEntity( d2, x )
+   x := Dor_New( Vc3_New( 3.0, 4.0, 0.0 ), Vc3_New( 5.0, 6.0, 0.0 ), .F. ) ; Doc_AddEntity( d2, x )
+   d2 := RT( d2 )
+   es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
+   Chk( Len( es ) == 7, "[extra] DIMENSION: 7 variantes releidas (" + hb_ntos( Len( es ) ) + ")" )
+   IF Len( es ) == 7
+      Chk( es[ 1 ][ "_type" ] == "DIMENSION_ALIGNED" .AND. es[ 1 ][ "common" ][ "layer" ] == "COTAS" .AND. Near( es[ 1 ][ "second_point" ][ 1 ], 10.0, 0.000000001 ) .AND. Near( es[ 1 ][ "definition_point" ][ 2 ], 3.0, 0.000000001 ) .AND. Near( es[ 1 ][ "base" ][ "actual_measurement" ], 10.0, 0.000000001 ) .AND. es[ 1 ][ "base" ][ "text" ] == "<>", "[extra] DIMENSION: aligned" )
+      Chk( es[ 2 ][ "_type" ] == "DIMENSION_LINEAR" .AND. Near( es[ 2 ][ "rotation" ], OCX_PI / 2.0, 0.000000001 ) .AND. es[ 2 ][ "base" ][ "text_user_positioned" ] .AND. Near( es[ 2 ][ "base" ][ "text_middle_point" ][ 1 ], 5.0, 0.000000001 ), "[extra] DIMENSION: linear rotada, texto manual" )
+      Chk( es[ 3 ][ "_type" ] == "DIMENSION_RADIUS" .AND. Near( es[ 3 ][ "angle_vertex" ][ 1 ], 0.0, 0.000000001 ) .AND. Near( es[ 3 ][ "definition_point" ][ 1 ], 5.0, 0.000000001 ) .AND. Near( es[ 3 ][ "leader_length" ], 2.0, 0.000000001 ), "[extra] DIMENSION: radius" )
+      Chk( es[ 4 ][ "_type" ] == "DIMENSION_DIAMETER" .AND. Near( es[ 4 ][ "definition_point" ][ 1 ], 8.0, 0.000000001 ) .AND. Near( es[ 4 ][ "angle_vertex" ][ 1 ], 0.0, 0.000000001 ), "[extra] DIMENSION: diameter" )
+      Chk( es[ 5 ][ "_type" ] == "DIMENSION_ANGULAR_2LINE" .AND. Near( es[ 5 ][ "angle_vertex" ][ 2 ], 3.0, 0.000000001 ) .AND. Near( es[ 5 ][ "dimension_arc" ][ 1 ], 1.0, 0.000000001 ) .AND. Near( es[ 5 ][ "definition_point" ][ 2 ], 1.0, 0.000000001 ), "[extra] DIMENSION: angular 2 lineas" )
+      Chk( es[ 6 ][ "_type" ] == "DIMENSION_ANGULAR_3POINT" .AND. Near( es[ 6 ][ "first_point" ][ 1 ], 1.0, 0.000000001 ) .AND. Near( es[ 6 ][ "angle_vertex" ][ 1 ], 0.0, 0.000000001 ), "[extra] DIMENSION: angular 3 puntos" )
+      Chk( es[ 7 ][ "_type" ] == "DIMENSION_ORDINATE" .AND. ! es[ 7 ][ "is_ordinate_type_x" ] .AND. Near( es[ 7 ][ "feature_location" ][ 2 ], 4.0, 0.000000001 ) .AND. Near( es[ 7 ][ "leader_endpoint" ][ 1 ], 5.0, 0.000000001 ), "[extra] DIMENSION: ordinate Y" )
+      Chk( es[ 1 ][ "common" ] == es[ 1 ][ "base" ][ "common" ], "[extra] DIMENSION: common compartido con base" )
+   ENDIF
 RETURN
