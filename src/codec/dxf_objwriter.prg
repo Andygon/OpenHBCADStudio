@@ -1,0 +1,152 @@
+/*----------------------------------------------------------------------------
+   OpenHBCADStudio - src/codec/dxf_objwriter.prg
+   Origen Rust: opencadcodec/src/io/dxf/writer/section_writer.rs (write_objects, write_dictionary, write_layout,
+   find_root_dict_handle). Licencia del original: MPL-2.0. Prefijo Dxo_.
+   PENDIENTE: solo se escriben DICTIONARY y LAYOUT; el resto de tipos, valid_handles y xdata de objetos no estan portados.
+   El original no tiene #[test] para estas funciones; los tests [extra] estan en t_dxf_rw.prg.
+----------------------------------------------------------------------------*/
+#include "ocx.ch"
+
+STATIC FUNCTION Dxo_FindRootDictHandle( d )
+   LOCAL nBest := 0, nCount := 0, h, o
+   FOR EACH h IN hb_HKeys( d[ "objects" ] )
+      o := d[ "objects" ][ h ]
+      IF o[ "_type" ] == "Dictionary" .AND. Hd_IsNull( o[ "owner" ] )
+         IF Len( o[ "entries" ] ) > nCount .OR. ( Len( o[ "entries" ] ) == nCount .AND. h > nBest )
+            nBest := h ; nCount := Len( o[ "entries" ] )
+         ENDIF
+      ENDIF
+   NEXT
+RETURN nBest
+
+/* tipos de objeto que este escritor emite: las entradas de diccionario a otros tipos se omiten (equivale al filtro valid_handles de Rust) */
+STATIC FUNCTION Dxo_IsWritten( o ) ; RETURN o[ "_type" ] == "Dictionary" .OR. o[ "_type" ] == "Layout"
+
+STATIC PROCEDURE Dxo_WriteDictionary( w, d, dic )
+   LOCAL aR := dic[ "reactors" ], hX, e, lForced
+   IF Len( aR ) == 0 ; aR := hb_HGetDef( d[ "reactors_by_handle" ], dic[ "handle" ], {} ) ; ENDIF
+   Sw_WriteString( w, 0, "DICTIONARY" ) ; Sw_WriteHandle( w, 5, dic[ "handle" ] )
+   IF Len( aR ) > 0
+      Sw_WriteString( w, 102, "{ACAD_REACTORS" )
+      FOR EACH e IN aR
+         IF ! Hd_IsNull( e ) ; Sw_WriteHandle( w, 330, e ) ; ENDIF
+      NEXT
+      Sw_WriteString( w, 102, "}" )
+   ENDIF
+   hX := dic[ "xdictionary_handle" ]
+   IF hX == NIL ; hX := Doc_ExtensionDictionaryHandle( d, dic[ "handle" ] ) ; ENDIF
+   IF hX != NIL .AND. ! Hd_IsNull( hX )
+      Sw_WriteString( w, 102, "{ACAD_XDICTIONARY" ) ; Sw_WriteHandle( w, 360, hX ) ; Sw_WriteString( w, 102, "}" )
+   ENDIF
+   Sw_WriteHandle( w, 330, dic[ "owner" ] )
+   Sw_WriteSubclass( w, "AcDbDictionary" )
+   Sw_WriteByte( w, 280, IIf( dic[ "hard_owner" ], 1, 0 ) ) ; Sw_WriteByte( w, 281, dic[ "duplicate_cloning" ] )
+   FOR EACH e IN dic[ "entries" ]
+      IF hb_HHasKey( d[ "objects" ], e[ 2 ] ) .AND. Dxo_IsWritten( d[ "objects" ][ e[ 2 ] ] )
+         Sw_WriteString( w, 3, e[ 1 ] )
+         lForced := Dic_IsEntryHardOwner( dic, e[ 1 ] ) .OR. Dic_IsCanonicalHardOwnerKey( e[ 1 ] )
+         Sw_WriteHandle( w, IIf( dic[ "hard_owner" ] .OR. lForced, 360, 350 ), e[ 2 ] )
+      ENDIF
+   NEXT
+RETURN
+
+STATIC PROCEDURE Dxo_WriteLayout( w, l )
+   LOCAL x, nF
+   Sw_WriteString( w, 0, "LAYOUT" ) ; Sw_WriteHandle( w, 5, l[ "handle" ] )
+   IF l[ "xdictionary_handle" ] != NIL .AND. ! Hd_IsNull( l[ "xdictionary_handle" ] )
+      Sw_WriteString( w, 102, "{ACAD_XDICTIONARY" ) ; Sw_WriteHandle( w, 360, l[ "xdictionary_handle" ] ) ; Sw_WriteString( w, 102, "}" )
+   ENDIF
+   IF Len( l[ "reactors" ] ) > 0
+      Sw_WriteString( w, 102, "{ACAD_REACTORS" )
+      FOR EACH x IN l[ "reactors" ] ; Sw_WriteHandle( w, 330, x ) ; NEXT
+      Sw_WriteString( w, 102, "}" )
+   ENDIF
+   Sw_WriteHandle( w, 330, l[ "owner" ] )
+   Sw_WriteSubclass( w, "AcDbPlotSettings" )
+   IF l[ "raw_plot_settings_codes" ] != NIL
+      FOR EACH x IN l[ "raw_plot_settings_codes" ] ; Sw_WriteString( w, x[ 1 ], x[ 2 ] ) ; NEXT
+   ELSE
+      Sw_WriteString( w, 1, l[ "plot_page_name" ] ) ; Sw_WriteString( w, 2, l[ "plot_printer_name" ] ) ; Sw_WriteString( w, 4, l[ "paper_size" ] )
+      Sw_WriteString( w, 6, l[ "plot_view_name" ] ) ; Sw_WriteString( w, 7, l[ "plot_style_sheet" ] )
+      Sw_WriteDouble( w, 40, l[ "plot_margin_left" ] )
+      Sw_WriteDouble( w, 41, l[ "plot_margin_bottom" ] )
+      Sw_WriteDouble( w, 42, l[ "plot_margin_right" ] )
+      Sw_WriteDouble( w, 43, l[ "plot_margin_top" ] )
+      Sw_WriteDouble( w, 44, l[ "paper_width" ] )
+      Sw_WriteDouble( w, 45, l[ "paper_height" ] )
+      Sw_WriteDouble( w, 46, l[ "plot_origin_x" ] )
+      Sw_WriteDouble( w, 47, l[ "plot_origin_y" ] )
+      Sw_WriteDouble( w, 48, l[ "plot_window_min_x" ] )
+      Sw_WriteDouble( w, 49, l[ "plot_window_min_y" ] )
+      Sw_WriteDouble( w, 140, l[ "plot_window_max_x" ] )
+      Sw_WriteDouble( w, 141, l[ "plot_window_max_y" ] )
+      Sw_WriteDouble( w, 142, l[ "plot_scale_numerator" ] )
+      Sw_WriteDouble( w, 143, l[ "plot_scale_denominator" ] )
+      Sw_WriteDouble( w, 147, l[ "plot_scale_factor" ] )
+      Sw_WriteDouble( w, 148, l[ "paper_image_origin_x" ] )
+      Sw_WriteDouble( w, 149, l[ "paper_image_origin_y" ] )
+      nF := Pfl_ToBits( l[ "plot_flags" ] )
+      IF l[ "name" ] == "Model" ; nF := hb_bitOr( nF, 1024 ) ; ENDIF
+      Sw_WriteI16( w, 70, nF )
+      Sw_WriteI16( w, 72, l[ "plot_paper_units" ] )
+      Sw_WriteI16( w, 73, l[ "plot_rotation" ] )
+      Sw_WriteI16( w, 74, l[ "plot_type" ] )
+      Sw_WriteI16( w, 75, l[ "plot_scale_type" ] )
+      Sw_WriteI16( w, 76, l[ "shade_plot_mode" ] )
+      Sw_WriteI16( w, 77, l[ "shade_plot_resolution" ] )
+      Sw_WriteI16( w, 78, l[ "shade_plot_dpi" ] )
+      IF ! Hd_IsNull( l[ "visual_style_handle" ] ) ; Sw_WriteHandle( w, 333, l[ "visual_style_handle" ] ) ; ENDIF
+   ENDIF
+   Sw_WriteSubclass( w, "AcDbLayout" )
+   Sw_WriteString( w, 1, l[ "name" ] ) ; Sw_WriteI16( w, 70, l[ "flags" ] ) ; Sw_WriteI16( w, 71, l[ "tab_order" ] )
+   Sw_WriteDouble( w, 10, l[ "min_limits" ][ 1 ] )
+   Sw_WriteDouble( w, 20, l[ "min_limits" ][ 2 ] )
+   Sw_WriteDouble( w, 11, l[ "max_limits" ][ 1 ] )
+   Sw_WriteDouble( w, 21, l[ "max_limits" ][ 2 ] )
+   Sw_WriteDouble( w, 12, l[ "insertion_base" ][ 1 ] )
+   Sw_WriteDouble( w, 22, l[ "insertion_base" ][ 2 ] )
+   Sw_WriteDouble( w, 32, l[ "insertion_base" ][ 3 ] )
+   Sw_WriteDouble( w, 14, l[ "min_extents" ][ 1 ] )
+   Sw_WriteDouble( w, 24, l[ "min_extents" ][ 2 ] )
+   Sw_WriteDouble( w, 34, l[ "min_extents" ][ 3 ] )
+   Sw_WriteDouble( w, 15, l[ "max_extents" ][ 1 ] )
+   Sw_WriteDouble( w, 25, l[ "max_extents" ][ 2 ] )
+   Sw_WriteDouble( w, 35, l[ "max_extents" ][ 3 ] )
+   Sw_WriteDouble( w, 146, l[ "elevation" ] )
+   Sw_WriteDouble( w, 13, l[ "ucs_origin" ][ 1 ] )
+   Sw_WriteDouble( w, 23, l[ "ucs_origin" ][ 2 ] )
+   Sw_WriteDouble( w, 33, l[ "ucs_origin" ][ 3 ] )
+   Sw_WriteDouble( w, 16, l[ "ucs_x_axis" ][ 1 ] )
+   Sw_WriteDouble( w, 26, l[ "ucs_x_axis" ][ 2 ] )
+   Sw_WriteDouble( w, 36, l[ "ucs_x_axis" ][ 3 ] )
+   Sw_WriteDouble( w, 17, l[ "ucs_y_axis" ][ 1 ] )
+   Sw_WriteDouble( w, 27, l[ "ucs_y_axis" ][ 2 ] )
+   Sw_WriteDouble( w, 37, l[ "ucs_y_axis" ][ 3 ] )
+   Sw_WriteI16( w, 76, l[ "ucs_ortho_type" ] )
+   Sw_WriteHandle( w, 330, l[ "block_record" ] )
+   IF ! Hd_IsNull( l[ "viewport" ] ) ; Sw_WriteHandle( w, 331, l[ "viewport" ] ) ; ENDIF
+   IF ! Hd_IsNull( l[ "named_ucs" ] ) ; Sw_WriteHandle( w, 345, l[ "named_ucs" ] ) ; ENDIF
+   IF ! Hd_IsNull( l[ "base_ucs" ] ) ; Sw_WriteHandle( w, 346, l[ "base_ucs" ] ) ; ENDIF
+RETURN
+
+PROCEDURE Dxo_WriteObjects( w, d )
+   LOCAL nRoot := d[ "header" ][ "named_objects_dict_handle" ], aK, h, o
+   Sw_WriteSectionStart( w, "OBJECTS" )
+   IF Hd_IsNull( nRoot ) .OR. ! hb_HHasKey( d[ "objects" ], nRoot ) .OR. ! d[ "objects" ][ nRoot ][ "_type" ] == "Dictionary"
+      nRoot := Dxo_FindRootDictHandle( d )
+   ENDIF
+   IF hb_HHasKey( d[ "objects" ], nRoot ) .AND. d[ "objects" ][ nRoot ][ "_type" ] == "Dictionary"
+      Dxo_WriteDictionary( w, d, d[ "objects" ][ nRoot ] )
+   ENDIF
+   aK := ASort( hb_HKeys( d[ "objects" ] ) )
+   FOR EACH h IN aK
+      IF h != nRoot
+         o := d[ "objects" ][ h ]
+         DO CASE
+         CASE o[ "_type" ] == "Dictionary" ; Dxo_WriteDictionary( w, d, o )
+         CASE o[ "_type" ] == "Layout" ; Dxo_WriteLayout( w, o )
+         ENDCASE
+      ENDIF
+   NEXT
+   Sw_WriteSectionEnd( w )
+RETURN
