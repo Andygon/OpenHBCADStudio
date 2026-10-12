@@ -238,6 +238,43 @@ STATIC FUNCTION Dxo_ReadMLineStyle( s )
    ENDDO
 RETURN st
 
+STATIC FUNCTION Dxo_ReadScale( s )
+   LOCAL sc := Scl_New( "1:1", 1.0, 1.0 ), p, v
+   sc[ "is_unit_scale" ] := .T.
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      DO CASE
+      CASE p[ DP_CODE ] == 5
+         v := Sr_HexVal( p ) ; IF v != NIL ; sc[ "handle" ] := v ; ENDIF
+      CASE p[ DP_CODE ] == 330
+         v := Sr_HexVal( p ) ; IF v != NIL ; sc[ "owner_handle" ] := v ; ENDIF
+      CASE p[ DP_CODE ] == 300 ; sc[ "name" ] := p[ DP_VALUE ]
+      CASE p[ DP_CODE ] == 140
+         v := Dp_AsDouble( p ) ; IF v != NIL ; sc[ "paper_units" ] := v ; ENDIF
+      CASE p[ DP_CODE ] == 141
+         v := Dp_AsDouble( p ) ; IF v != NIL ; sc[ "drawing_units" ] := v ; ENDIF
+      CASE p[ DP_CODE ] == 290
+         v := Dp_AsBool( p ) ; IF v != NIL ; sc[ "is_unit_scale" ] := v ; ENDIF
+      ENDCASE
+   ENDDO
+RETURN sc
+
+STATIC FUNCTION Dxo_ReadDictVar( s )
+   LOCAL dv := Dvr_New( "", "" ), p, v
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      DO CASE
+      CASE p[ DP_CODE ] == 5
+         v := Sr_HexVal( p ) ; IF v != NIL ; dv[ "handle" ] := v ; ENDIF
+      CASE p[ DP_CODE ] == 330
+         v := Sr_HexVal( p ) ; IF v != NIL ; dv[ "owner_handle" ] := v ; ENDIF
+      CASE p[ DP_CODE ] == 280
+         v := Dp_AsI16( p ) ; IF v != NIL ; dv[ "schema_number" ] := v ; ENDIF
+      CASE p[ DP_CODE ] == 1 ; dv[ "value" ] := p[ DP_VALUE ]
+      ENDCASE
+   ENDDO
+RETURN dv
+
 STATIC FUNCTION Dxo_ReadDictionary( s )
    LOCAL d := Dic_New(), p, cKey := NIL, v
    DO WHILE ( p := Sr_Next( s ) ) != NIL
@@ -379,6 +416,10 @@ PROCEDURE Dxo_ReadObjects( s, d )
             o := Dxo_ReadXRecord( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
          CASE p[ DP_VALUE ] == "MLINESTYLE"
             o := Dxo_ReadMLineStyle( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
+         CASE p[ DP_VALUE ] == "SCALE"
+            o := Dxo_ReadScale( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
+         CASE p[ DP_VALUE ] == "DICTIONARYVAR"
+            o := Dxo_ReadDictVar( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
          CASE p[ DP_VALUE ] == "GROUP"
             o := Dxo_ReadGroup( s ) ; d[ "objects" ][ o[ "handle" ] ] := o
          OTHERWISE
