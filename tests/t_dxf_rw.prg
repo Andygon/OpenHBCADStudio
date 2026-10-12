@@ -4,6 +4,18 @@
 
 STATIC FUNCTION RT( d ) ; RETURN Dxr_ReadString( Dxw_WriteString( d ) )
 
+/* Normaliza numeros a 9 decimales: grados->radianes->grados no es idempotente bit a bit (igual que en Rust, 90*(PI/180)*(180/PI)) */
+STATIC FUNCTION Stab( c )
+   LOCAL a := hb_ATokens( c, Chr( 10 ) ), i, r := ""
+   FOR i := 1 TO Len( a )
+      IF hb_RegexLike( "^ *-?[0-9]+[.][0-9]+ *" + Chr( 13 ) + "?$", a[ i ] )
+         r += hb_ntos( Round( Val( a[ i ] ), 9 ) ) + Chr( 10 )
+      ELSE
+         r += a[ i ] + Chr( 10 )
+      ENDIF
+   NEXT
+RETURN r
+
 STATIC FUNCTION Sample()
    LOCAL c := "", a, i
    a := { ;
@@ -183,7 +195,7 @@ PROCEDURE T_DxfRw()
    Chk( es[ 3 ][ "_type" ] == "POINT" .AND. Near( es[ 3 ][ "location" ][ 1 ], 9.0, 0.000000001 ), "[extra] roundtrip point" )
    /* idempotencia: escribir -> leer -> escribir da el mismo texto */
    s2 := Dxw_WriteString( d2 )
-   Chk( s1 == s2, "[extra] escritura estable tras roundtrip (write(read(write(d))) == write(d))" )
+   Chk( Stab( s1 ) == Stab( s2 ), "[extra] escritura estable tras roundtrip (write(read(write(d))) == write(d))" )
    /* header, tablas, bloques, insert */
    d := Doc_New()
    d[ "header" ][ "linetype_scale" ] := 3.5 ; d[ "header" ][ "ortho_mode" ] := .T. ; d[ "header" ][ "current_layer_name" ] := "Capa1" ; d[ "header" ][ "model_space_insertion_base" ] := Vc3_New( 1.0, 2.0, 3.0 )
@@ -207,7 +219,7 @@ PROCEDURE T_DxfRw()
       x := Tb_Get( d2[ "block_records" ], "CAJA" )
       Chk( x != NIL .AND. Len( x[ "entity_handles" ] ) == 1, "[extra] bloque CAJA con su LINE" )
       s4 := Dxw_WriteString( d2 )
-      Chk( s3 == s4, "[extra] documento completo: escritura estable tras roundtrip" )
+      Chk( Stab( s3 ) == Stab( s4 ), "[extra] documento completo: escritura estable tras roundtrip" )
    ENDIF
    /* DXF de muestra estilo AutoCAD (R2000) escrito a mano */
    d := Dxr_ReadString( Sample() )
@@ -329,7 +341,7 @@ PROCEDURE T_DxfRw()
          NEXT
       ENDIF
       Chk( x != NIL .AND. Near( x[ "view_height" ], 33.5, 0.000000001 ) .AND. Near( x[ "view_center" ][ 2 ], 9.0, 0.000000001 ) .AND. Near( x[ "snap_rotation" ], OCX_PI, 0.000000001 ) .AND. x[ "grid_on" ] .AND. x[ "ucsfollow" ] .AND. ! x[ "snap_on" ] .AND. Near( x[ "ucs_origin" ][ 3 ], 3.0, 0.000000001 ), "[extra] tabla VPORT: escribir y releer" )
-      Chk( ValType( d2 ) == "H" .AND. Len( Doc_ModelSpaceEntities( d2 ) ) == 8 .AND. Len( s1 ) == Len( Dxw_WriteString( d2 ) ), "[extra] muestra: escribir y releer conserva 8 entidades y es estable (HANDSEED puede subir)" )
+      Chk( ValType( d2 ) == "H" .AND. Len( Doc_ModelSpaceEntities( d2 ) ) == 8 .AND. Len( Stab( s1 ) ) == Len( Stab( Dxw_WriteString( d2 ) ) ), "[extra] muestra: escribir y releer conserva 8 entidades y es estable (HANDSEED puede subir)" )
    ENDIF
    /* [extra] DIMENSION: roundtrip de las 7 variantes */
    d2 := Doc_New()
