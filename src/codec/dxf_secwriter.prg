@@ -1371,7 +1371,7 @@ STATIC PROCEDURE Swr_Multileader( st, e, hOwner )
 RETURN
 
 STATIC PROCEDURE Swr_WriteEntity( st, e, hOwner )
-   LOCAL w := st[ 1 ], c := e[ "common" ], t := e[ "_type" ], v, hSeq, att, nI, g, q
+   LOCAL w := st[ 1 ], c := e[ "common" ], t := e[ "_type" ], v, hSeq, att, nI, g, q, ph, i
    DO CASE
    CASE t == "POINT"
       Sw_WriteEntityType( w, "POINT" ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbPoint" )
@@ -1612,6 +1612,53 @@ STATIC PROCEDURE Swr_WriteEntity( st, e, hOwner )
          Sw_WriteString( w, 8, c[ "layer" ] )
       ENDIF
       RETURN
+   CASE t == "UNKNOWN"
+      IF e[ "raw_dxf_codes" ] == NIL ; RETURN ; ENDIF
+      Sw_WriteEntityType( w, e[ "dxf_name" ] ) ; Swr_CommonEntity( st, c, hOwner )
+      FOR EACH v IN e[ "raw_dxf_codes" ] ; Sw_WriteString( w, v[ 1 ], v[ 2 ] ) ; NEXT
+   CASE t == "LIGHT"
+      Sw_WriteEntityType( w, "LIGHT" ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbLight" )
+      Sw_WriteI32( w, 90, e[ "class_version" ] ) ; Sw_WriteString( w, 1, e[ "name" ] ) ; Sw_WriteI16( w, 70, e[ "light_type" ] )
+      Sw_WriteBool( w, 290, e[ "status" ] ) ; Sw_WriteColor( w, 63, e[ "light_color" ] )
+      IF e[ "light_color" ][ 1 ] == CK_RGB
+         Sw_WriteI32( w, 421, hb_bitOr( hb_bitOr( hb_bitShift( e[ "light_color" ][ 2 ], 16 ), hb_bitShift( e[ "light_color" ][ 3 ], 8 ) ), e[ "light_color" ][ 4 ] ) )
+      ENDIF
+      Sw_WriteBool( w, 291, e[ "plot_glyph" ] ) ; Sw_WriteDouble( w, 40, e[ "intensity" ] )
+      Sw_WritePoint3d( w, 10, e[ "position" ] ) ; Sw_WritePoint3d( w, 11, e[ "target" ] )
+      Sw_WriteI16( w, 72, e[ "attenuation_type" ] ) ; Sw_WriteBool( w, 292, e[ "use_attenuation_limits" ] )
+      Sw_WriteDouble( w, 41, e[ "attenuation_start_limit" ] ) ; Sw_WriteDouble( w, 42, e[ "attenuation_end_limit" ] )
+      Sw_WriteDouble( w, 50, e[ "hotspot_angle" ] ) ; Sw_WriteDouble( w, 51, e[ "falloff_angle" ] )
+      Sw_WriteBool( w, 293, e[ "cast_shadows" ] ) ; Sw_WriteI16( w, 73, e[ "shadow_type" ] )
+      Sw_WriteI32( w, 91, e[ "shadow_map_size" ] ) ; Sw_WriteI16( w, 280, e[ "shadow_map_softness" ] )
+      IF e[ "photometric_mode" ]
+         Sw_WriteBool( w, 295, e[ "photometric_data" ] != NIL )
+         IF e[ "photometric_data" ] != NIL
+            ph := e[ "photometric_data" ]
+            Sw_WriteBool( w, 290, ph[ "has_web_file" ] ) ; Sw_WriteString( w, 300, ph[ "web_file" ] ) ; Sw_WriteI16( w, 70, ph[ "physical_intensity_method" ] )
+            Sw_WriteDouble( w, 40, ph[ "physical_intensity" ] ) ; Sw_WriteDouble( w, 41, ph[ "illuminance_distance" ] ) ; Sw_WriteI16( w, 71, ph[ "lamp_color_type" ] )
+            Sw_WriteDouble( w, 42, ph[ "lamp_color_temperature" ] ) ; Sw_WriteI16( w, 72, ph[ "lamp_color_preset" ] ) ; Sw_WritePoint3d( w, 43, ph[ "web_rotation" ] )
+            Sw_WriteI16( w, 73, ph[ "extended_light_shape" ] ) ; Sw_WriteDouble( w, 46, ph[ "extended_light_length" ] ) ; Sw_WriteDouble( w, 47, ph[ "extended_light_width" ] )
+            Sw_WriteDouble( w, 48, ph[ "extended_light_radius" ] ) ; Sw_WriteI16( w, 74, ph[ "web_file_type" ] ) ; Sw_WriteI16( w, 75, ph[ "web_symmetry" ] )
+            Sw_WriteI16( w, 76, ph[ "has_target_grip" ] ) ; Sw_WriteDouble( w, 49, ph[ "web_flux" ] )
+            FOR i := 1 TO Len( ph[ "web_angles" ] ) ; Sw_WriteDouble( w, 49 + i, ph[ "web_angles" ][ i ] ) ; NEXT
+            Sw_WriteI16( w, 77, ph[ "glyph_display_type" ] )
+         ENDIF
+      ENDIF
+   CASE t == "SECTIONLINE"
+      Sw_WriteEntityType( w, "SECTIONLINE" ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbViewSymbol" )
+      Sw_WriteI16( w, 70, e[ "view_symbol_version" ] ) ; Sw_WriteHandle( w, 340, e[ "style_handle" ] ) ; Sw_WriteDouble( w, 40, e[ "symbol_scale" ] )
+      Sw_WriteHandle( w, 330, e[ "view_rep_handle" ] ) ; Sw_WriteI16( w, 70, e[ "raw_view_symbol_70" ] ) ; Sw_WriteSubclass( w, "AcDbSectionSymbol" )
+      Sw_WriteI16( w, 70, e[ "version" ] ) ; Sw_WriteI32( w, 90, e[ "raw_point_count_90" ] ) ; Sw_WriteI32( w, 90, e[ "raw_flags_90" ] ) ; Sw_WriteI32( w, 90, e[ "raw_point_record_count" ] )
+      FOR EACH v IN e[ "points" ]
+         Sw_WriteDouble( w, 10, v[ "point" ][ 1 ] ) ; Sw_WriteDouble( w, 20, v[ "point" ][ 2 ] ) ; Sw_WriteDouble( w, 30, v[ "point" ][ 3 ] ) ; Sw_WriteDouble( w, 40, v[ "bulge" ] )
+         Sw_WriteString( w, 1, v[ "label" ] ) ; Sw_WriteDouble( w, 11, v[ "label_offset" ][ 1 ] ) ; Sw_WriteDouble( w, 21, v[ "label_offset" ][ 2 ] ) ; Sw_WriteDouble( w, 31, v[ "label_offset" ][ 3 ] )
+         Sw_WriteI16( w, 280, v[ "raw_flag_280" ] )
+      NEXT
+   CASE t == "DRAWINGVIEW"
+      Sw_WriteEntityType( w, "DRAWINGVIEW" ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbViewBorder" ) ; Sw_WriteI16( w, 70, e[ "version" ] )
+      Sw_WriteDouble( w, 10, e[ "min" ][ 1 ] ) ; Sw_WriteDouble( w, 20, e[ "min" ][ 2 ] ) ; Sw_WriteDouble( w, 10, e[ "max" ][ 1 ] ) ; Sw_WriteDouble( w, 20, e[ "max" ][ 2 ] )
+      Sw_WriteHandle( w, 330, e[ "active_viewport" ] ) ; Sw_WriteDouble( w, 40, e[ "scale" ] ) ; Sw_WriteDouble( w, 40, e[ "rotation_angle" ] )
+      Sw_WriteDouble( w, 40, e[ "center" ][ 1 ] ) ; Sw_WriteDouble( w, 40, e[ "center" ][ 2 ] ) ; Sw_WriteHandle( w, 340, e[ "scale_handle" ] )
    OTHERWISE
       RETURN /* PENDIENTE: resto de tipos */
    ENDCASE
@@ -1775,10 +1822,14 @@ STATIC FUNCTION Dxw_PrepareDbRefs( d )
 RETURN d
 
 /* build_valid_handles: handles que apareceran en el DXF (objetos, block records y sus entidades, indice de entidades, atributos de INSERT,
-   registros y cabeceras de tablas). Hash handle -> .T. ; vacio = sin filtro. PENDIENTE: Unknown/Associative/DynamicBlock "no restaurables" y loft_input_entities (sin modelo). */
+   registros y cabeceras de tablas). Hash handle -> .T. ; vacio = sin filtro. Unknown "no restaurables" portado; PENDIENTE: Associative/DynamicBlock "no restaurables" y loft_input_entities (sin modelo). */
 STATIC FUNCTION Dxw_BuildValidHandles( d )
    LOCAL h := hb_Hash(), k, br, e, a, t
-   FOR EACH k IN hb_HKeys( d[ "objects" ] ) ; h[ k ] := .T. ; NEXT
+   FOR EACH k IN hb_HKeys( d[ "objects" ] )
+      e := d[ "objects" ][ k ]
+      IF e[ "_type" ] == "Unknown" .AND. ( e[ "raw_dxf_codes" ] == NIL .OR. Dxo_IsUnrestorable( e[ "type_name" ] ) ) ; LOOP ; ENDIF
+      h[ k ] := .T.
+   NEXT
    FOR EACH br IN Tb_Values( d[ "block_records" ] )
       h[ br[ "handle" ] ] := .T.
       FOR EACH k IN br[ "entity_handles" ] ; h[ k ] := .T. ; NEXT
