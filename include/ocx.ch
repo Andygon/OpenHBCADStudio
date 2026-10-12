@@ -330,3 +330,17 @@
 #define WCT_POLYGONAL    2
 #define WCM_OUTSIDE      0
 #define WCM_INSIDE       1
+
+/* entities/raster_image.rs: ClipMode, ResolutionUnit, ImageDisplayQuality, ImageDisplayFlags (ClipType = WCT_*) */
+#define CLM_OUTSIDE 0
+#define CLM_INSIDE  1
+#define RU_NONE        0
+#define RU_CENTIMETERS 2
+#define RU_INCHES      5
+#define IDQ_DRAFT 0
+#define IDQ_HIGH  1
+#define IDF_NONE                  0
+#define IDF_SHOW_IMAGE            1
+#define IDF_SHOW_NOT_ALIGNED      2
+#define IDF_USE_CLIPPING_BOUNDARY 4
+#define IDF_TRANSPARENCY_ON       8
