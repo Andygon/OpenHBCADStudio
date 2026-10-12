@@ -2388,6 +2388,49 @@ STATIC FUNCTION Sr_ReadHatchKind( s, lMp )
    pt := PR_GetPoint( rMx ) ; IF pt != NIL ; h[ "mpolygon_x_direction" ] := Vc2_New( pt[ 1 ], pt[ 2 ] ) ; ENDIF
 RETURN h
 
+STATIC FUNCTION Sr_ReadUnderlay( s, cT )
+   LOCAL e := Eul_Entity( IIf( cT == "DWFUNDERLAY", UTY_DWF, IIf( cT == "DGNUNDERLAY", UTY_DGN, UTY_PDF ) ) ), p, n, v, rI := PR_New(), rN := PR_New(), pt, nL
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      n := p[ DP_CODE ]
+      DO CASE
+      CASE n == 8 ; e[ "common" ][ "layer" ] := p[ DP_VALUE ]
+      CASE n == 62
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "common" ][ "color" ] := Cl_FromIndex( v ) ; ENDIF
+      CASE n == 10 .OR. n == 20 .OR. n == 30 ; PR_AddCoordinate( rI, p )
+      CASE n == 210 .OR. n == 220 .OR. n == 230 ; PR_AddCoordinate( rN, p )
+      CASE n == 41
+         v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "x_scale" ] := v ; ENDIF
+      CASE n == 42
+         v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "y_scale" ] := v ; ENDIF
+      CASE n == 43
+         v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "z_scale" ] := v ; ENDIF
+      CASE n == 50
+         v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "rotation" ] := Sr_Deg( v ) ; ENDIF
+      CASE n == 280
+         v := Dp_AsI16( p )
+         IF v != NIL
+            e[ "flags" ] := hb_bitAnd( hb_bitAnd( v, 255 ), 31 )
+            e[ "clip_inverted" ] := ( hb_bitAnd( e[ "flags" ], UDF_CLIP_INSIDE ) != 0 )
+         ENDIF
+      CASE n == 281
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "contrast" ] := hb_bitAnd( v, 255 ) ; ENDIF
+      CASE n == 282
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "fade" ] := hb_bitAnd( v, 255 ) ; ENDIF
+      CASE n == 340
+         v := Sr_HexVal( p ) ; IF v != NIL ; e[ "definition_handle" ] := v ; ENDIF
+      CASE n == 11
+         v := Dp_AsDouble( p ) ; IF v != NIL ; AAdd( e[ "clip_boundary_vertices" ], Vc2_New( v, 0.0 ) ) ; ENDIF
+      CASE n == 21
+         v := Dp_AsDouble( p ) ; nL := Len( e[ "clip_boundary_vertices" ] )
+         IF v != NIL .AND. nL > 0 ; e[ "clip_boundary_vertices" ][ nL ][ 2 ] := v ; ENDIF
+      OTHERWISE ; Sr_EntBase( s, p, e )
+      ENDCASE
+   ENDDO
+   pt := PR_GetPoint( rI ) ; e[ "insertion_point" ] := IIf( pt == NIL, Vc3_Zero(), pt )
+   pt := PR_GetPoint( rN ) ; e[ "normal" ] := IIf( pt == NIL, Vc3_New( 0.0, 0.0, 1.0 ), pt )
+RETURN e
+
 STATIC FUNCTION Sr_ReadEntityOfType( s, cT )
    LOCAL p
    DO CASE
@@ -2412,6 +2455,7 @@ STATIC FUNCTION Sr_ReadEntityOfType( s, cT )
    CASE cT == "DIMENSION" ; RETURN Sr_ReadDimension( s )
    CASE cT == "TOLERANCE" ; RETURN Sr_ReadTolerance( s )
    CASE cT == "SHAPE" ; RETURN Sr_ReadShape( s )
+   CASE cT == "PDFUNDERLAY" .OR. cT == "DWFUNDERLAY" .OR. cT == "DGNUNDERLAY" ; RETURN Sr_ReadUnderlay( s, cT )
    CASE cT == "HATCH" ; RETURN Sr_ReadHatchKind( s, .F. )
    CASE cT == "MPOLYGON" ; RETURN Sr_ReadHatchKind( s, .T. )
    CASE cT == "HELIX" ; RETURN Sr_ReadHelix( s )
