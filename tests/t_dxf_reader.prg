@@ -108,4 +108,21 @@ PROCEDURE T_DxfReader()
    d := Doc_New() ; e := Eci_New() ; e[ "center" ] := Vc3_New( 5.0, 10.0, 0.0 ) ; e[ "radius" ] := 3.5 ; Doc_AddEntity( d, e )
    d := Rb( d ) ; es := IIf( ValType( d ) == "H", Doc_Entities( d ), {} )
    Chk( Len( es ) == 1 .AND. es[ 1 ][ "_type" ] == "CIRCLE" .AND. Nr( es[ 1 ][ "center" ][ 1 ], 5.0 ) .AND. Nr( es[ 1 ][ "center" ][ 2 ], 10.0 ) .AND. Nr( es[ 1 ][ "radius" ], 3.5 ), "dxf_reader: test_binary_dxf_roundtrip_circle" )
+   /* spatial_filter_matrix_is_column_major */
+   m := Dxo_MatrixFromColMajor( { 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -200.0, -150.0, 0.0 } )
+   a := Mx4_TransformPoint( m, Vc3_New( 210.0, 160.0, 0.0 ) )
+   Chk( Mx4_Eq( m, { { 1.0, 0.0, 0.0, -200.0 }, { 0.0, 1.0, 0.0, -150.0 }, { 0.0, 0.0, 1.0, 0.0 }, { 0.0, 0.0, 0.0, 1.0 } } ) ;
+      .AND. Abs( a[ 1 ] - 10.0 ) < 0.000000001 .AND. Abs( a[ 2 ] - 10.0 ) < 0.000000001, "dxf_reader: spatial_filter_matrix_is_column_major" )
+   /* spatial_filter_dxf_roundtrip_preserves_translation */
+   d := Doc_New() ; e := Spf_New() ; e[ "handle" ] := 171
+   e[ "boundary_points" ] := { { 210.0, 160.0 }, { 240.0, 190.0 } } ; e[ "inverse_block_transform" ] := Mx4_Translation( -200.0, -150.0, 0.0 )
+   d[ "objects" ][ 171 ] := e
+   d := Rt( d )
+   Chk( ValType( d ) == "H" .AND. hb_HHasKey( d[ "objects" ], 171 ) .AND. Mx4_Eq( d[ "objects" ][ 171 ][ "inverse_block_transform" ], Mx4_Translation( -200.0, -150.0, 0.0 ) ), "dxf_reader: spatial_filter_dxf_roundtrip_preserves_translation" )
+   /* [extra] spatial_filter: puntos, flags y clips */
+   d := Doc_New() ; e := Spf_New() ; e[ "handle" ] := 172 ; e[ "front_clip" ] := 1.5 ; e[ "back_clip" ] := 7.0 ; e[ "display_enabled" ] := .F.
+   e[ "boundary_points" ] := { { 1.0, 2.0 }, { 3.0, 4.0 } } ; e[ "clip_bound_transform" ] := Mx4_Translation( 5.0, 6.0, 7.0 )
+   d[ "objects" ][ 172 ] := e ; d := Rt( d ) ; e := IIf( ValType( d ) == "H" .AND. hb_HHasKey( d[ "objects" ], 172 ), d[ "objects" ][ 172 ], NIL )
+   Chk( e != NIL .AND. Len( e[ "boundary_points" ] ) == 2 .AND. e[ "boundary_points" ][ 2 ][ 2 ] == 4.0 .AND. e[ "front_clip" ] == 1.5 .AND. e[ "back_clip" ] == 7.0 ;
+      .AND. ! e[ "display_enabled" ] .AND. Mx4_Eq( e[ "clip_bound_transform" ], Mx4_Translation( 5.0, 6.0, 7.0 ) ) .AND. Mx4_Eq( e[ "inverse_block_transform" ], Mx4_Identity() ), "dxf_reader: [extra] spatial_filter completo" )
 RETURN
