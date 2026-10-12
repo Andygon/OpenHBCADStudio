@@ -382,7 +382,7 @@ STATIC PROCEDURE Swr_LtypeEntry( st, d, lt, hOwner )
          ENDIF
          Sw_WriteHandle( w, 340, hS )
          Sw_WriteDouble( w, 46, c[ "scale" ] )
-         Sw_WriteDouble( w, 50, c[ "rotation" ] * 180.0 / OCX_PI )
+         Sw_WriteDouble( w, 50, c[ "rotation" ] * ( 180.0 / OCX_PI ) )
          Sw_WriteDouble( w, 44, c[ "offset" ][ 1 ] ) ; Sw_WriteDouble( w, 45, c[ "offset" ][ 2 ] )
          IF Ltc_Text( c ) != NIL .AND. Len( Ltc_Text( c ) ) > 0 ; Sw_WriteString( w, 9, Ltc_Text( c ) ) ; ENDIF
       ELSE
@@ -402,7 +402,7 @@ STATIC PROCEDURE Swr_StyleEntry( st, d, s, hOwner )
    IF s[ "xref_dependent" ] ; nFl := hb_bitOr( nFl, 16 ) ; ENDIF
    Sw_WriteI16( w, 70, nFl )
    Sw_WriteDouble( w, 40, s[ "height" ] ) ; Sw_WriteDouble( w, 41, s[ "width_factor" ] )
-   Sw_WriteDouble( w, 50, s[ "oblique_angle" ] * 180.0 / OCX_PI )
+   Sw_WriteDouble( w, 50, s[ "oblique_angle" ] * ( 180.0 / OCX_PI ) )
    IF s[ "flags" ][ "backward" ] ; nGen := hb_bitOr( nGen, 2 ) ; ENDIF
    IF s[ "flags" ][ "upside_down" ] ; nGen := hb_bitOr( nGen, 4 ) ; ENDIF
    Sw_WriteI16( w, 71, nGen )
@@ -557,7 +557,7 @@ STATIC PROCEDURE Swr_VportEntry( st, d, vp, hOwner )
    Sw_WriteDouble( w, 17, vp[ "view_target" ][ 1 ] ) ; Sw_WriteDouble( w, 27, vp[ "view_target" ][ 2 ] ) ; Sw_WriteDouble( w, 37, vp[ "view_target" ][ 3 ] )
    Sw_WriteDouble( w, 40, vp[ "view_height" ] ) ; Sw_WriteDouble( w, 41, vp[ "aspect_ratio" ] ) ; Sw_WriteDouble( w, 42, vp[ "lens_length" ] )
    Sw_WriteDouble( w, 43, vp[ "front_clip" ] ) ; Sw_WriteDouble( w, 44, vp[ "back_clip" ] )
-   Sw_WriteDouble( w, 50, vp[ "snap_rotation" ] * 180.0 / OCX_PI ) ; Sw_WriteDouble( w, 51, vp[ "view_twist" ] * 180.0 / OCX_PI )
+   Sw_WriteDouble( w, 50, vp[ "snap_rotation" ] * ( 180.0 / OCX_PI ) ) ; Sw_WriteDouble( w, 51, vp[ "view_twist" ] * ( 180.0 / OCX_PI ) )
    IF vp[ "perspective" ] ; nM := hb_bitOr( nM, 1 ) ; ENDIF
    IF vp[ "front_clipping" ] ; nM := hb_bitOr( nM, 2 ) ; ENDIF
    IF vp[ "back_clipping" ] ; nM := hb_bitOr( nM, 4 ) ; ENDIF
@@ -602,7 +602,7 @@ STATIC PROCEDURE Swr_ViewEntry( st, d, vw, hOwner )
    Sw_WriteDouble( w, 40, vw[ "height" ] ) ; Sw_WriteDouble( w, 10, vw[ "center" ][ 1 ] ) ; Sw_WriteDouble( w, 20, vw[ "center" ][ 2 ] )
    Sw_WriteDouble( w, 41, vw[ "width" ] ) ; Sw_WritePoint3d( w, 11, vw[ "direction" ] ) ; Sw_WritePoint3d( w, 12, vw[ "target" ] )
    Sw_WriteDouble( w, 42, vw[ "lens_length" ] ) ; Sw_WriteDouble( w, 43, vw[ "front_clip" ] ) ; Sw_WriteDouble( w, 44, vw[ "back_clip" ] )
-   Sw_WriteDouble( w, 50, vw[ "twist_angle" ] * 180.0 / OCX_PI )
+   Sw_WriteDouble( w, 50, vw[ "twist_angle" ] * ( 180.0 / OCX_PI ) )
    IF vw[ "perspective" ] ; nM := hb_bitOr( nM, 1 ) ; ENDIF
    IF vw[ "front_clipping" ] ; nM := hb_bitOr( nM, 2 ) ; ENDIF
    IF vw[ "back_clipping" ] ; nM := hb_bitOr( nM, 4 ) ; ENDIF
@@ -851,7 +851,7 @@ STATIC PROCEDURE Swr_Dimension( st, e, hOwner )
    ENDCASE
 RETURN
 
-STATIC FUNCTION Swr_Deg( n ) ; RETURN n * 180.0 / OCX_PI
+STATIC FUNCTION Swr_Deg( n ) ; RETURN n * ( 180.0 / OCX_PI )
 
 /* write_attribute_text_value: DXF es por lineas, un salto dentro del valor se escribe como \P */
 STATIC FUNCTION Swr_AttrText( c )
