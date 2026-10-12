@@ -20,7 +20,7 @@ STATIC FUNCTION Dxo_FindRootDictHandle( d )
 RETURN nBest
 
 /* tipos de objeto que este escritor emite: las entradas de diccionario a otros tipos se omiten (equivale al filtro valid_handles de Rust) */
-STATIC FUNCTION Dxo_IsWritten( o ) ; RETURN o[ "_type" ] == "Dictionary" .OR. o[ "_type" ] == "Layout" .OR. o[ "_type" ] == "XRecord" .OR. o[ "_type" ] == "Group" .OR. o[ "_type" ] == "MLineStyle" .OR. o[ "_type" ] == "Scale" .OR. o[ "_type" ] == "DictionaryVariable"
+STATIC FUNCTION Dxo_IsWritten( o ) ; RETURN o[ "_type" ] == "Dictionary" .OR. o[ "_type" ] == "Layout" .OR. o[ "_type" ] == "XRecord" .OR. o[ "_type" ] == "Group" .OR. o[ "_type" ] == "MLineStyle" .OR. o[ "_type" ] == "SortEntitiesTable" .OR. o[ "_type" ] == "Scale" .OR. o[ "_type" ] == "DictionaryVariable"
 
 STATIC PROCEDURE Dxo_WriteDictionary( w, d, dic )
    LOCAL aR := dic[ "reactors" ], hX, e, lForced
@@ -198,6 +198,24 @@ STATIC PROCEDURE Dxo_WriteDictVar( w, dv )
    Sw_WriteByte( w, 280, dv[ "schema_number" ] ) ; Sw_WriteString( w, 1, dv[ "value" ] )
 RETURN
 
+STATIC PROCEDURE Dxo_WriteSortEnts( w, d, t, nVer )
+   LOCAL c, aE := t[ "entries" ], aIdx := {}, aNew, i
+   Sw_WriteString( w, 0, "SORTENTSTABLE" )
+   IF t[ "raw_dxf_version" ] != NIL .AND. t[ "raw_dxf_version" ] == nVer .AND. t[ "raw_dxf_codes" ] != NIL
+      FOR EACH c IN t[ "raw_dxf_codes" ] ; Sw_WriteString( w, c[ 1 ], c[ 2 ] ) ; NEXT
+      RETURN
+   ENDIF
+   Sw_WriteHandle( w, 5, t[ "handle" ] ) ; Sw_WriteHandle( w, 330, t[ "owner_handle" ] )
+   Sw_WriteSubclass( w, "AcDbSortentsTable" ) ; Sw_WriteHandle( w, 330, t[ "block_owner_handle" ] )
+   FOR i := 1 TO Len( aE ) ; AAdd( aIdx, { aE[ i ][ "sort_handle" ], i } ) ; NEXT
+   ASort( aIdx,,, {| x, y | x[ 1 ] < y[ 1 ] .OR. ( x[ 1 ] == y[ 1 ] .AND. x[ 2 ] < y[ 2 ] ) } )
+   aNew := Array( Len( aE ) )
+   FOR EACH c IN aIdx ; aNew[ c[ 2 ] ] := Doc_AllocateHandle( d ) ; NEXT
+   FOR i := 1 TO Len( aE )
+      Sw_WriteHandle( w, 331, aE[ i ][ "entity_handle" ] ) ; Sw_WriteHandle( w, 5, aNew[ i ] )
+   NEXT
+RETURN
+
 STATIC PROCEDURE Dxo_WriteGroup( w, g )
    LOCAL h
    Sw_WriteString( w, 0, "GROUP" ) ; Sw_WriteHandle( w, 5, g[ "handle" ] ) ; Sw_WriteHandle( w, 330, g[ "owner" ] )
@@ -207,7 +225,7 @@ STATIC PROCEDURE Dxo_WriteGroup( w, g )
    FOR EACH h IN g[ "entities" ] ; Sw_WriteHandle( w, 340, h ) ; NEXT
 RETURN
 
-PROCEDURE Dxo_WriteObjects( w, d )
+PROCEDURE Dxo_WriteObjects( w, d, nVer )
    LOCAL nRoot := d[ "header" ][ "named_objects_dict_handle" ], aK, h, o
    Sw_WriteSectionStart( w, "OBJECTS" )
    IF Hd_IsNull( nRoot ) .OR. ! hb_HHasKey( d[ "objects" ], nRoot ) .OR. ! d[ "objects" ][ nRoot ][ "_type" ] == "Dictionary"
@@ -225,6 +243,7 @@ PROCEDURE Dxo_WriteObjects( w, d )
          CASE o[ "_type" ] == "Layout" ; Dxo_WriteLayout( w, o )
          CASE o[ "_type" ] == "XRecord" ; Dxo_WriteXRecord( w, o )
          CASE o[ "_type" ] == "MLineStyle" ; Dxo_WriteMLineStyle( w, o )
+         CASE o[ "_type" ] == "SortEntitiesTable" ; Dxo_WriteSortEnts( w, d, o, nVer )
          CASE o[ "_type" ] == "Scale" ; Dxo_WriteScale( w, o )
          CASE o[ "_type" ] == "DictionaryVariable" ; Dxo_WriteDictVar( w, o )
          CASE o[ "_type" ] == "Group" ; Dxo_WriteGroup( w, o )
