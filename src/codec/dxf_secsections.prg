@@ -1639,6 +1639,105 @@ STATIC FUNCTION Sr_PtOrZero( r )
    LOCAL pt := PR_GetPoint( r )
 RETURN IIf( pt == NIL, Vc3_Zero(), pt )
 
+STATIC FUNCTION Sr_ReadTolerance( s )
+   LOCAL e := Etl_New(), p, n, v, rIns := PR_New(), rDir := PR_New(), rNor := PR_New(), pt
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      n := p[ DP_CODE ]
+      DO CASE
+      CASE n == 8 ; e[ "common" ][ "layer" ] := p[ DP_VALUE ]
+      CASE n == 62
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "common" ][ "color" ] := Cl_FromIndex( v ) ; ENDIF
+      CASE n == 1 ; e[ "text" ] := p[ DP_VALUE ]
+      CASE n == 3 ; e[ "dimension_style_name" ] := p[ DP_VALUE ]
+      CASE n == 10 .OR. n == 20 .OR. n == 30 ; PR_AddCoordinate( rIns, p )
+      CASE n == 11 .OR. n == 21 .OR. n == 31 ; PR_AddCoordinate( rDir, p )
+      CASE n == 210 .OR. n == 220 .OR. n == 230 ; PR_AddCoordinate( rNor, p )
+      OTHERWISE ; Sr_EntBase( s, p, e )
+      ENDCASE
+   ENDDO
+   pt := PR_GetPoint( rIns ) ; e[ "insertion_point" ] := IIf( pt == NIL, Vc3_Zero(), pt )
+   pt := PR_GetPoint( rDir ) ; e[ "direction" ] := IIf( pt == NIL, Vc3_New( 1.0, 0.0, 0.0 ), pt )
+   pt := PR_GetPoint( rNor ) ; IF pt != NIL ; e[ "normal" ] := pt ; ENDIF
+RETURN e
+
+/* read_shape. Fiel al original: 50 y 51 NO se convierten de grados a radianes al leer (el escritor si hace to_degrees) */
+STATIC FUNCTION Sr_ReadShape( s )
+   LOCAL e := Esh_New(), p, n, v, rIns := PR_New(), rNor := PR_New(), pt
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      n := p[ DP_CODE ]
+      DO CASE
+      CASE n == 8 ; e[ "common" ][ "layer" ] := p[ DP_VALUE ]
+      CASE n == 62
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "common" ][ "color" ] := Cl_FromIndex( v ) ; ENDIF
+      CASE n == 2 ; e[ "shape_name" ] := p[ DP_VALUE ]
+      CASE n == 10 .OR. n == 20 .OR. n == 30 ; PR_AddCoordinate( rIns, p )
+      CASE n == 40 .OR. n == 50 .OR. n == 39 .OR. n == 41 .OR. n == 51
+         v := Dp_AsDouble( p )
+         IF v != NIL
+            e[ IIf( n == 40, "size", IIf( n == 50, "rotation", IIf( n == 39, "thickness", IIf( n == 41, "relative_x_scale", "oblique_angle" ) ) ) ) ] := v
+         ENDIF
+      CASE n == 210 .OR. n == 220 .OR. n == 230 ; PR_AddCoordinate( rNor, p )
+      OTHERWISE ; Sr_EntBase( s, p, e )
+      ENDCASE
+   ENDDO
+   pt := PR_GetPoint( rIns ) ; e[ "insertion_point" ] := IIf( pt == NIL, Vc3_Zero(), pt )
+   pt := PR_GetPoint( rNor ) ; IF pt != NIL ; e[ "normal" ] := pt ; ENDIF
+RETURN e
+
+STATIC FUNCTION Sr_ReadWipeout( s )
+   LOCAL e := Ewp_New(), p, n, v, rIns := PR_New(), rU := PR_New(), rV := PR_New(), pt, nL
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      n := p[ DP_CODE ]
+      DO CASE
+      CASE n == 8 ; e[ "common" ][ "layer" ] := p[ DP_VALUE ]
+      CASE n == 62
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "common" ][ "color" ] := Cl_FromIndex( v ) ; ENDIF
+      CASE n == 10 .OR. n == 20 .OR. n == 30 ; PR_AddCoordinate( rIns, p )
+      CASE n == 11 .OR. n == 21 .OR. n == 31 ; PR_AddCoordinate( rU, p )
+      CASE n == 12 .OR. n == 22 .OR. n == 32 ; PR_AddCoordinate( rV, p )
+      CASE n == 13
+         v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "size" ][ 1 ] := v ; ENDIF
+      CASE n == 23
+         v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "size" ][ 2 ] := v ; ENDIF
+      CASE n == 90
+         v := Dp_AsI32( p ) ; IF v != NIL ; e[ "class_version" ] := v ; ENDIF
+      CASE n == 340
+         v := Sr_HexVal( p ) ; IF v != NIL .AND. ! Hd_IsNull( v ) ; e[ "definition_handle" ] := v ; ENDIF
+      CASE n == 360
+         v := Sr_HexVal( p ) ; IF v != NIL .AND. ! Hd_IsNull( v ) ; e[ "definition_reactor_handle" ] := v ; ENDIF
+      CASE n == 70
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "flags" ] := hb_bitAnd( v, 15 ) ; ENDIF
+      CASE n == 71
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "clip_type" ] := Wct_From( v ) ; ENDIF
+      CASE n == 280
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "clipping_enabled" ] := ( v != 0 ) ; ENDIF
+      CASE n == 281
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "brightness" ] := Max( 0, Min( 100, v ) ) ; ENDIF
+      CASE n == 282
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "contrast" ] := Max( 0, Min( 100, v ) ) ; ENDIF
+      CASE n == 283
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "fade" ] := Max( 0, Min( 100, v ) ) ; ENDIF
+      CASE n == 290
+         v := Dp_AsBool( p ) ; IF v != NIL ; e[ "clip_mode" ] := IIf( v, WCM_INSIDE, WCM_OUTSIDE ) ; ENDIF
+      CASE n == 91
+         ASize( e[ "clip_boundary_vertices" ], 0 )
+      CASE n == 14
+         v := Dp_AsDouble( p ) ; IF v != NIL ; AAdd( e[ "clip_boundary_vertices" ], Vc2_New( v, 0.0 ) ) ; ENDIF
+      CASE n == 24
+         v := Dp_AsDouble( p )
+         nL := Len( e[ "clip_boundary_vertices" ] )
+         IF v != NIL .AND. nL > 0 ; e[ "clip_boundary_vertices" ][ nL ][ 2 ] := v ; ENDIF
+      OTHERWISE ; Sr_EntBase( s, p, e )
+      ENDCASE
+   ENDDO
+   pt := PR_GetPoint( rIns ) ; e[ "insertion_point" ] := IIf( pt == NIL, Vc3_Zero(), pt )
+   pt := PR_GetPoint( rU ) ; e[ "u_vector" ] := IIf( pt == NIL, Vc3_New( 1.0, 0.0, 0.0 ), pt )
+   pt := PR_GetPoint( rV ) ; e[ "v_vector" ] := IIf( pt == NIL, Vc3_New( 0.0, 1.0, 0.0 ), pt )
+RETURN e
+
 STATIC FUNCTION Sr_ReadEntityOfType( s, cT )
    LOCAL p
    DO CASE
@@ -1661,6 +1760,9 @@ STATIC FUNCTION Sr_ReadEntityOfType( s, cT )
    CASE cT == "RAY" ; RETURN Sr_ReadRayXline( s, .T. )
    CASE cT == "XLINE" ; RETURN Sr_ReadRayXline( s, .F. )
    CASE cT == "DIMENSION" ; RETURN Sr_ReadDimension( s )
+   CASE cT == "TOLERANCE" ; RETURN Sr_ReadTolerance( s )
+   CASE cT == "SHAPE" ; RETURN Sr_ReadShape( s )
+   CASE cT == "WIPEOUT" ; RETURN Sr_ReadWipeout( s )
    CASE cT == "ARC_DIMENSION" ; RETURN Sr_ReadExtDimension( s, .T. )
    CASE cT == "LARGE_RADIAL_DIMENSION" ; RETURN Sr_ReadExtDimension( s, .F. )
    ENDCASE
