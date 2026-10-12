@@ -731,10 +731,10 @@ STATIC FUNCTION Sr_ReadInsert( s )
 RETURN e
 
 /* Despacha un tipo de entidad ya leido (par 0). Devuelve entidad o NIL (y salta lo desconocido) */
-/* Cuenta "\\P" (matches("\\P") del original) */
+/* Cuenta "\P" (matches("\P") del original) */
 STATIC FUNCTION Sr_CountP( c )
    LOCAL n := 0, i := 1, k
-   DO WHILE ( k := hb_At( "\\P", c, i ) ) > 0
+   DO WHILE ( k := hb_At( "\P", c, i ) ) > 0
       n++ ; i := k + 2
    ENDDO
 RETURN n
@@ -808,6 +808,145 @@ STATIC FUNCTION Sr_ReadAttdefAttrib( s, lDef )
       e[ "is_multiline" ] := .T.
    ENDIF
    e[ "line_count" ] := Sr_CountP( e[ cV ] ) + 1
+RETURN e
+
+/* true_color_bits: acepta ambas grafias (con o sin signo); NIL si no es entero de 32 bits */
+STATIC FUNCTION Sr_TrueColorBits( c )
+   LOCAL n
+   c := AllTrim( c )
+   IF Len( c ) == 0 .OR. ! hb_RegexLike( "^[+-]?[0-9]+$", c ) ; RETURN NIL ; ENDIF
+   n := Val( c )
+   IF n >= -2147483648 .AND. n <= 2147483647 ; RETURN n ; ENDIF
+   IF n >= 0 .AND. n <= 4294967295 ; RETURN n - 4294967296 ; ENDIF
+RETURN NIL
+
+/* read_mtext_embedded_object (R2018+): codigos 71-74/44-46 -> Mcd */
+STATIC FUNCTION Sr_ReadMtextEmbedded( s )
+   LOCAL col := Mcd_New(), p, v, n
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 .OR. p[ DP_CODE ] >= 1000 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      n := p[ DP_CODE ]
+      DO CASE
+      CASE n == 71 ; v := Dp_AsI16( p ) ; IF v != NIL ; col[ "column_type" ] := v ; ENDIF
+      CASE n == 72 ; v := Dp_AsI16( p ) ; IF v != NIL ; col[ "column_count" ] := v ; ENDIF
+      CASE n == 73 ; v := Dp_AsI16( p ) ; IF v != NIL ; col[ "auto_height" ] := ( v != 0 ) ; ENDIF
+      CASE n == 74 ; v := Dp_AsI16( p ) ; IF v != NIL ; col[ "flow_reversed" ] := ( v != 0 ) ; ENDIF
+      CASE n == 44 ; v := Dp_AsDouble( p ) ; IF v != NIL ; col[ "width" ] := v ; ENDIF
+      CASE n == 45 ; v := Dp_AsDouble( p ) ; IF v != NIL ; col[ "gutter" ] := v ; ENDIF
+      CASE n == 46 ; v := Dp_AsDouble( p ) ; IF v != NIL ; AAdd( col[ "heights" ], v ) ; ENDIF
+      ENDCASE
+   ENDDO
+RETURN col
+
+STATIC FUNCTION Sr_ReadMText( s )
+   LOCAL e := Emt_New(), ins := PR_New(), nor := PR_New(), xd := PR_New(), p, v, n, pt, lCol := .F., col, cv
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      n := p[ DP_CODE ]
+      DO CASE
+      CASE n == 10 .OR. n == 20 .OR. n == 30 ; PR_AddCoordinate( ins, p )
+      CASE n == 1 .OR. n == 3 ; e[ "value" ] += p[ DP_VALUE ]
+      CASE n == 40 ; v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "height" ] := v ; ENDIF
+      CASE n == 41 ; v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "rectangle_width" ] := v ; ENDIF
+      CASE n == 42 ; v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "extents_width" ] := v ; ENDIF
+      CASE n == 43 ; v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "extents_height" ] := v ; ENDIF
+      CASE n == 50
+         v := Dp_AsDouble( p )
+         IF v != NIL
+            IF lCol
+               col := e[ "column_data" ]
+               IF col[ "column_type" ] == 2 .AND. ! col[ "auto_height" ] .AND. Len( col[ "heights" ] ) < Max( col[ "column_count" ], 0 )
+                  AAdd( col[ "heights" ], v )
+               ENDIF
+            ELSE
+               e[ "rotation" ] := Sr_Deg( v )
+            ENDIF
+         ENDIF
+      CASE n == 71
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "attachment_point" ] := IIf( v >= 2 .AND. v <= 9, v, MTA_TOPLEFT ) ; ENDIF
+      CASE n == 72
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "drawing_direction" ] := IIf( v == 3 .OR. v == 5, v, MTD_LEFTTORIGHT ) ; ENDIF
+      CASE n == 44 ; v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "line_spacing_factor" ] := v ; ENDIF
+      CASE n == 75
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "column_data" ][ "column_type" ] := v ; lCol := ( v != 0 ) ; ENDIF
+      CASE n == 76 .AND. lCol
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "column_data" ][ "column_count" ] := v ; ENDIF
+      CASE n == 78 .AND. lCol
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "column_data" ][ "flow_reversed" ] := ( v != 0 ) ; ENDIF
+      CASE n == 79 .AND. lCol
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "column_data" ][ "auto_height" ] := ( v != 0 ) ; ENDIF
+      CASE n == 48 .AND. lCol ; v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "column_data" ][ "width" ] := v ; ENDIF
+      CASE n == 49 .AND. lCol ; v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "column_data" ][ "gutter" ] := v ; ENDIF
+      CASE n == 73
+         v := Dp_AsI16( p ) ; IF v != NIL ; e[ "line_spacing_style" ] := Lss_From( v ) ; ENDIF
+      CASE n == 7 ; e[ "style" ] := p[ DP_VALUE ]
+      CASE n == 11 .OR. n == 21 .OR. n == 31 ; PR_AddCoordinate( xd, p )
+      CASE n == 46
+         v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "rectangle_height" ] := IIf( v != 0.0, v, NIL ) ; ENDIF
+      CASE n == 90 ; v := Dp_AsI32( p ) ; IF v != NIL ; e[ "background_fill_flags" ] := v ; ENDIF
+      CASE n == 45 ; v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "background_scale" ] := v ; ENDIF
+      CASE n == 63
+         cv := AllTrim( p[ DP_VALUE ] )
+         IF hb_RegexLike( "^[+-]?[0-9]+$", cv ) ; e[ "background_color" ] := Cl_FromIndex( Val( cv ) ) ; ENDIF
+      CASE n == 421
+         v := Sr_TrueColorBits( p[ DP_VALUE ] ) ; IF v != NIL ; e[ "background_color" ] := Cl_FromTrueColorValue( v ) ; ENDIF
+      CASE n == 441 ; v := Dp_AsI32( p ) ; IF v != NIL ; e[ "background_transparency" ] := v ; ENDIF
+      CASE n == 210 .OR. n == 220 .OR. n == 230 ; PR_AddCoordinate( nor, p )
+      CASE n == 101
+         e[ "column_data" ] := Sr_ReadMtextEmbedded( s ) ; lCol := .F.
+      OTHERWISE ; Sr_EntBase( s, p, e )
+      ENDCASE
+   ENDDO
+   pt := PR_GetPoint( ins ) ; IF pt != NIL ; e[ "insertion_point" ] := pt ; ENDIF
+   pt := PR_GetPoint( nor ) ; IF pt != NIL ; e[ "normal" ] := pt ; ENDIF
+   pt := PR_GetPoint( xd )
+   IF pt != NIL .AND. ( pt[ 1 ] != 0.0 .OR. pt[ 2 ] != 0.0 ) ; e[ "rotation" ] := OCX_ATAN2( pt[ 2 ], pt[ 1 ] ) ; ENDIF
+RETURN e
+
+STATIC FUNCTION Sr_ReadSpline( s )
+   LOCAL e := Esp_New(), nor := PR_New(), cp := PR_New(), fp := PR_New(), bt := PR_New(), et := PR_New(), p, v, n, pt, lC := .F., lF := .F.
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      n := p[ DP_CODE ]
+      DO CASE
+      CASE n == 70 ; v := Dp_AsI16( p ) ; IF v != NIL ; Spf_Read( e, v ) ; ENDIF
+      CASE n == 71 ; v := Dp_AsI16( p ) ; IF v != NIL ; e[ "degree" ] := v ; ENDIF
+      CASE n == 40 ; v := Dp_AsDouble( p ) ; IF v != NIL ; AAdd( e[ "knots" ], v ) ; ENDIF
+      CASE n == 41 ; v := Dp_AsDouble( p ) ; IF v != NIL ; AAdd( e[ "weights" ], v ) ; ENDIF
+      CASE n == 42 ; v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "knot_tolerance" ] := v ; ENDIF
+      CASE n == 43 ; v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "control_tolerance" ] := v ; ENDIF
+      CASE n == 44 ; v := Dp_AsDouble( p ) ; IF v != NIL ; e[ "fit_tolerance" ] := v ; ENDIF
+      CASE n == 12 .OR. n == 22 .OR. n == 32 ; PR_AddCoordinate( bt, p )
+      CASE n == 13 .OR. n == 23 .OR. n == 33 ; PR_AddCoordinate( et, p )
+      CASE n == 10 .OR. n == 20 .OR. n == 30
+         IF n == 10
+            IF lC
+               pt := PR_GetPoint( cp ) ; IF pt != NIL ; AAdd( e[ "control_points" ], pt ) ; ENDIF
+            ENDIF
+            cp := PR_New() ; lC := .T.
+         ENDIF
+         PR_AddCoordinate( cp, p )
+      CASE n == 11 .OR. n == 21 .OR. n == 31
+         IF n == 11
+            IF lF
+               pt := PR_GetPoint( fp ) ; IF pt != NIL ; AAdd( e[ "fit_points" ], pt ) ; ENDIF
+            ENDIF
+            fp := PR_New() ; lF := .T.
+         ENDIF
+         PR_AddCoordinate( fp, p )
+      CASE n == 210 .OR. n == 220 .OR. n == 230 ; PR_AddCoordinate( nor, p )
+      OTHERWISE ; Sr_EntBase( s, p, e )
+      ENDCASE
+   ENDDO
+   IF lC
+      pt := PR_GetPoint( cp ) ; IF pt != NIL ; AAdd( e[ "control_points" ], pt ) ; ENDIF
+   ENDIF
+   IF lF
+      pt := PR_GetPoint( fp ) ; IF pt != NIL ; AAdd( e[ "fit_points" ], pt ) ; ENDIF
+   ENDIF
+   pt := PR_GetPoint( nor ) ; IF pt != NIL ; e[ "normal" ] := pt ; ENDIF
+   pt := PR_GetPoint( bt ) ; IF pt != NIL ; e[ "begin_tangent" ] := pt ; ENDIF
+   pt := PR_GetPoint( et ) ; IF pt != NIL ; e[ "end_tangent" ] := pt ; ENDIF
 RETURN e
 
 STATIC FUNCTION Sr_ReadEllipse( s )
@@ -888,6 +1027,8 @@ STATIC FUNCTION Sr_ReadEntityOfType( s, cT )
    CASE cT == "TEXT" ; RETURN Sr_ReadText( s )
    CASE cT == "INSERT" ; RETURN Sr_ReadInsert( s )
    CASE cT == "ATTDEF" ; RETURN Sr_ReadAttdefAttrib( s, .T. )
+   CASE cT == "MTEXT" ; RETURN Sr_ReadMText( s )
+   CASE cT == "SPLINE" ; RETURN Sr_ReadSpline( s )
    CASE cT == "ELLIPSE" ; RETURN Sr_ReadEllipse( s )
    CASE cT == "SOLID" ; RETURN Sr_ReadSolidFace( s, .F. )
    CASE cT == "TRACE"
