@@ -1183,6 +1183,16 @@ STATIC PROCEDURE Swr_WriteEntity( st, e, hOwner )
             FOR EACH q IN g[ "area_fill_parameters" ] ; Sw_WriteDouble( w, 42, q ) ; NEXT
          NEXT
       NEXT
+   CASE t == "LEADER"
+      Sw_WriteEntityType( w, "LEADER" ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbLeader" ) ; Sw_WriteString( w, 3, e[ "dimension_style" ] )
+      Sw_WriteI16( w, 71, IIf( e[ "arrow_enabled" ], 1, 0 ) ) ; Sw_WriteI16( w, 72, e[ "path_type" ] ) ; Sw_WriteI16( w, 73, e[ "creation_type" ] )
+      Sw_WriteI16( w, 74, e[ "hookline_direction" ] ) ; Sw_WriteI16( w, 75, IIf( e[ "hookline_enabled" ], 1, 0 ) )
+      Sw_WriteDouble( w, 40, e[ "text_height" ] ) ; Sw_WriteDouble( w, 41, e[ "text_width" ] ) ; Sw_WriteI16( w, 76, Len( e[ "vertices" ] ) )
+      FOR EACH v IN e[ "vertices" ] ; Sw_WritePoint3d( w, 10, v ) ; NEXT
+      Sw_WritePoint3d( w, 210, e[ "normal" ] ) ; Sw_WritePoint3d( w, 211, e[ "horizontal_direction" ] )
+      Sw_WritePoint3d( w, 212, e[ "block_offset" ] ) ; Sw_WritePoint3d( w, 213, e[ "annotation_offset" ] )
+      IF ! Hd_IsNull( e[ "annotation_handle" ] ) ; Sw_WriteHandle( w, 340, e[ "annotation_handle" ] ) ; ENDIF
+      IF ! ( e[ "override_color" ][ 1 ] == CK_RGB ) ; Sw_WriteI16( w, 77, Cl_IndexOf( e[ "override_color" ] ) ) ; ENDIF
    CASE t == "SHAPE"
       Sw_WriteEntityType( w, "SHAPE" ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbShape" )
       IF Abs( e[ "thickness" ] ) > 0.0000000001 ; Sw_WriteDouble( w, 39, e[ "thickness" ] ) ; ENDIF
