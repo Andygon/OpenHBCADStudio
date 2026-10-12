@@ -401,4 +401,11 @@ PROCEDURE T_DxfRw()
    d2 := RT( d2 )
    es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
    Chk( Len( es ) == 1 .AND. es[ 1 ][ "_type" ] == "IMAGE" .AND. es[ 1 ][ "size" ][ 1 ] == 100.0 .AND. es[ 1 ][ "brightness" ] == 60 .AND. es[ 1 ][ "definition_handle" ] == 55 .AND. es[ 1 ][ "clipping_enabled" ] .AND. Len( es[ 1 ][ "clip_boundary" ][ "vertices" ] ) == 2 .AND. es[ 1 ][ "clip_boundary" ][ "vertices" ][ 2 ][ 1 ] == 99.5 .AND. es[ 1 ][ "u_vector" ][ 1 ] == x[ "u_vector" ][ 1 ], "[extra] IMAGE releido" )
+   /* [extra] HELIX */
+   d2 := Doc_New()
+   x := Ehx_New() ; x[ "radius" ] := 2.5 ; x[ "turns" ] := 4.0 ; x[ "handedness" ] := .F. ; x[ "constraint" ] := HXC_TURNS ; x[ "axis_base_point" ] := Vc3_New( 1.0, 2.0, 3.0 )
+   AAdd( x[ "spline" ][ "control_points" ], Vc3_New( 0.0, 0.0, 0.0 ) ) ; AAdd( x[ "spline" ][ "control_points" ], Vc3_New( 1.0, 1.0, 1.0 ) ) ; Doc_AddEntity( d2, x )
+   d2 := RT( d2 )
+   es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
+   Chk( Len( es ) == 1 .AND. es[ 1 ][ "_type" ] == "HELIX" .AND. es[ 1 ][ "radius" ] == 2.5 .AND. es[ 1 ][ "turns" ] == 4.0 .AND. ! es[ 1 ][ "handedness" ] .AND. es[ 1 ][ "constraint" ] == HXC_TURNS .AND. es[ 1 ][ "axis_base_point" ][ 3 ] == 3.0 .AND. Len( es[ 1 ][ "spline" ][ "control_points" ] ) == 2 .AND. es[ 1 ][ "spline" ][ "control_points" ][ 2 ][ 1 ] == 1.0, "[extra] HELIX releido" )
 RETURN
