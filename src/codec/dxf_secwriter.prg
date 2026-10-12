@@ -1176,6 +1176,6 @@ FUNCTION Dxw_WriteString( d )
    Swr_Tables( st, d )
    Swr_Blocks( st, d )
    Swr_Entities( st, d )
-   Sw_WriteSectionStart( w, "OBJECTS" ) ; Sw_WriteSectionEnd( w ) /* PENDIENTE: write_objects */
+   Dxo_WriteObjects( w, d )
    Sw_WriteString( w, 0, "EOF" )
 RETURN Sw_Output( w )
