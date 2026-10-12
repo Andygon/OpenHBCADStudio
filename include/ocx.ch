@@ -259,3 +259,28 @@
 #define GDT_MMC               "m"
 #define GDT_LMC               "l"
 #define GDT_RFS               "s"
+
+/* entities/shape.rs: standard_shapes y gdt_shapes */
+#define SHP_BOX       "BOX"
+#define SHP_CIRC      "CIRC"
+#define SHP_HEX       "HEX"
+#define SHP_CROSS     "CROSS"
+#define SHP_ARROW     "ARROW"
+#define SHP_PLUS      "PLUS"
+#define SHP_DIAMOND   "DIAMOND"
+#define SHP_TRIANGLE  "TRIANGLE"
+#define SHP_SQUARE    "SQUARE"
+#define GDS_STRAIGHTNESS      110
+#define GDS_FLATNESS          111
+#define GDS_CIRCULARITY       112
+#define GDS_CYLINDRICITY      113
+#define GDS_POSITION          114
+#define GDS_CONCENTRICITY     115
+#define GDS_SYMMETRY          116
+#define GDS_PARALLELISM       117
+#define GDS_PERPENDICULARITY  118
+#define GDS_ANGULARITY        119
+#define GDS_LINE_PROFILE      120
+#define GDS_SURFACE_PROFILE   121
+#define GDS_CIRCULAR_RUNOUT   122
+#define GDS_TOTAL_RUNOUT      123
