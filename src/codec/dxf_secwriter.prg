@@ -615,6 +615,141 @@ STATIC PROCEDURE Swr_MTextBody( st, e, hOwner )
    Swr_Normal( w, e[ "normal" ] )
 RETURN
 
+STATIC PROCEDURE Swr_SeqEnd( st, hSeq, hOwner, cLayer )
+   LOCAL w := st[ 1 ]
+   Sw_WriteEntityType( w, "SEQEND" ) ; Sw_WriteHandle( w, 5, hSeq ) ; Sw_WriteHandle( w, 330, hOwner )
+   Sw_WriteSubclass( w, "AcDbEntity" )
+   IF st[ 4 ] ; Sw_WriteI16( w, 67, 1 ) ; ENDIF
+   Sw_WriteString( w, 8, cLayer )
+RETURN
+
+/* Cabecera de VERTEX comun */
+STATIC PROCEDURE Swr_VertexHead( st, hV, hOwner, cLayer, xColor )
+   LOCAL w := st[ 1 ]
+   Sw_WriteEntityType( w, "VERTEX" ) ; Sw_WriteHandle( w, 5, hV ) ; Sw_WriteHandle( w, 330, hOwner )
+   Sw_WriteSubclass( w, "AcDbEntity" ) ; Sw_WriteString( w, 8, cLayer )
+   IF xColor != NIL .AND. ! Cl_Eq( xColor, Cl_ByLayer() ) ; Sw_WriteColor( w, 62, xColor ) ; ENDIF
+   Sw_WriteSubclass( w, "AcDbVertex" )
+RETURN
+
+/* write_polyline (generica), write_polyline2d (+ bajada a LWPOLYLINE), write_polyline3d, write_polyface_mesh, write_polygon_mesh */
+STATIC PROCEDURE Swr_PolyEntity( st, e, hOwner )
+   LOCAL w := st[ 1 ], c := e[ "common" ], t := e[ "_type" ], hP := c[ "handle" ], v, hV, nFl, nS, nE, lDown
+   IF t == "POLYLINE2D"
+      lDown := st[ 2 ] >= Dxv_FromVersionString( "AC1015" ) .AND. hb_bitAnd( e[ "flags" ], 65406 ) == 0 .AND. e[ "smooth_surface" ] == SST_NONE
+      IF lDown
+         FOR EACH v IN e[ "vertices" ]
+            IF v[ "flags" ] != 0 ; lDown := .F. ; EXIT ; ENDIF
+         NEXT
+      ENDIF
+      IF lDown
+         Sw_WriteEntityType( w, "LWPOLYLINE" ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbPolyline" )
+         Sw_WriteI32( w, 90, Len( e[ "vertices" ] ) )
+         nFl := 0
+         IF hb_bitAnd( e[ "flags" ], 1 ) != 0 ; nFl := 1 ; ENDIF
+         IF hb_bitAnd( e[ "flags" ], 128 ) != 0 ; nFl := hb_bitOr( nFl, 128 ) ; ENDIF
+         Sw_WriteI16( w, 70, nFl ) ; Sw_WriteDouble( w, 38, e[ "elevation" ] )
+         IF e[ "thickness" ] != 0.0 ; Sw_WriteDouble( w, 39, e[ "thickness" ] ) ; ENDIF
+         FOR EACH v IN e[ "vertices" ]
+            Sw_WriteDouble( w, 10, v[ "location" ][ 1 ] ) ; Sw_WriteDouble( w, 20, v[ "location" ][ 2 ] )
+            nS := IIf( v[ "start_width" ] != 0.0, v[ "start_width" ], e[ "start_width" ] )
+            nE := IIf( v[ "end_width" ] != 0.0, v[ "end_width" ], e[ "end_width" ] )
+            Sw_WriteDouble( w, 40, nS ) ; Sw_WriteDouble( w, 41, nE ) ; Sw_WriteDouble( w, 42, v[ "bulge" ] )
+            IF v[ "id" ] != 0 ; Sw_WriteI32( w, 91, v[ "id" ] ) ; ENDIF
+         NEXT
+         Swr_Normal( w, e[ "normal" ] )
+         Swr_XData( w, c[ "extended_data" ] )
+         RETURN
+      ENDIF
+   ENDIF
+   Sw_WriteEntityType( w, "POLYLINE" ) ; Swr_CommonEntity( st, c, hOwner )
+   DO CASE
+   CASE t == "POLYLINE"
+      Sw_WriteSubclass( w, "AcDb3dPolyline" ) ; Sw_WriteI16( w, 66, 1 )
+      Sw_WriteDouble( w, 10, 0.0 ) ; Sw_WriteDouble( w, 20, 0.0 ) ; Sw_WriteDouble( w, 30, 0.0 )
+      Sw_WriteI16( w, 70, IIf( Pfl_IsClosed( e[ "flags" ] ), 9, 8 ) )
+      Swr_XData( w, c[ "extended_data" ] )
+      FOR EACH v IN e[ "vertices" ]
+         Swr_VertexHead( st, Doc_AllocateHandle( st[ 5 ] ), hP, c[ "layer" ], c[ "color" ] )
+         Sw_WriteSubclass( w, "AcDb3dPolylineVertex" ) ; Sw_WritePoint3d( w, 10, v[ "location" ] ) ; Sw_WriteI16( w, 70, 32 )
+      NEXT
+   CASE t == "POLYLINE2D"
+      Sw_WriteSubclass( w, "AcDb2dPolyline" ) ; Sw_WriteI16( w, 66, 1 )
+      Sw_WriteDouble( w, 10, 0.0 ) ; Sw_WriteDouble( w, 20, 0.0 ) ; Sw_WriteDouble( w, 30, e[ "elevation" ] )
+      Sw_WriteI16( w, 70, e[ "flags" ] )
+      IF e[ "thickness" ] != 0.0 ; Sw_WriteDouble( w, 39, e[ "thickness" ] ) ; ENDIF
+      IF e[ "start_width" ] != 0.0 ; Sw_WriteDouble( w, 40, e[ "start_width" ] ) ; ENDIF
+      IF e[ "end_width" ] != 0.0 ; Sw_WriteDouble( w, 41, e[ "end_width" ] ) ; ENDIF
+      Swr_XData( w, c[ "extended_data" ] )
+      FOR EACH v IN e[ "vertices" ]
+         Swr_VertexHead( st, Doc_AllocateHandle( st[ 5 ] ), hP, c[ "layer" ], c[ "color" ] )
+         Sw_WriteSubclass( w, "AcDb2dVertex" ) ; Sw_WritePoint3d( w, 10, v[ "location" ] )
+         IF v[ "start_width" ] != 0.0 ; Sw_WriteDouble( w, 40, v[ "start_width" ] ) ; ENDIF
+         IF v[ "end_width" ] != 0.0 ; Sw_WriteDouble( w, 41, v[ "end_width" ] ) ; ENDIF
+         IF v[ "bulge" ] != 0.0 ; Sw_WriteDouble( w, 42, v[ "bulge" ] ) ; ENDIF
+         Sw_WriteI16( w, 70, v[ "flags" ] ) ; Sw_WriteDouble( w, 50, Swr_Deg( v[ "curve_tangent" ] ) )
+      NEXT
+   CASE t == "POLYLINE3D"
+      Sw_WriteSubclass( w, "AcDb3dPolyline" ) ; Sw_WriteI16( w, 66, 1 )
+      Sw_WriteDouble( w, 10, 0.0 ) ; Sw_WriteDouble( w, 20, 0.0 ) ; Sw_WriteDouble( w, 30, e[ "elevation" ] )
+      Sw_WriteI16( w, 70, P3f_ToBits( e[ "flags" ] ) )
+      IF e[ "smooth_type" ] != SST_NONE ; Sw_WriteI16( w, 75, e[ "smooth_type" ] ) ; ENDIF
+      Swr_XData( w, c[ "extended_data" ] )
+      FOR EACH v IN e[ "vertices" ]
+         hV := IIf( Hd_IsNull( v[ "handle" ] ), Doc_AllocateHandle( st[ 5 ] ), v[ "handle" ] )
+         Swr_VertexHead( st, hV, hP, v[ "layer" ], c[ "color" ] )
+         Sw_WriteSubclass( w, "AcDb3dPolylineVertex" ) ; Sw_WritePoint3d( w, 10, v[ "position" ] ) ; Sw_WriteI16( w, 70, v[ "flags" ] )
+      NEXT
+   CASE t == "POLYFACE_MESH"
+      Sw_WriteSubclass( w, "AcDbPolyFaceMesh" ) ; Sw_WriteI16( w, 66, 1 )
+      Sw_WriteDouble( w, 10, 0.0 ) ; Sw_WriteDouble( w, 20, 0.0 ) ; Sw_WriteDouble( w, 30, e[ "elevation" ] )
+      Sw_WriteI16( w, 70, e[ "flags" ] ) ; Sw_WriteI16( w, 71, Len( e[ "vertices" ] ) ) ; Sw_WriteI16( w, 72, Len( e[ "faces" ] ) )
+      Swr_XData( w, c[ "extended_data" ] )
+      FOR EACH v IN e[ "vertices" ]
+         hV := IIf( Hd_IsNull( v[ "common" ][ "handle" ] ), Doc_AllocateHandle( st[ 5 ] ), v[ "common" ][ "handle" ] )
+         Swr_VertexHead( st, hV, hP, v[ "common" ][ "layer" ], NIL )
+         Sw_WriteSubclass( w, "AcDbPolyFaceMeshVertex" ) ; Sw_WritePoint3d( w, 10, v[ "location" ] )
+         Sw_WriteI16( w, 70, hb_bitOr( hb_bitOr( v[ "flags" ], 64 ), 128 ) )
+      NEXT
+      FOR EACH v IN e[ "faces" ]
+         hV := IIf( Hd_IsNull( v[ "common" ][ "handle" ] ), Doc_AllocateHandle( st[ 5 ] ), v[ "common" ][ "handle" ] )
+         Sw_WriteEntityType( w, "VERTEX" ) ; Sw_WriteHandle( w, 5, hV ) ; Sw_WriteHandle( w, 330, hP )
+         Sw_WriteSubclass( w, "AcDbEntity" ) ; Sw_WriteString( w, 8, v[ "common" ][ "layer" ] )
+         IF v[ "color" ] != NIL
+            nS := Cl_ToTrueColorValue( v[ "color" ] )
+            IF nS != NIL
+               Sw_WriteI32( w, 420, nS )
+            ELSEIF Cl_IndexOf( v[ "color" ] ) != NIL
+               Sw_WriteI16( w, 62, Cl_IndexOf( v[ "color" ] ) )
+            ENDIF
+         ENDIF
+         Sw_WriteSubclass( w, "AcDbFaceRecord" )
+         Sw_WriteDouble( w, 10, 0.0 ) ; Sw_WriteDouble( w, 20, 0.0 ) ; Sw_WriteDouble( w, 30, 0.0 )
+         Sw_WriteI16( w, 70, hb_bitOr( v[ "flags" ], 128 ) )
+         Sw_WriteI16( w, 71, v[ "index1" ] ) ; Sw_WriteI16( w, 72, v[ "index2" ] ) ; Sw_WriteI16( w, 73, v[ "index3" ] )
+         IF v[ "index4" ] != 0 ; Sw_WriteI16( w, 74, v[ "index4" ] ) ; ENDIF
+      NEXT
+      hV := IIf( e[ "seqend_handle" ] != NIL, e[ "seqend_handle" ], Doc_AllocateHandle( st[ 5 ] ) )
+      Swr_SeqEnd( st, hV, hP, c[ "layer" ] )
+      RETURN
+   CASE t == "POLYGON_MESH"
+      Sw_WriteSubclass( w, "AcDbPolygonMesh" ) ; Sw_WriteI16( w, 66, 1 )
+      Sw_WriteDouble( w, 10, 0.0 ) ; Sw_WriteDouble( w, 20, 0.0 ) ; Sw_WriteDouble( w, 30, 0.0 )
+      Sw_WriteI16( w, 70, hb_bitOr( e[ "flags" ], 16 ) )
+      Sw_WriteI16( w, 71, e[ "m_vertex_count" ] ) ; Sw_WriteI16( w, 72, e[ "n_vertex_count" ] )
+      Sw_WriteI16( w, 73, e[ "m_smooth_density" ] ) ; Sw_WriteI16( w, 74, e[ "n_smooth_density" ] ) ; Sw_WriteI16( w, 75, e[ "smooth_type" ] )
+      Swr_Normal( w, e[ "normal" ] )
+      Swr_XData( w, c[ "extended_data" ] )
+      FOR EACH v IN e[ "vertices" ]
+         hV := IIf( Hd_IsNull( v[ "common" ][ "handle" ] ), Doc_AllocateHandle( st[ 5 ] ), v[ "common" ][ "handle" ] )
+         Swr_VertexHead( st, hV, hP, v[ "common" ][ "layer" ], c[ "color" ] )
+         Sw_WriteSubclass( w, "AcDbPolygonMeshVertex" ) ; Sw_WritePoint3d( w, 10, v[ "location" ] )
+         IF v[ "flags" ] != 0 ; Sw_WriteI16( w, 70, v[ "flags" ] ) ; ENDIF
+      NEXT
+   ENDCASE
+   Swr_SeqEnd( st, Doc_AllocateHandle( st[ 5 ] ), hP, c[ "layer" ] )
+RETURN
+
 STATIC PROCEDURE Swr_WriteEntity( st, e, hOwner )
    LOCAL w := st[ 1 ], c := e[ "common" ], t := e[ "_type" ], v, hSeq, att, nI
    DO CASE
@@ -679,6 +814,9 @@ STATIC PROCEDURE Swr_WriteEntity( st, e, hOwner )
          IF e[ "flags" ][ "rational" ] ; Sw_WriteDouble( w, 41, IIf( nI <= Len( e[ "weights" ] ), e[ "weights" ][ nI ], 1.0 ) ) ; ENDIF
       NEXT
       FOR EACH v IN e[ "fit_points" ] ; Sw_WritePoint3d( w, 11, v ) ; NEXT
+   CASE t == "POLYLINE" .OR. t == "POLYLINE2D" .OR. t == "POLYLINE3D" .OR. t == "POLYFACE_MESH" .OR. t == "POLYGON_MESH"
+      Swr_PolyEntity( st, e, hOwner )
+      RETURN
    CASE t == "ATTDEF"
       Swr_AttdefAttrib( st, e, hOwner, .T. )
    CASE t == "ELLIPSE"
