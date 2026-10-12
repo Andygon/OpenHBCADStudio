@@ -349,3 +349,41 @@ FUNCTION Sr_ReadMesh( s )
       IF aCr[ i ] != 0.0 .AND. i <= Len( e[ "edges" ] ) ; e[ "edges" ][ i ][ "crease" ] := aCr[ i ] ; ENDIF
    NEXT
 RETURN e
+
+/* read_attrib_embedded_mtext (R2018+): bloque 101 de ATTRIB/ATTDEF -> MTEXT. Sin ancho de ajuste por defecto (rectangle_width 0). */
+FUNCTION Sr_ReadAttribEmbMtext( s )
+   LOCAL m := Emt_New(), ins := PR_New(), nor := PR_New(), xd := PR_New(), p, v, n, pt
+   m[ "rectangle_width" ] := 0.0
+   DO WHILE ( p := Sr_Next( s ) ) != NIL
+      IF p[ DP_CODE ] == 0 .OR. p[ DP_CODE ] >= 1000 ; Sr_PushBack( s, p ) ; EXIT ; ENDIF
+      n := p[ DP_CODE ]
+      DO CASE
+      CASE n == 1 .OR. n == 3 ; m[ "value" ] += p[ DP_VALUE ]
+      CASE n == 7 ; m[ "style" ] := p[ DP_VALUE ]
+      CASE n == 10 .OR. n == 20 .OR. n == 30 ; PR_AddCoordinate( ins, p )
+      CASE n == 11 .OR. n == 21 .OR. n == 31 ; PR_AddCoordinate( xd, p )
+      CASE n == 210 .OR. n == 220 .OR. n == 230 ; PR_AddCoordinate( nor, p )
+      CASE n == 40 ; v := Dp_AsDouble( p ) ; IF v != NIL ; m[ "height" ] := v ; ENDIF
+      CASE n == 41 ; v := Dp_AsDouble( p ) ; m[ "rectangle_width" ] := IIf( v != NIL, v, 0.0 )
+      CASE n == 42 ; v := Dp_AsDouble( p ) ; m[ "extents_width" ] := IIf( v != NIL, v, 0.0 )
+      CASE n == 43 ; v := Dp_AsDouble( p ) ; m[ "extents_height" ] := IIf( v != NIL, v, 0.0 )
+      CASE n == 44 ; v := Dp_AsDouble( p ) ; IF v != NIL ; m[ "line_spacing_factor" ] := v ; ENDIF
+      CASE n == 46
+         v := Dp_AsDouble( p ) ; m[ "rectangle_height" ] := IIf( v != NIL .AND. v != 0.0, v, NIL )
+      CASE n == 50
+         v := Dp_AsDouble( p ) ; m[ "rotation" ] := IIf( v != NIL, v, 0.0 ) * ( OCX_PI / 180.0 )
+      CASE n == 71
+         v := Dp_AsI16( p ) ; m[ "attachment_point" ] := IIf( v == NIL, MTA_TOPLEFT, IIf( v >= 2 .AND. v <= 9, v, MTA_TOPLEFT ) )
+      CASE n == 72
+         v := Dp_AsI16( p ) ; m[ "drawing_direction" ] := IIf( v != NIL .AND. ( v == 3 .OR. v == 5 ), v, MTD_LEFTTORIGHT )
+      CASE n == 73
+         v := Dp_AsI16( p ) ; IF v != NIL ; m[ "line_spacing_style" ] := Lss_From( v ) ; ENDIF
+      ENDCASE
+   ENDDO
+   pt := PR_GetPoint( ins ) ; IF pt != NIL ; m[ "insertion_point" ] := pt ; ENDIF
+   pt := PR_GetPoint( nor ) ; IF pt != NIL ; m[ "normal" ] := pt ; ENDIF
+   pt := PR_GetPoint( xd )
+   IF pt != NIL .AND. ( pt[ 1 ] != 0.0 .OR. pt[ 2 ] != 0.0 )
+      m[ "rotation" ] := OCX_ATAN2( pt[ 2 ], pt[ 1 ] ) ; m[ "dwg_x_direction" ] := pt
+   ENDIF
+RETURN m
