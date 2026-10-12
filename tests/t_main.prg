@@ -11,6 +11,7 @@ PROCEDURE Main()
    T_Curve()
    T_Nurbs()
    T_Transform()
+   T_Bounds()
    ? "RESULTADO:", LTrim( Str( s_nOk ) ), "ok,", LTrim( Str( s_nFail ) ), "fallos"
    IF s_nFail == 0 ; ? "OCX-ALL-OK" ; ENDIF
    ErrorLevel( IIF( s_nFail == 0, 0, 1 ) )
