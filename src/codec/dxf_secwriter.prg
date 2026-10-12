@@ -5,7 +5,8 @@
    Portado: cabecera (con $TDUCREATE/$TDUUPDATE), summary_info, classes, tablas, blocks, entities (la mayoria de tipos incl. MULTILEADER/MESH),
    graphic_data comun, normal_plotstyle_handle, active_viewport_ids, xdata, DXF binario (Dxw_WriteBinaryString), EOF.
    valid_handles (Dxw_BuildValidHandles, sin Unknown/Associative/loft) y safe_entity_owner portados; preview_data 310 portado.
-   PENDIENTE: prepare_database_references/table_keys, ACDSDATA,
+   prepare_table_keys y prepare_database_references (sin las reparaciones de TABLE) portados.
+   PENDIENTE: ACDSDATA (depende de ACIS),
    3DSOLID/REGION/BODY (ACIS).
    Nota (quirk fiel al original): TEXT escribe oblique_angle (51) en radianes sin convertir.
    st = { w, nVer, nextHandle, lPaper, d, hViewportIds, nNormalPlotstyle }. Prefijo Swr_ / Dxw_.
@@ -1683,6 +1684,94 @@ FUNCTION Dxw_WriteString( d ) ; RETURN Dxw_WriteWith( d, TxW_New( NIL ) )
 /* DxfWriter::new_binary + write_to_vec: devuelve los bytes del DXF binario */
 FUNCTION Dxw_WriteBinaryString( d ) ; RETURN Dxw_WriteWith( d, BnW_New( NIL ) )
 
+/* prepare_database_references (dwg_writer.rs), sobre una copia solo si hace falta. Portado: HATCH asociado (reactores de frontera / invalido),
+   MLINE sin style_handle, reactores de UNDERLAY y reparacion del diccionario de layouts. PENDIENTE: reparaciones de TABLE (ACAD_TABLE/TABLESTYLE diferidos). */
+STATIC FUNCTION Dxw_PrepareDbRefs( d )
+   LOCAL e, pa, h, b, aBound, lBad, aMiss := {}, aInv := {}, aMl := {}, aUl := {}, o, k, hSty, hRoot, hLay, hNames := hb_Hash()
+   LOCAL lFix := .F., nTg, ent, x, aL, hSeen, hdr := d[ "header" ], dic
+   FOR EACH e IN Doc_Entities( d )
+      DO CASE
+      CASE e[ "_type" ] == "HATCH"
+         IF ! e[ "is_associative" ] ; LOOP ; ENDIF
+         aBound := {} ; lBad := .F.
+         FOR EACH pa IN e[ "paths" ]
+            FOR EACH h IN pa[ "boundary_handles" ] ; AAdd( aBound, h ) ; NEXT
+         NEXT
+         IF Len( aBound ) == 0 ; lBad := .T. ; ENDIF
+         FOR EACH h IN aBound
+            IF Doc_GetEntity( d, h ) == NIL ; lBad := .T. ; ENDIF
+         NEXT
+         IF lBad
+            AAdd( aInv, e[ "common" ][ "handle" ] ) ; LOOP
+         ENDIF
+         FOR EACH h IN aBound
+            b := Doc_GetEntity( d, h )
+            IF AScan( b[ "common" ][ "reactors" ], {| r | r == e[ "common" ][ "handle" ] } ) == 0 ; AAdd( aMiss, { h, e[ "common" ][ "handle" ] } ) ; ENDIF
+         NEXT
+      CASE e[ "_type" ] == "MLINE" .AND. ( e[ "style_handle" ] == NIL .OR. Hd_IsNull( e[ "style_handle" ] ) )
+         hSty := NIL
+         FOR EACH k IN hb_HKeys( d[ "objects" ] )
+            o := d[ "objects" ][ k ]
+            IF o[ "_type" ] == "MLineStyle" .AND. Upper( o[ "name" ] ) == Upper( e[ "style_name" ] ) ; hSty := k ; EXIT ; ENDIF
+         NEXT
+         IF hSty == NIL ; hSty := hdr[ "current_multiline_style_handle" ] ; ENDIF
+         IF ! Hd_IsNull( hSty ) ; AAdd( aMl, { e[ "common" ][ "handle" ], hSty } ) ; ENDIF
+      CASE e[ "_type" ] == "UNDERLAY"
+         IF hb_HHasKey( d[ "objects" ], e[ "definition_handle" ] ) .AND. d[ "objects" ][ e[ "definition_handle" ] ][ "_type" ] == "UnderlayDefinition"
+            IF AScan( d[ "objects" ][ e[ "definition_handle" ] ][ "reactors" ], {| r | r == e[ "common" ][ "handle" ] } ) == 0
+               AAdd( aUl, { e[ "definition_handle" ], e[ "common" ][ "handle" ] } )
+            ENDIF
+         ENDIF
+      ENDCASE
+   NEXT
+   hRoot := hdr[ "named_objects_dict_handle" ] ; hLay := hdr[ "acad_layout_dict_handle" ]
+   IF hb_HHasKey( d[ "objects" ], hRoot ) .AND. d[ "objects" ][ hRoot ][ "_type" ] == "Dictionary"
+      x := Dic_Get( d[ "objects" ][ hRoot ], "ACAD_LAYOUT" )
+      IF x != NIL ; hLay := x ; ENDIF
+   ENDIF
+   FOR EACH k IN hb_HKeys( d[ "objects" ] )
+      IF d[ "objects" ][ k ][ "_type" ] == "Layout" ; hNames[ k ] := d[ "objects" ][ k ][ "name" ] ; ENDIF
+   NEXT
+   IF hb_HHasKey( d[ "objects" ], hLay ) .AND. d[ "objects" ][ hLay ][ "_type" ] == "Dictionary"
+      nTg := 0 ; hSeen := hb_Hash()
+      FOR EACH e IN d[ "objects" ][ hLay ][ "entries" ]
+         IF hb_HHasKey( hNames, e[ 2 ] ) .AND. hNames[ e[ 2 ] ] == e[ 1 ] .AND. ! hb_HHasKey( hSeen, e[ 2 ] )
+            hSeen[ e[ 2 ] ] := .T. ; nTg++
+         ENDIF
+      NEXT
+      lFix := Len( d[ "objects" ][ hLay ][ "entries" ] ) != nTg .OR. nTg != Len( hNames )
+   ENDIF
+   IF Len( aMiss ) == 0 .AND. Len( aInv ) == 0 .AND. Len( aMl ) == 0 .AND. Len( aUl ) == 0 .AND. ! lFix
+      RETURN d
+   ENDIF
+   d := Ent_Clone( d )
+   FOR EACH x IN aUl
+      AAdd( d[ "objects" ][ x[ 1 ] ][ "reactors" ], x[ 2 ] )
+   NEXT
+   FOR EACH x IN aMl
+      ent := Doc_GetEntity( d, x[ 1 ] ) ; IF ent != NIL ; ent[ "style_handle" ] := x[ 2 ] ; ENDIF
+   NEXT
+   FOR EACH x IN aMiss
+      ent := Doc_GetEntity( d, x[ 1 ] )
+      IF ent != NIL .AND. AScan( ent[ "common" ][ "reactors" ], {| r | r == x[ 2 ] } ) == 0 ; AAdd( ent[ "common" ][ "reactors" ], x[ 2 ] ) ; ENDIF
+   NEXT
+   FOR EACH h IN aInv
+      ent := Doc_GetEntity( d, h )
+      IF ent != NIL
+         ent[ "is_associative" ] := .F.
+         FOR EACH pa IN ent[ "paths" ] ; pa[ "boundary_handles" ] := {} ; NEXT
+      ENDIF
+   NEXT
+   IF lFix
+      dic := d[ "objects" ][ hLay ] ; dic[ "entries" ] := {}
+      aL := ASort( hb_HKeys( hNames ) ) ; hSeen := hb_Hash()
+      FOR EACH k IN aL
+         IF ! hb_HHasKey( hSeen, hNames[ k ] ) ; hSeen[ hNames[ k ] ] := .T. ; AAdd( dic[ "entries" ], { hNames[ k ], k } ) ; ENDIF
+      NEXT
+      FOR EACH k IN aL ; d[ "objects" ][ k ][ "owner" ] := hLay ; NEXT
+   ENDIF
+RETURN d
+
 /* build_valid_handles: handles que apareceran en el DXF (objetos, block records y sus entidades, indice de entidades, atributos de INSERT,
    registros y cabeceras de tablas). Hash handle -> .T. ; vacio = sin filtro. PENDIENTE: Unknown/Associative/DynamicBlock "no restaurables" y loft_input_entities (sin modelo). */
 STATIC FUNCTION Dxw_BuildValidHandles( d )
@@ -1715,6 +1804,11 @@ RETURN st[ 9 ]
 
 STATIC FUNCTION Dxw_WriteWith( d, w )
    LOCAL st, o, nNp := Hd_Null(), e, br
+   d := Dxw_PrepareDbRefs( d )
+   /* prepare_table_keys: sobre una copia (el original no cambia) */
+   IF Doc_HasStaleTableKeys( d )
+      d := Ent_Clone( d ) ; Doc_ResyncTableKeys( d )
+   ENDIF
    Doc_SynchronizeHandleAllocator( d )
    /* normal_plotstyle_handle: default_handle del DictionaryWithDefault que tiene la entrada "Normal" */
    FOR EACH o IN hb_HValues( d[ "objects" ] )
