@@ -69,7 +69,7 @@ STATIC FUNCTION Dxo_RootForTest( d )
 RETURN nB
 
 PROCEDURE T_DxfRw()
-   LOCAL d, d2, e, l, es, c, tx, s1, s2, s3, s4, ms, x, ok, u
+   LOCAL d, d2, d5, e, l, es, c, tx, s1, s2, s3, s4, ms, x, ok, u
    /* test_dxf_roundtrip_line_normal */
    d := Doc_New() ; l := Eln_New()
    l[ "start" ] := Vc3_New( 1.0, 2.0, 3.0 ) ; l[ "end" ] := Vc3_New( 4.0, 5.0, 6.0 ) ; l[ "normal" ] := Vc3_New( 0.0, 1.0, 0.0 )
@@ -253,6 +253,19 @@ PROCEDURE T_DxfRw()
          Chk( ok >= 1 .AND. ok == x, "[extra] OBJECTS: los LAYOUT sobreviven a escribir y releer (" + hb_ntos( ok ) + ")" )
          ok := d[ "objects" ][ Dxo_RootForTest( d ) ] ; x := d2[ "objects" ][ Dxo_RootForTest( d2 ) ]
          Chk( Len( x[ "entries" ] ) >= 1 .AND. Len( x[ "entries" ] ) <= Len( ok[ "entries" ] ), "[extra] OBJECTS: diccionario raiz conserva entradas escribibles" )
+         x := Xrc_New() ; x[ "handle" ] := Doc_AllocateHandle( d ) ; x[ "owner" ] := d[ "header" ][ "named_objects_dict_handle" ]
+         Xrc_AddString( x, 1, "hola" ) ; Xrc_AddDouble( x, 40, 2.5 ) ; Xrc_AddInt16( x, 70, 7 ) ; Xrc_AddInt32( x, 90, 70000 ) ; Xrc_AddBool( x, 290, .T. ) ; Xrc_AddPoint3d( x, 10, 1.0, 2.0, 3.0 )
+         Xrc_AddHandle( x, 340, 12 ) ; AAdd( x[ "entries" ], Xre_New( 310, Xrv_New( "Chunk", Chr( 1 ) + Chr( 255 ) + Chr( 16 ) ) ) )
+         d[ "objects" ][ x[ "handle" ] ] := x
+         ok := Grp_New( "" ) ; ok[ "handle" ] := Doc_AllocateHandle( d ) ; ok[ "unnamed" ] := .T. ; ok[ "description" ] := "grp" ; AAdd( ok[ "entities" ], 112 ) ; ok[ "selectable" ] := .F.
+         d[ "objects" ][ ok[ "handle" ] ] := ok
+         d5 := Dxr_ReadString( Dxw_WriteString( d ) )
+         x := IIf( ValType( d5 ) == "H", hb_HGetDef( d5[ "objects" ], x[ "handle" ], NIL ), NIL )
+         ok := IIf( ValType( d5 ) == "H", hb_HGetDef( d5[ "objects" ], ok[ "handle" ], NIL ), NIL )
+         Chk( x != NIL .AND. Len( x[ "entries" ] ) == 8 .AND. x[ "entries" ][ 1 ][ "value" ][ "value" ] == "hola" .AND. x[ "entries" ][ 3 ][ "value" ][ "_kind" ] == "Int16" .AND. x[ "entries" ][ 4 ][ "value" ][ "value" ] == 70000 ;
+            .AND. x[ "entries" ][ 5 ][ "value" ][ "value" ] .AND. Near( x[ "entries" ][ 6 ][ "value" ][ "value" ][ 3 ], 3.0, 0.000000001 ) .AND. x[ "entries" ][ 7 ][ "value" ][ "value" ] == 12 .AND. x[ "entries" ][ 8 ][ "value" ][ "value" ] == Chr( 1 ) + Chr( 255 ) + Chr( 16 ) ;
+            .AND. Len( x[ "object_references" ] ) == 1, "[extra] OBJECTS: XRECORD escribir y releer (tipos de valor)" )
+         Chk( ok != NIL .AND. ok[ "unnamed" ] .AND. ! ok[ "selectable" ] .AND. ok[ "description" ] == "grp" .AND. Len( ok[ "entities" ] ) == 1, "[extra] OBJECTS: GROUP escribir y releer" )
       ENDIF
       x := NIL
       IF ValType( d2 ) == "H"
