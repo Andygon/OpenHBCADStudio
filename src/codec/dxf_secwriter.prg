@@ -1193,6 +1193,39 @@ STATIC PROCEDURE Swr_WriteEntity( st, e, hOwner )
       Sw_WritePoint3d( w, 212, e[ "block_offset" ] ) ; Sw_WritePoint3d( w, 213, e[ "annotation_offset" ] )
       IF ! Hd_IsNull( e[ "annotation_handle" ] ) ; Sw_WriteHandle( w, 340, e[ "annotation_handle" ] ) ; ENDIF
       IF ! ( e[ "override_color" ][ 1 ] == CK_RGB ) ; Sw_WriteI16( w, 77, Cl_IndexOf( e[ "override_color" ] ) ) ; ENDIF
+   CASE t == "VIEWPORT"
+      /* active_viewport_ids (estado del escritor) pendiente: id 0 si el viewport no lo trae */
+      Sw_WriteEntityType( w, "VIEWPORT" ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbViewport" ) ; Sw_WritePoint3d( w, 10, e[ "center" ] )
+      Sw_WriteDouble( w, 40, e[ "width" ] ) ; Sw_WriteDouble( w, 41, e[ "height" ] )
+      nI := e[ "id" ]
+      DO CASE
+      CASE ! Evp_IsOn( e ) ; Sw_WriteI16( w, 68, 0 )
+      CASE e[ "off_screen" ] ; Sw_WriteI16( w, 68, -1 )
+      OTHERWISE ; Sw_WriteI16( w, 68, nI )
+      ENDCASE
+      Sw_WriteI16( w, 69, nI ) ; Sw_WriteI32( w, 90, Vsf_ToBits( e[ "status" ] ) )
+      Sw_WriteDouble( w, 12, e[ "view_center" ][ 1 ] ) ; Sw_WriteDouble( w, 22, e[ "view_center" ][ 2 ] )
+      Sw_WriteDouble( w, 13, e[ "snap_base" ][ 1 ] ) ; Sw_WriteDouble( w, 23, e[ "snap_base" ][ 2 ] )
+      Sw_WriteDouble( w, 14, e[ "snap_spacing" ][ 1 ] ) ; Sw_WriteDouble( w, 24, e[ "snap_spacing" ][ 2 ] )
+      Sw_WriteDouble( w, 15, e[ "grid_spacing" ][ 1 ] ) ; Sw_WriteDouble( w, 25, e[ "grid_spacing" ][ 2 ] )
+      Sw_WriteDouble( w, 16, e[ "view_direction" ][ 1 ] ) ; Sw_WriteDouble( w, 26, e[ "view_direction" ][ 2 ] ) ; Sw_WriteDouble( w, 36, e[ "view_direction" ][ 3 ] )
+      Sw_WriteDouble( w, 17, e[ "view_target" ][ 1 ] ) ; Sw_WriteDouble( w, 27, e[ "view_target" ][ 2 ] ) ; Sw_WriteDouble( w, 37, e[ "view_target" ][ 3 ] )
+      Sw_WriteDouble( w, 42, e[ "lens_length" ] ) ; Sw_WriteDouble( w, 43, e[ "front_clip_z" ] ) ; Sw_WriteDouble( w, 44, e[ "back_clip_z" ] ) ; Sw_WriteDouble( w, 45, e[ "view_height" ] )
+      Sw_WriteDouble( w, 50, Swr_Deg( e[ "snap_angle" ] ) ) ; Sw_WriteDouble( w, 51, Swr_Deg( e[ "twist_angle" ] ) ) ; Sw_WriteI16( w, 72, e[ "circle_sides" ] )
+      FOR EACH v IN e[ "frozen_layers" ]
+         IF ! Hd_IsNull( v ) ; Sw_WriteHandle( w, 331, v ) ; ENDIF
+      NEXT
+      IF ! Hd_IsNull( e[ "clip_boundary_handle" ] ) ; Sw_WriteHandle( w, 340, e[ "clip_boundary_handle" ] ) ; ENDIF
+      Sw_WriteByte( w, 281, Vrm_ToValue( e[ "render_mode" ] ) )
+      IF e[ "ucs_per_viewport" ] ; Sw_WriteI16( w, 71, 1 ) ; ENDIF
+      v := e[ "ucs_origin" ]
+      IF ! ( v[ 1 ] == 0.0 .AND. v[ 2 ] == 0.0 .AND. v[ 3 ] == 0.0 ) ; Sw_WriteDouble( w, 110, v[ 1 ] ) ; Sw_WriteDouble( w, 120, v[ 2 ] ) ; Sw_WriteDouble( w, 130, v[ 3 ] ) ; ENDIF
+      v := e[ "ucs_x_axis" ]
+      IF ! ( v[ 1 ] == 0.0 .AND. v[ 2 ] == 0.0 .AND. v[ 3 ] == 0.0 ) ; Sw_WriteDouble( w, 111, v[ 1 ] ) ; Sw_WriteDouble( w, 121, v[ 2 ] ) ; Sw_WriteDouble( w, 131, v[ 3 ] ) ; ENDIF
+      v := e[ "ucs_y_axis" ]
+      IF ! ( v[ 1 ] == 0.0 .AND. v[ 2 ] == 0.0 .AND. v[ 3 ] == 0.0 ) ; Sw_WriteDouble( w, 112, v[ 1 ] ) ; Sw_WriteDouble( w, 122, v[ 2 ] ) ; Sw_WriteDouble( w, 132, v[ 3 ] ) ; ENDIF
+      IF e[ "elevation" ] != 0.0 ; Sw_WriteDouble( w, 146, e[ "elevation" ] ) ; ENDIF
+      IF e[ "grid_major" ] != 0 ; Sw_WriteI16( w, 61, e[ "grid_major" ] ) ; ENDIF
    CASE t == "SHAPE"
       Sw_WriteEntityType( w, "SHAPE" ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbShape" )
       IF Abs( e[ "thickness" ] ) > 0.0000000001 ; Sw_WriteDouble( w, 39, e[ "thickness" ] ) ; ENDIF
