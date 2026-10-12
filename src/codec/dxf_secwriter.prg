@@ -1352,6 +1352,13 @@ STATIC PROCEDURE Swr_WriteEntity( st, e, hOwner )
       IF e[ "definition_reactor_handle" ] != NIL ; Sw_WriteHandle( w, 360, e[ "definition_reactor_handle" ] ) ; ENDIF
       Sw_WriteI16( w, 71, e[ "clip_boundary" ][ "clip_type" ] ) ; Sw_WriteI32( w, 91, Len( e[ "clip_boundary" ][ "vertices" ] ) )
       FOR EACH v IN e[ "clip_boundary" ][ "vertices" ] ; Sw_WriteDouble( w, 14, v[ 1 ] ) ; Sw_WriteDouble( w, 24, v[ 2 ] ) ; NEXT
+   CASE t == "UNDERLAY"
+      Sw_WriteEntityType( w, Eul_EntityName( e ) ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbUnderlayReference" ) ; Sw_WriteHandle( w, 340, e[ "definition_handle" ] )
+      Sw_WriteDouble( w, 10, e[ "insertion_point" ][ 1 ] ) ; Sw_WriteDouble( w, 20, e[ "insertion_point" ][ 2 ] ) ; Sw_WriteDouble( w, 30, e[ "insertion_point" ][ 3 ] )
+      Sw_WriteDouble( w, 41, e[ "x_scale" ] ) ; Sw_WriteDouble( w, 42, e[ "y_scale" ] ) ; Sw_WriteDouble( w, 43, e[ "z_scale" ] ) ; Sw_WriteDouble( w, 50, Swr_Deg( e[ "rotation" ] ) )
+      Sw_WriteDouble( w, 210, e[ "normal" ][ 1 ] ) ; Sw_WriteDouble( w, 220, e[ "normal" ][ 2 ] ) ; Sw_WriteDouble( w, 230, e[ "normal" ][ 3 ] )
+      Sw_WriteByte( w, 280, Eul_DisplayFlags( e ) ) ; Sw_WriteByte( w, 281, e[ "contrast" ] ) ; Sw_WriteByte( w, 282, e[ "fade" ] )
+      FOR EACH v IN e[ "clip_boundary_vertices" ] ; Sw_WriteDouble( w, 11, v[ 1 ] ) ; Sw_WriteDouble( w, 21, v[ 2 ] ) ; NEXT
    CASE t == "SHAPE"
       Sw_WriteEntityType( w, "SHAPE" ) ; Swr_CommonEntity( st, c, hOwner ) ; Sw_WriteSubclass( w, "AcDbShape" )
       IF Abs( e[ "thickness" ] ) > 0.0000000001 ; Sw_WriteDouble( w, 39, e[ "thickness" ] ) ; ENDIF
