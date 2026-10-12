@@ -363,4 +363,18 @@ PROCEDURE T_DxfRw()
    es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
    Chk( Len( es ) == 2 .AND. es[ 1 ][ "_type" ] == "ARC_DIMENSION" .AND. es[ 1 ][ "is_partial" ] .AND. es[ 1 ][ "has_leader" ] .AND. Near( es[ 1 ][ "arc_end_parameter" ], 1.5, 0.000000001 ) .AND. Near( es[ 1 ][ "first_leader_point" ][ 1 ], 2.0, 0.000000001 ) .AND. Near( es[ 1 ][ "definition_point" ][ 1 ], 0.7, 0.000000001 ), "[extra] DIMENSION: ARC_DIMENSION releida" )
    Chk( Len( es ) == 2 .AND. es[ 2 ][ "_type" ] == "LARGE_RADIAL_DIMENSION" .AND. Near( es[ 2 ][ "jog_angle" ], 0.75, 0.000000001 ) .AND. Near( es[ 2 ][ "jog_point" ][ 1 ], 3.0, 0.000000001 ) .AND. Near( es[ 2 ][ "chord_point" ][ 2 ], 1.0, 0.000000001 ), "[extra] DIMENSION: LARGE_RADIAL releida" )
+   /* [extra] TOLERANCE y SHAPE */
+   d2 := Doc_New()
+   x := Etl_WithText( Vc3_New( 1.0, 2.0, 0.0 ), "{\Fgdt;j}%%v0.5%%vA" ) ; x[ "dimension_style_name" ] := "ISO-25" ; x[ "direction" ] := Vc3_New( 0.0, 1.0, 0.0 ) ; Doc_AddEntity( d2, x )
+   x := Esh_WithName( Vc3_New( 3.0, 4.0, 0.0 ), "CIRC1", 2.0 ) ; x[ "thickness" ] := 1.5 ; x[ "relative_x_scale" ] := 0.5 ; x[ "common" ][ "layer" ] := "SHP" ; Doc_AddEntity( d2, x )
+   d2 := RT( d2 )
+   es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
+   Chk( Len( es ) == 2 .AND. es[ 1 ][ "_type" ] == "TOLERANCE" .AND. es[ 1 ][ "text" ] == "{\Fgdt;j}%%v0.5%%vA" .AND. es[ 1 ][ "dimension_style_name" ] == "ISO-25" .AND. Near( es[ 1 ][ "direction" ][ 2 ], 1.0, 0.000000001 ) .AND. Near( es[ 1 ][ "insertion_point" ][ 1 ], 1.0, 0.000000001 ), "[extra] TOLERANCE releida" )
+   Chk( Len( es ) == 2 .AND. es[ 2 ][ "_type" ] == "SHAPE" .AND. es[ 2 ][ "shape_name" ] == "CIRC1" .AND. es[ 2 ][ "common" ][ "layer" ] == "SHP" .AND. Near( es[ 2 ][ "size" ], 2.0, 0.000000001 ) .AND. Near( es[ 2 ][ "thickness" ], 1.5, 0.000000001 ) .AND. Near( es[ 2 ][ "relative_x_scale" ], 0.5, 0.000000001 ), "[extra] SHAPE releida" )
+   /* [extra] WIPEOUT */
+   d2 := Doc_New()
+   x := Ewp_Polygonal( { Vc3_New( 0.0, 0.0, 0.0 ), Vc3_New( 4.0, 0.0, 0.0 ), Vc3_New( 4.0, 3.0, 0.0 ) }, 0.0 ) ; x[ "brightness" ] := 70 ; x[ "clip_mode" ] := WCM_INSIDE ; x[ "definition_handle" ] := 77 ; Doc_AddEntity( d2, x )
+   d2 := RT( d2 )
+   es := IIf( ValType( d2 ) == "H", Doc_ModelSpaceEntities( d2 ), {} )
+   Chk( Len( es ) == 1 .AND. es[ 1 ][ "_type" ] == "WIPEOUT" .AND. es[ 1 ][ "clip_type" ] == WCT_POLYGONAL .AND. Len( es[ 1 ][ "clip_boundary_vertices" ] ) == Len( x[ "clip_boundary_vertices" ] ) .AND. es[ 1 ][ "brightness" ] == 70 .AND. es[ 1 ][ "clip_mode" ] == WCM_INSIDE .AND. es[ 1 ][ "definition_handle" ] == 77, "[extra] WIPEOUT releido" )
 RETURN
