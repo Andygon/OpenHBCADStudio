@@ -29,3 +29,33 @@ HB_FUNC( OCX_DARKTITLE )
       FreeLibrary( hDll );
    hb_retl( bOk );
 }
+
+/*----------------------------------------------------------------------------
+   B13c: OCX_FILLTRI( hDC, x1, y1, x2, y2, x3, y3, nColorBGR ) rellena un triangulo
+   (pluma del mismo color para que no queden costuras entre triangulos contiguos).
+----------------------------------------------------------------------------*/
+HB_FUNC( OCX_FILLTRI )
+{
+   HDC hDC = ( HDC ) ( HB_PTRUINT ) hb_parnint( 1 );
+   COLORREF cr = ( COLORREF ) hb_parnl( 8 );
+   POINT pt[ 3 ];
+   HBRUSH hBr, hOldBr;
+   HPEN hPen, hOldPen;
+   int i;
+   if( ! hDC )
+      return;
+   for( i = 0; i < 3; i++ )
+   {
+      pt[ i ].x = ( LONG ) hb_parnl( 2 + i * 2 );
+      pt[ i ].y = ( LONG ) hb_parnl( 3 + i * 2 );
+   }
+   hBr = CreateSolidBrush( cr );
+   hPen = CreatePen( PS_SOLID, 1, cr );
+   hOldBr = ( HBRUSH ) SelectObject( hDC, hBr );
+   hOldPen = ( HPEN ) SelectObject( hDC, hPen );
+   Polygon( hDC, pt, 3 );
+   SelectObject( hDC, hOldPen );
+   SelectObject( hDC, hOldBr );
+   DeleteObject( hPen );
+   DeleteObject( hBr );
+}

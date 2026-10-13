@@ -51,3 +51,17 @@ Documento de trazabilidad de la traducción de OpenCADStudio (Rust,
 6. `.bat` con LF: `cmd.exe` exige CRLF (fallos intermitentes de `call :etiqueta`).
 7. Bucle infinito en `dxf_read_layer`: empezar en `nI+1` (como `dxf_read_ent`).
 8. `hb_arraySetForward` + `hb_itemRelease`: usar patrón `hb_arraySet` + release.
+
+## 5. Cierre de la fase 2: lo portado y lo que queda como N/A
+
+Portado en la fase 2 (con tests en Linux; la GUI solo se ejecuta en Windows): visor/editor 2D (zoom, pan, capas, hatch, linea de comandos ES/EN, seleccion, grips, snap, menus, guardar), ribbon de 8 pestanas, comandos de dibujo y edicion, textos, MTEXT, cotas, INSERT, 3D alambre con orbita, lector SAT con descifrado, teselado de caras planas, cono/cilindro, esfera y toro (`vw_sattess.prg`), sombreado painter (`vw_shade.prg`, comando `SOMBREADO`, `OCX_FILLTRI` en `csrc/ocad_win.c`) y trazado a PDF vectorial (`vw_plot.prg`, comando `PLOT`/`EXPORTPDF`).
+
+N/A (no portable a Harbour/FiveWin/GDI, o fuera de alcance de esta fase):
+
+- Shaders GPU y backend wgpu (`src/shaders/*`, `gpu_backend.prg`): el render es GDI con algoritmo del pintor.
+- Plugins (`src/plugin/*`), red y servicios web (`network.prg`, `rest.prg`, `mcp*.prg`, `patreon.prg`, `update_check`, `web_*`): dependen de librerias Rust y servicios externos.
+- NURBS y blends ACIS, SAB binario, caras curvas recortadas con precision (se rellenan por el rango de sus bordes), esfera con lazos no circulares y toro parcial.
+- ARRAYPATH, ELLIPSE_ARC, trim/extend de polilineas y splines.
+- PDF: fuentes TrueType del dibujo, estilos CTB/STB, layouts y viewports multiples, imagenes.
+- DWG nativo: se integrara desde el proyecto Harbour del usuario (fase posterior).
+- Sin verificar en Windows real: enlace de `USE_FW=1` con los cambios de `OCX_FILLTRI` y `DrawShaded`.

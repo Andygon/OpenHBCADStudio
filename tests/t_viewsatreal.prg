@@ -2,6 +2,7 @@
 #include "ocx.ch"
 
 PROCEDURE T_ViewSatReal()
+   LOCAL oScn, cPdf2
    LOCAL oSc, cPdf, nXr
    LOCAL cam, aAll := {}, sh, k, ok := .T., nBack, ps, pt, pc, bad := 0, i, ex := { 1.0, 0.0, 0.0 }, ey := { 0.0, 1.0, 0.0 }, ez := { 0.0, 0.0, 1.0 }, dd
    LOCAL c := hb_MemoRead( "tests/fixtures/solids3d.dxf" ), d, e, nS := 0, sat, r, nF := 0, nT := 0, nSk := 0, nOk := 0, nPl := 0, cs
@@ -51,6 +52,7 @@ PROCEDURE T_ViewSatReal()
    Chk( Len( sh ) > 0 .AND. Len( sh ) < nBack .AND. ok, "[extra] shade: ordenado lejos->cerca, sombra en 0.25..1 y se descartan caras traseras (" + hb_ntos( Len( sh ) ) + "/" + hb_ntos( nBack ) + ")" )
    sh := VwS_Shade( VwC_New(), { { { 0.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0 }, { 0.0, 1.0, 0.0 }, { 0.0, 0.0, 1.0 } }, { { 0.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0 }, { 0.0, 1.0, 0.0 }, { 0.0, 0.0, -1.0 } } } )
    Chk( Len( sh ) == 1 .AND. Abs( sh[ 1 ][ 4 ] - 1.0 ) < 0.000001, "[extra] shade: en planta la normal +Z mira a la camara (sombra 1.0) y -Z se descarta" )
+   Chk( Len( VwS_Shade( cam, { { { 0.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0 }, { 0.0, 1.0, 0.0 }, { 0.0, 0.0, 1.0 }, 255 } }, .F. )[ 1 ] ) == 6, "[extra] shade: el color del triangulo viaja en el resultado" )
    Chk( VwS_Color( 0.5, 200 + 100 * 256 + 50 * 65536 ) == 100 + 50 * 256 + 25 * 65536, "[extra] shade: VwS_Color oscurece" )
    // B14: PDF
    oSc := hb_Hash( "wires", { { 255, "0", { { 0.0, 0.0 }, { 10.0, 5.0 } }, {}, 1, "A" } }, "texts", { { 1.0, 1.0, 2.0, 0.0, "Hola (x)", 0 } }, "fills", {}, "ext", { 0.0, 0.0, 10.0, 5.0 } )
@@ -59,5 +61,10 @@ PROCEDURE T_ViewSatReal()
    Chk( Left( cPdf, 8 ) == "%PDF-1.4" .AND. "%%EOF" $ cPdf .AND. "/MediaBox [0 0 841.890 595.276]" $ cPdf .AND. "(Hola \(x\)) Tj" $ cPdf, "[extra] plot: PDF con cabecera, MediaBox A4 apaisado y texto escapado" )
    nXr := Val( SubStr( cPdf, At( "startxref", cPdf ) + 10, 8 ) )
    Chk( SubStr( cPdf, nXr + 1, 4 ) == "xref" .AND. SubStr( cPdf, Val( SubStr( cPdf, nXr + 1 + Len( "xref" + hb_eol() + "0 6" + hb_eol() + "0000000000 65535 f " + hb_eol() ), 10 ) ) + 1, 7 ) == "1 0 obj", "[extra] plot: xref apunta a los objetos" )
+   // escena con solidos: tris por Vws_Build y PDF del conjunto
+   oScn := Vws_Build( d )
+   Chk( Len( oScn[ "tris" ] ) == nT .AND. oScn[ "ext3" ] != NIL .AND. Len( oScn[ "tris" ][ 1 ] ) == 5, "[extra] escena: los 3DSOLID aportan " + hb_ntos( Len( oScn[ "tris" ] ) ) + " triangulos con color (esperado " + hb_ntos( nT ) + ")" )
+   cPdf2 := Plot_Pdf( oScn, "A4", .T. )
+   Chk( cPdf2 != NIL .AND. "%%EOF" $ cPdf2, "[extra] plot: escena de solidos sin lineas se exporta" )
    OutStd( "satreal caras=" + hb_ntos( nF ) + " tris=" + hb_ntos( nT ) + " saltadas=" + hb_ntos( nSk ) + hb_eol() )
 RETURN

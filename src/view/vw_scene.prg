@@ -7,6 +7,7 @@
    Escena = hash:
      "wires"  array de { nRgb, cLayer, aPts, aBox, nEstilo, cHandle }  aPts = { {x,y}, ... }
               nEstilo = estilo de pluma GDI (0 continua, 1 guiones, 2 puntos, 3 raya-punto)
+     "tris"   array de { p1, p2, p3, normal, nRgb } (triangulos 3D de los 3DSOLID; vista sombreada)
      "fills"  array de { nRgb, aLoops, aBox, lSolid, cHandle }  (HATCH; aLoops = poligonos mundo)
      "ents"   hash handle -> entidad del codec (entidades de primer nivel)
      "texts"  array de { x, y, nAlto, nRot, cTexto, nRgb }
@@ -104,6 +105,20 @@ STATIC PROCEDURE Vws_Ext3( oS, x, y, z )
       IF y > e[ 5 ] ; e[ 5 ] := y ; ENDIF
       IF z > e[ 6 ] ; e[ 6 ] := z ; ENDIF
    ENDIF
+RETURN
+
+/* 3DSOLID/REGION/BODY: teselado del SAT a triangulos 3D (oS["tris"] = { { p1, p2, p3, n, nRgb }, ... }) */
+STATIC PROCEDURE Vws_Solid( oS, e, nRgb )
+   LOCAL sat := Sat_Parse( Sat_FromEntity( e ) ), r, t, k
+   IF sat == NIL ; RETURN ; ENDIF
+   r := Sat_Tess( sat )
+   FOR EACH t IN r[ "tris" ]
+      AAdd( t, nRgb )
+      AAdd( oS[ "tris" ], t )
+      FOR k := 1 TO 3
+         Vws_Ext3( oS, t[ k ][ 1 ], t[ k ][ 2 ], t[ k ][ 3 ] )
+      NEXT
+   NEXT
 RETURN
 
 /* aPts: puntos { x, y } o { x, y, z } en coordenadas de bloque; se transforman con aT */
@@ -379,6 +394,8 @@ STATIC PROCEDURE Vws_Entity( d, oS, e, aT, nBlockRgb, nDepth )
       Vws_Wire( oS, aP, nRgb, cLayer, aT )
    CASE cT == "HATCH"
       Vws_Hatch( oS, e, nRgb, aT )
+   CASE cT == "UNKNOWN" .AND. aT == NIL .AND. ! Empty( Sat_FromEntity( e ) )
+      Vws_Solid( oS, e, nRgb )
    CASE cT == "TEXT" .OR. cT == "MTEXT"
       p := Vws_Apply( aT, e[ "insertion_point" ][ 1 ], e[ "insertion_point" ][ 2 ] )
       nR := Vws_N( e, "rotation", 0.0 )
@@ -535,7 +552,7 @@ RETURN
 /* Entrada: d = documento del codec (Dxr_ReadString) */
 /* hHidden: capas apagadas por el usuario (clave = nombre en mayusculas), opcional */
 FUNCTION Vws_Build( d, hHidden )
-   LOCAL oS := hb_Hash( "wires", {}, "texts", {}, "fills", {}, "ents", hb_Hash(), "ext", NIL, "ext3", NIL, "_dz", 0.0, "skipped", hb_Hash(), ;
+   LOCAL oS := hb_Hash( "wires", {}, "texts", {}, "fills", {}, "tris", {}, "ents", hb_Hash(), "ext", NIL, "ext3", NIL, "_dz", 0.0, "skipped", hb_Hash(), ;
                         "hidden", IIf( hHidden == NIL, hb_Hash(), hHidden ), "_style", 0, "_h", "" )
    Vws_Block( d, oS, Doc_ModelSpaceEntities( d ), NIL, VWS_WHITE, 0 )
 RETURN oS
