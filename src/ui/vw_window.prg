@@ -73,6 +73,7 @@ CLASS TViewer
    METHOD InitBtns()
    METHOD Prompt()
    METHOD DrawFills( hMem, c )
+   METHOD DrawShaded( hMem, c )
    METHOD DrawGrips( hMem, c )
    METHOD OnMove( nRow, nCol, nFlags )
    METHOD OnKey( nKey )
@@ -582,6 +583,9 @@ METHOD Paint( hDC ) CLASS TViewer
       hOldPen := NIL
       IF lV3
          VwC_Setup( c )
+         IF hb_HHasKey( c, "shade" ) .AND. c[ "shade" ] == .T. .AND. hb_HHasKey( ::oScene, "tris" ) .AND. Len( ::oScene[ "tris" ] ) > 0
+            ::DrawShaded( hMem, c )
+         ENDIF
       ELSE
          ::DrawFills( hMem, c )
       ENDIF
@@ -674,6 +678,15 @@ METHOD Paint( hDC ) CLASS TViewer
    SelectObject( hMem, hOld )
    DeleteObject( hBmp )
    DeleteDC( hMem )
+RETURN NIL
+
+/* B13c: solidos 3D sombreados (painter: lejos a cerca, luz en la camara). OCX_FILLTRI rellena un triangulo con GDI. */
+METHOD DrawShaded( hMem, c ) CLASS TViewer
+   LOCAL aS := VwS_Shade( c, ::oScene[ "tris" ] ), t, nRgb
+   FOR EACH t IN aS
+      nRgb := VwS_Color( t[ 4 ], t[ 6 ] )
+      OCX_FILLTRI( hMem, Int( t[ 1 ][ 1 ] ), Int( t[ 1 ][ 2 ] ), Int( t[ 2 ][ 1 ] ), Int( t[ 2 ][ 2 ] ), Int( t[ 3 ][ 1 ] ), Int( t[ 3 ][ 2 ] ), nRgb )
+   NEXT
 RETURN NIL
 
 /* relleno HATCH: par-impar por lineas de barrido; solido = todas las filas,
