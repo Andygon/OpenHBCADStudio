@@ -90,6 +90,7 @@ call :ONE "src\tessellation.prg"
 for %%F in (src\space\*.prg) do call :ONE "%%F"
 for %%F in (src\geom2d\*.prg) do call :ONE "%%F"
 for %%F in (src\codec\*.prg) do call :ONE "%%F"
+for %%F in (src\view\*.prg) do call :ONE "%%F"
 if not "%HBERR%" == "0" goto CERR
 if /i not "%HBGT%" == "STD" del "%OBJD%\obj_t_gtstub.obj" >NUL 2>&1
 if /i "%HBGT%" == "STD" call :GTSTUB
@@ -97,6 +98,11 @@ if not "%HBERR%" == "0" goto CERR
 goto CSRC
 :APPSRC
 for /f "usebackq delims=" %%F in ("SOURCES.lst") do call :ONE "%%F"
+call :ONE "src\tessellation.prg"
+for %%F in (src\space\*.prg) do call :ONE "%%F"
+for %%F in (src\geom2d\*.prg) do call :ONE "%%F"
+for %%F in (src\codec\*.prg) do call :ONE "%%F"
+for %%F in (src\view\*.prg) do call :ONE "%%F"
 if not "%HBERR%" == "0" goto CERR
 :CSRC
 

@@ -727,3 +727,4 @@ src\ui\window\xref_help.prg
 src\ui\window\xref_manager.prg
 src\ui\wrap_bar.prg
 src\videos.prg
+src\ui\vw_window.prg
