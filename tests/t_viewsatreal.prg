@@ -2,6 +2,7 @@
 #include "ocx.ch"
 
 PROCEDURE T_ViewSatReal()
+   LOCAL oSc, cPdf, nXr
    LOCAL cam, aAll := {}, sh, k, ok := .T., nBack, ps, pt, pc, bad := 0, i, ex := { 1.0, 0.0, 0.0 }, ey := { 0.0, 1.0, 0.0 }, ez := { 0.0, 0.0, 1.0 }, dd
    LOCAL c := hb_MemoRead( "tests/fixtures/solids3d.dxf" ), d, e, nS := 0, sat, r, nF := 0, nT := 0, nSk := 0, nOk := 0, nPl := 0, cs
    IF Empty( c ) ; Chk( .F., "[extra] satreal: no se encuentra tests/fixtures/solids3d.dxf" ) ; RETURN ; ENDIF
@@ -51,5 +52,12 @@ PROCEDURE T_ViewSatReal()
    sh := VwS_Shade( VwC_New(), { { { 0.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0 }, { 0.0, 1.0, 0.0 }, { 0.0, 0.0, 1.0 } }, { { 0.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0 }, { 0.0, 1.0, 0.0 }, { 0.0, 0.0, -1.0 } } } )
    Chk( Len( sh ) == 1 .AND. Abs( sh[ 1 ][ 4 ] - 1.0 ) < 0.000001, "[extra] shade: en planta la normal +Z mira a la camara (sombra 1.0) y -Z se descarta" )
    Chk( VwS_Color( 0.5, 200 + 100 * 256 + 50 * 65536 ) == 100 + 50 * 256 + 25 * 65536, "[extra] shade: VwS_Color oscurece" )
+   // B14: PDF
+   oSc := hb_Hash( "wires", { { 255, "0", { { 0.0, 0.0 }, { 10.0, 5.0 } }, {}, 1, "A" } }, "texts", { { 1.0, 1.0, 2.0, 0.0, "Hola (x)", 0 } }, "fills", {}, "ext", { 0.0, 0.0, 10.0, 5.0 } )
+   cPdf := Plot_Pdf( oSc, "a4", .T., 10.0, .F. )
+   Chk( Plot_PaperSize( "A4", .F. )[ 1 ] == 210 .AND. Plot_PaperSize( "a3", .T. )[ 1 ] == 420 .AND. Plot_PaperSize( "zz", .F. ) == NIL, "[extra] plot: tamanos de papel" )
+   Chk( Left( cPdf, 8 ) == "%PDF-1.4" .AND. "%%EOF" $ cPdf .AND. "/MediaBox [0 0 841.890 595.276]" $ cPdf .AND. "(Hola \(x\)) Tj" $ cPdf, "[extra] plot: PDF con cabecera, MediaBox A4 apaisado y texto escapado" )
+   nXr := Val( SubStr( cPdf, At( "startxref", cPdf ) + 10, 8 ) )
+   Chk( SubStr( cPdf, nXr + 1, 4 ) == "xref" .AND. SubStr( cPdf, Val( SubStr( cPdf, nXr + 1 + Len( "xref" + hb_eol() + "0 6" + hb_eol() + "0000000000 65535 f " + hb_eol() ), 10 ) ) + 1, 7 ) == "1 0 obj", "[extra] plot: xref apunta a los objetos" )
    OutStd( "satreal caras=" + hb_ntos( nF ) + " tris=" + hb_ntos( nT ) + " saltadas=" + hb_ntos( nSk ) + hb_eol() )
 RETURN
