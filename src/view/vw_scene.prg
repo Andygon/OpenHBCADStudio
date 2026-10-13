@@ -5,7 +5,10 @@
    en una lista de dibujo 2D lista para pintar con GDI. Logica pura (sin
    FiveWin): se prueba en consola (tests/t_viewer.prg).
    Escena = hash:
-     "wires"  array de { nRgb, cLayer, aPts, aBox }  aPts = { {x,y}, ... }
+     "wires"  array de { nRgb, cLayer, aPts, aBox, nEstilo, cHandle }  aPts = { {x,y}, ... }
+              nEstilo = estilo de pluma GDI (0 continua, 1 guiones, 2 puntos, 3 raya-punto)
+     "fills"  array de { nRgb, aLoops, aBox, lSolid, cHandle }  (HATCH; aLoops = poligonos mundo)
+     "ents"   hash handle -> entidad del codec (entidades de primer nivel)
      "texts"  array de { x, y, nAlto, nRot, cTexto, nRgb }
      "ext"    { minx, miny, maxx, maxy } o NIL
      "skipped" hash tipo -> cantidad (entidades aun no dibujadas)
@@ -57,7 +60,7 @@ RETURN { P[ 1 ] * I[ 1 ] + P[ 3 ] * I[ 2 ], P[ 2 ] * I[ 1 ] + P[ 4 ] * I[ 2 ], ;
          P[ 1 ] * I[ 5 ] + P[ 3 ] * I[ 6 ] + P[ 5 ], P[ 2 ] * I[ 5 ] + P[ 4 ] * I[ 6 ] + P[ 6 ] }
 
 //--- OCS -> WCS (algoritmo de eje arbitrario de AutoCAD) ------------------------
-STATIC FUNCTION Vws_Ocs( vN, x, y, z )
+FUNCTION Vws_Ocs( vN, x, y, z )
    LOCAL nx, ny, nz, ax, ay, az, bx, by, bz, l
    IF vN == NIL ; RETURN { x, y, z } ; ENDIF
    nx := vN[ 1 ] ; ny := vN[ 2 ] ; nz := vN[ 3 ]
@@ -107,7 +110,7 @@ STATIC PROCEDURE Vws_Wire( oS, aPts, nRgb, cLayer, aT )
       ENDIF
       Vws_Ext( oS, q[ 1 ], q[ 2 ] )
    NEXT
-   AAdd( oS[ "wires" ], { nRgb, cLayer, a, aB } )
+   AAdd( oS[ "wires" ], { nRgb, cLayer, a, aB, oS[ "_style" ], oS[ "_h" ] } )
 RETURN
 
 //--- geometria ----------------------------------------------------------------
@@ -229,10 +232,32 @@ STATIC FUNCTION Vws_Plain( c )
 RETURN c
 
 //--- entidades --------------------------------------------------------------------
-STATIC FUNCTION Vws_LayerInfo( d, cLayer )
+STATIC FUNCTION Vws_LtStyle( cName )
+   LOCAL c := Upper( cName )
+   DO CASE
+   CASE "DASHDOT" $ c .OR. "CENTER" $ c .OR. "DIVIDE" $ c .OR. "PHANTOM" $ c ; RETURN 3
+   CASE "DOT" $ c ; RETURN 2
+   CASE "DASH" $ c .OR. "HIDDEN" $ c .OR. "BORDER" $ c ; RETURN 1
+   ENDCASE
+RETURN 0
+
+STATIC FUNCTION Vws_EntStyle( d, com, cLayer )
+   LOCAL cLt := Vws_N( com, "linetype", "" ), l
+   IF Upper( cLt ) == "BYBLOCK" ; RETURN 0 ; ENDIF
+   IF Empty( cLt ) .OR. Upper( cLt ) == "BYLAYER"
+      l := IIf( hb_HHasKey( d, "layers" ), Tb_Get( d[ "layers" ], cLayer ), NIL )
+      IF l == NIL ; RETURN 0 ; ENDIF
+      cLt := Vws_N( l, "line_type", "" )
+   ENDIF
+RETURN Vws_LtStyle( cLt )
+
+STATIC FUNCTION Vws_LayerInfo( d, oS, cLayer )
    LOCAL l := NIL, c
    IF hb_HHasKey( d, "layers" )
       l := Tb_Get( d[ "layers" ], cLayer )
+   ENDIF
+   IF hb_HHasKey( oS[ "hidden" ], Upper( cLayer ) )
+      RETURN { .F., VWS_WHITE }
    ENDIF
    IF l == NIL ; RETURN { .T., VWS_WHITE } ; ENDIF
    c := Vws_Color( l[ "color" ], VWS_WHITE, VWS_WHITE )
@@ -249,13 +274,18 @@ STATIC PROCEDURE Vws_Entity( d, oS, e, aT, nBlockRgb, nDepth )
       RETURN
    ENDIF
    cLayer := Vws_N( com, "layer", "0" )
-   aLI := Vws_LayerInfo( d, cLayer )
+   aLI := Vws_LayerInfo( d, oS, cLayer )
    IF ! aLI[ 1 ]
       RETURN
    ENDIF
    nRgb := Vws_Color( com[ "color" ], aLI[ 2 ], nBlockRgb )
    IF nRgb < 0
       RETURN
+   ENDIF
+   IF nDepth == 0
+      oS[ "_h" ] := hb_ntos( Vws_N( com, "handle", 0 ) )
+      oS[ "ents" ][ oS[ "_h" ] ] := e
+      oS[ "_style" ] := Vws_EntStyle( d, com, cLayer )
    ENDIF
    DO CASE
    CASE cT == "LINE"
@@ -326,6 +356,8 @@ STATIC PROCEDURE Vws_Entity( d, oS, e, aT, nBlockRgb, nDepth )
       NEXT
       AAdd( aP, { aP[ 1 ][ 1 ], aP[ 1 ][ 2 ] } )
       Vws_Wire( oS, aP, nRgb, cLayer, aT )
+   CASE cT == "HATCH"
+      Vws_Hatch( oS, e, nRgb, aT )
    CASE cT == "TEXT" .OR. cT == "MTEXT"
       p := Vws_Apply( aT, e[ "insertion_point" ][ 1 ], e[ "insertion_point" ][ 2 ] )
       nR := Vws_N( e, "rotation", 0.0 )
@@ -370,6 +402,87 @@ STATIC PROCEDURE Vws_Entity( d, oS, e, aT, nBlockRgb, nDepth )
    ENDCASE
 RETURN
 
+/* puntos de un borde de HATCH */
+STATIC FUNCTION Vws_EdgePts( g )
+   LOCAL k := g[ "kind" ], aP := {}, v, aV, q, nA, nB, n, i, nC, ax, ay, bx, by
+   DO CASE
+   CASE k == "Line"
+      aP := { { g[ "start" ][ 1 ], g[ "start" ][ 2 ] }, { g[ "end" ][ 1 ], g[ "end" ][ 2 ] } }
+   CASE k == "CircularArc"
+      nA := g[ "start_angle" ] ; nB := g[ "end_angle" ]
+      IF ! g[ "counter_clockwise" ]
+         aP := Vws_Rev( Vws_ArcPts( g[ "center" ][ 1 ], g[ "center" ][ 2 ], g[ "radius" ], nB, nA ) )
+      ELSE
+         aP := Vws_ArcPts( g[ "center" ][ 1 ], g[ "center" ][ 2 ], g[ "radius" ], nA, nB )
+      ENDIF
+   CASE k == "EllipticArc"
+      ax := g[ "major_axis_endpoint" ][ 1 ] ; ay := g[ "major_axis_endpoint" ][ 2 ]
+      bx := - ay * g[ "minor_axis_ratio" ] ; by := ax * g[ "minor_axis_ratio" ]
+      nA := g[ "start_angle" ] * OCX_PI / 180.0 ; nB := g[ "end_angle" ] * OCX_PI / 180.0
+      DO WHILE nB <= nA
+         nB += OCX_TAU
+      ENDDO
+      n := Max( 12, Int( ( nB - nA ) / ( OCX_TAU / 96.0 ) + 0.999999 ) )
+      FOR i := 0 TO n
+         nC := nA + ( nB - nA ) * i / n
+         AAdd( aP, { g[ "center" ][ 1 ] + ax * OCX_COS( nC ) + bx * OCX_SIN( nC ), g[ "center" ][ 2 ] + ay * OCX_COS( nC ) + by * OCX_SIN( nC ) } )
+      NEXT
+      IF ! g[ "counter_clockwise" ] ; aP := Vws_Rev( aP ) ; ENDIF
+   CASE k == "Polyline"
+      aV := {}
+      FOR EACH v IN g[ "vertices" ]
+         AAdd( aV, { v[ 1 ], v[ 2 ], v[ 3 ] } )
+      NEXT
+      aP := Vws_PolyPts( aV, g[ "is_closed" ] )
+   CASE k == "Spline"
+      FOR EACH q IN IIf( Len( g[ "fit_points" ] ) >= 2, g[ "fit_points" ], g[ "control_points" ] )
+         AAdd( aP, { q[ 1 ], q[ 2 ] } )
+      NEXT
+   ENDCASE
+RETURN aP
+
+STATIC FUNCTION Vws_Rev( a )
+   LOCAL r := {}, i
+   FOR i := Len( a ) TO 1 STEP -1
+      AAdd( r, a[ i ] )
+   NEXT
+RETURN r
+
+STATIC PROCEDURE Vws_Hatch( oS, e, nRgb, aT )
+   LOCAL pa, g, aLoops := {}, aL, aPts, p, q, aB := NIL, lSolid := e[ "is_solid" ]
+   FOR EACH pa IN e[ "paths" ]
+      aPts := {}
+      FOR EACH g IN pa[ "edges" ]
+         FOR EACH p IN Vws_EdgePts( g )
+            AAdd( aPts, p )
+         NEXT
+      NEXT
+      IF Len( aPts ) >= 3
+         aL := {}
+         FOR EACH p IN aPts
+            q := Vws_Apply( aT, p[ 1 ], p[ 2 ] )
+            AAdd( aL, q )
+            Vws_Ext( oS, q[ 1 ], q[ 2 ] )
+            IF aB == NIL
+               aB := { q[ 1 ], q[ 2 ], q[ 1 ], q[ 2 ] }
+            ELSE
+               IF q[ 1 ] < aB[ 1 ] ; aB[ 1 ] := q[ 1 ] ; ENDIF
+               IF q[ 2 ] < aB[ 2 ] ; aB[ 2 ] := q[ 2 ] ; ENDIF
+               IF q[ 1 ] > aB[ 3 ] ; aB[ 3 ] := q[ 1 ] ; ENDIF
+               IF q[ 2 ] > aB[ 4 ] ; aB[ 4 ] := q[ 2 ] ; ENDIF
+            ENDIF
+         NEXT
+         AAdd( aLoops, aL )
+      ENDIF
+   NEXT
+   IF Len( aLoops ) > 0
+      AAdd( oS[ "fills" ], { nRgb, aLoops, aB, lSolid, oS[ "_h" ] } )
+      FOR EACH aL IN aLoops
+         AAdd( oS[ "wires" ], { nRgb, "", aL, aB, 0, oS[ "_h" ] } )
+      NEXT
+   ENDIF
+RETURN
+
 STATIC PROCEDURE Vws_Block( d, oS, aEnts, aT, nBlockRgb, nDepth )
    LOCAL e
    FOR EACH e IN aEnts
@@ -378,8 +491,10 @@ STATIC PROCEDURE Vws_Block( d, oS, aEnts, aT, nBlockRgb, nDepth )
 RETURN
 
 /* Entrada: d = documento del codec (Dxr_ReadString) */
-FUNCTION Vws_Build( d )
-   LOCAL oS := hb_Hash( "wires", {}, "texts", {}, "ext", NIL, "skipped", hb_Hash() )
+/* hHidden: capas apagadas por el usuario (clave = nombre en mayusculas), opcional */
+FUNCTION Vws_Build( d, hHidden )
+   LOCAL oS := hb_Hash( "wires", {}, "texts", {}, "fills", {}, "ents", hb_Hash(), "ext", NIL, "skipped", hb_Hash(), ;
+                        "hidden", IIf( hHidden == NIL, hb_Hash(), hHidden ), "_style", 0, "_h", "" )
    Vws_Block( d, oS, Doc_ModelSpaceEntities( d ), NIL, VWS_WHITE, 0 )
 RETURN oS
 
@@ -392,3 +507,15 @@ RETURN d
 
 FUNCTION Vws_Extents( oS ) ; RETURN oS[ "ext" ]
 FUNCTION Vws_WireCount( oS ) ; RETURN Len( oS[ "wires" ] )
+
+/* capas del documento: { { cNombre, nRgb, lVisible } ... } ordenadas por nombre */
+FUNCTION Vws_Layers( d, hHidden )
+   LOCAL a := {}, l, c, lHid
+   IF ! hb_HHasKey( d, "layers" ) ; RETURN a ; ENDIF
+   FOR EACH l IN Tb_Values( d[ "layers" ] )
+      c := Vws_Color( l[ "color" ], VWS_WHITE, VWS_WHITE )
+      lHid := ( hHidden != NIL .AND. hb_HHasKey( hHidden, Upper( l[ "name" ] ) ) )
+      AAdd( a, { l[ "name" ], IIf( c < 0, VWS_WHITE, c ), Lyr_IsVisible( l ) .AND. ! lHid } )
+   NEXT
+   ASort( a,,, { | x, y | Upper( x[ 1 ] ) < Upper( y[ 1 ] ) } )
+RETURN a
