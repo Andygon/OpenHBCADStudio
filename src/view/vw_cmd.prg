@@ -17,10 +17,10 @@ FUNCTION VwS_Rebuild( s )
    s[ "scene" ] := Vws_Build( s[ "doc" ], s[ "hidden" ] )
 RETURN s
 
-STATIC FUNCTION Vk_Res( cMsg, lLong, lRedraw ) ; RETURN { cMsg, IIf( lLong == NIL, .F., lLong ), IIf( lRedraw == NIL, .F., lRedraw ) }
+FUNCTION Vk_Res( cMsg, lLong, lRedraw ) ; RETURN { cMsg, IIf( lLong == NIL, .F., lLong ), IIf( lRedraw == NIL, .F., lRedraw ) }
 
 /* "1,2" o "1 2" -> {1,2}; NIL si no es un punto */
-STATIC FUNCTION Vk_Pt( aTok, i )
+FUNCTION Vk_Pt( aTok, i )
    LOCAL c, n
    IF i > Len( aTok ) ; RETURN NIL ; ENDIF
    c := aTok[ i ]
@@ -34,7 +34,7 @@ STATIC FUNCTION Vk_Pt( aTok, i )
    ENDIF
 RETURN NIL
 
-STATIC FUNCTION Vk_IsNum( c )
+FUNCTION Vk_IsNum( c )
    LOCAL i, ch, nDot := 0
    IF Empty( c ) ; RETURN .F. ; ENDIF
    FOR i := 1 TO Len( c )
@@ -69,6 +69,8 @@ RETURN "ZOOM [E | A | I | O | factor | W x1,y1 x2,y2]  (alias Z)" + Chr( 10 ) + 
        "DESHACER       deshace (Ctrl+Z)   CAPA nombre = capa actual" + Chr( 10 ) + ;
        "GUARDAR [ruta] guarda el DXF (Ctrl+S)" + Chr( 10 ) + ;
        "SNAP [ON|OFF|TODO|END|MID|CEN|QUA|NOD|INS|INT|PER]  enganche a objetos" + Chr( 10 ) + ;
+       "ROTAR bx,by ang  ESCALA bx,by f  SIMETRIA x1,y1 x2,y2 [B]  giran, escalan, reflejan la seleccion" + Chr( 10 ) + ;
+       "RECTANG x1,y1 x2,y2  POLIGONO [lados] cx,cy x,y  crean un rectangulo / poligono regular" + Chr( 10 ) + ;
        "AYUDA          esta ayuda (HELP)"
 
 FUNCTION VwK_Exec( s, cLine )
@@ -210,6 +212,16 @@ FUNCTION VwK_Exec( s, cLine )
         .OR. cCmd == "PLINE" .OR. cCmd == "PL" .OR. cCmd == "POLILINEA" .OR. cCmd == "POINT" .OR. cCmd == "PUNTO" ;
         .OR. cCmd == "MOVE" .OR. cCmd == "MOVER" .OR. cCmd == "M" .OR. cCmd == "COPY" .OR. cCmd == "COPIAR" .OR. cCmd == "CO"
       RETURN VwK_Draw( s, cCmd, aTok )
+   CASE cCmd == "ROTAR" .OR. cCmd == "ROTATE" .OR. cCmd == "RO"
+      RETURN VwX_Cmd( s, "ROTATE", aTok )
+   CASE cCmd == "ESCALA" .OR. cCmd == "SCALE" .OR. cCmd == "SC"
+      RETURN VwX_Cmd( s, "SCALE", aTok )
+   CASE cCmd == "SIMETRIA" .OR. cCmd == "MIRROR" .OR. cCmd == "MI"
+      RETURN VwX_Cmd( s, "MIRROR", aTok )
+   CASE cCmd == "RECTANG" .OR. cCmd == "RECT" .OR. cCmd == "REC"
+      RETURN VwX_Cmd( s, "RECT", aTok )
+   CASE cCmd == "POLIGONO" .OR. cCmd == "POLYGON" .OR. cCmd == "POL"
+      RETURN VwX_Cmd( s, "POLYGON", aTok )
    CASE cCmd == "VISTA" .OR. cCmd == "VIEW" .OR. cCmd == "3D"
       cArg := IIf( cCmd == "3D" .OR. Len( aTok ) < 2, "ISO", aTok[ 2 ] )
       IF ! VwC_View( c, cArg )
@@ -334,6 +346,7 @@ FUNCTION VwK_Prompt( s )
    CASE cK == "CIRCLE" ; RETURN IIf( n == 0, "CIRCULO: centro", "CIRCULO: punto en el radio (o escriba el radio)" )
    CASE cK == "PLINE" ; RETURN IIf( n == 0, "PLINE: primer punto", "PLINE: siguiente punto (Intro termina)" )
    CASE cK == "POINT" ; RETURN "PUNTO: ubicacion"
+   CASE cK == "ROTATE" .OR. cK == "SCALE" .OR. cK == "MIRROR" .OR. cK == "RECT" .OR. cK == "POLYGON" ; RETURN VwX_Prompt( pe )
    ENDCASE
 RETURN IIf( n == 0, cK + ": punto base", cK + ": punto destino" )
 
@@ -353,7 +366,9 @@ RETURN r
 
 /* radio escrito tras el centro */
 FUNCTION VwK_Number( s, n )
-   LOCAL pe := s[ "pend" ]
+   LOCAL pe := s[ "pend" ], rx
+   rx := VwX_Number( s, pe, n )
+   IF rx != NIL ; RETURN rx ; ENDIF
    IF pe[ "cmd" ] == "CIRCLE" .AND. Len( pe[ "pts" ] ) == 1 .AND. n > 0
       Vwe_Circle( s, pe[ "pts" ][ 1 ], n )
       s[ "pend" ] := NIL
@@ -368,6 +383,8 @@ FUNCTION VwK_Point( s, x, y )
    cK := pe[ "cmd" ]
    AAdd( pe[ "pts" ], { x, y } )
    n := Len( pe[ "pts" ] )
+   d := VwX_Point( s, pe, x, y )
+   IF d != NIL ; RETURN d ; ENDIF
    DO CASE
    CASE cK == "LINE"
       IF n >= 2
