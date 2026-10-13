@@ -2,7 +2,7 @@
    OpenHBCADStudio - src/view/vw_shade.prg
    Fase 2 / B13c: sombreado "painter" de triangulos 3D (los de Sat_Tess) para la vista 3D.
    Logica pura, sin FiveWin: la GUI solo recorre el resultado y rellena poligonos.
-   VwS_Shade( cam, aTris [, lCull] ) -> { { {x1,y1}, {x2,y2}, {x3,y3}, nShade, nDepth }, ... }
+   VwS_Shade( cam, aTris [, lCull] ) -> { { {x1,y1}, {x2,y2}, {x3,y3}, nShade, nDepth, nRgb }, ... }
      ordenado de lejos a cerca (algoritmo del pintor). nShade en 0.25..1.0 (luz = camara,
      ambiente 0.25 + 0.75 * cos del angulo entre normal y direccion a la camara).
      lCull (por defecto .T.): descarta triangulos cuya normal mira de espaldas a la camara.
@@ -32,7 +32,7 @@ FUNCTION VwS_Shade( c, aTris, lCull )
       ENDIF
       a := t[ 1 ] ; b := t[ 2 ] ; d := t[ 3 ]
       nDepth := ( ( a[ 1 ] + b[ 1 ] + d[ 1 ] ) * v[ 1 ] + ( a[ 2 ] + b[ 2 ] + d[ 2 ] ) * v[ 2 ] + ( a[ 3 ] + b[ 3 ] + d[ 3 ] ) * v[ 3 ] ) / 3.0
-      AAdd( aOut, { VwC_P3( c, a[ 1 ], a[ 2 ], a[ 3 ] ), VwC_P3( c, b[ 1 ], b[ 2 ], b[ 3 ] ), VwC_P3( c, d[ 1 ], d[ 2 ], d[ 3 ] ), 0.25 + 0.75 * Min( 1.0, nCos ), nDepth } )
+      AAdd( aOut, { VwC_P3( c, a[ 1 ], a[ 2 ], a[ 3 ] ), VwC_P3( c, b[ 1 ], b[ 2 ], b[ 3 ] ), VwC_P3( c, d[ 1 ], d[ 2 ], d[ 3 ] ), 0.25 + 0.75 * Min( 1.0, nCos ), nDepth, IIf( Len( t ) >= 5 .AND. ValType( t[ 5 ] ) == "N", t[ 5 ], 12632256 ) } )
    NEXT
    ASort( aOut, , , {| x, y | x[ 5 ] < y[ 5 ] } )
 RETURN aOut
