@@ -24,10 +24,30 @@ FUNCTION Sat_FromEntity( e )
          aL[ Len( aL ) ] += hb_CStr( r[ 2 ] )
       ENDIF
    NEXT
+   // los DXF de AutoCAD guardan el SAT "cifrado" (codigo 1/3); el texto plano empieza por un digito
+   IF Len( aL ) > 0 .AND. ! ( Left( LTrim( aL[ 1 ] ), 1 ) $ "0123456789" )
+      FOR EACH r IN aL ; r := Sat_Decode( r ) ; NEXT
+   ENDIF
    FOR EACH r IN aL
       c += r + Chr( 10 )
    NEXT
 RETURN c
+
+/* descifrado de AutoCAD: 0x20,0x40,0x5F fijos; 0x41-0x5E -> 'A'+(0x5E-c) (y se salta el siguiente caracter tras 0x5E); resto c XOR 0x5F */
+FUNCTION Sat_Decode( cT )
+   LOCAL o := "", i, n := Len( cT ), k, lSkip := .F.
+   FOR i := 1 TO n
+      IF lSkip ; lSkip := .F. ; LOOP ; ENDIF
+      k := Asc( SubStr( cT, i, 1 ) )
+      DO CASE
+      CASE k == 32 ; o += " "
+      CASE k == 64 ; o += "_"
+      CASE k == 95 ; o += "@"
+      CASE k >= 65 .AND. k <= 94 ; o += Chr( 65 + ( 94 - k ) ) ; lSkip := ( k == 94 )
+      OTHERWISE ; o += Chr( hb_BitXor( k, 95 ) )
+      ENDCASE
+   NEXT
+RETURN o
 
 STATIC FUNCTION Sat_Split( c )
    LOCAL a := {}, n
