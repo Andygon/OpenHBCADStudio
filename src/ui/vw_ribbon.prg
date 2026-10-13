@@ -13,6 +13,10 @@
 #define VWR_HEIGHT  145
 #define VWR_BW      62
 #define VWR_BH      72
+/* tema oscuro del Rust (Oxocarbon), BGR: panel #262626, linea #393939, acento #00B4FF */
+#define VWR_PANE    2500134
+#define VWR_LINE    3750201
+#define VWR_ACCENT  16757760
 
 /* Tabla: { pestana, { { grupo, { { texto, comando }, ... } }, ... } }.
    Comando vacio = pendiente de portar. Prefijo @ = accion de la ventana. */
@@ -59,7 +63,7 @@ FUNCTION Vwr_Build( oWnd, oS )
       AAdd( aTabs, t[ 1 ] )
    NEXT
    DEFINE RIBBONBAR oRb OF oWnd PROMPT "Inicio", "Insertar", "Anotar", "Vista", "Gestionar", "Layout", "Parametrico", "Modelo" ;
-      HEIGHT VWR_HEIGHT 2013
+      HEIGHT VWR_HEIGHT COLOR VWR_PANE COLORBOX VWR_LINE, VWR_LINE COLORSEL VWR_ACCENT, VWR_ACCENT 2013
    FOR EACH t IN aT
       nOpt++
       FOR EACH g IN t[ 2 ]
