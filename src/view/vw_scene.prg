@@ -288,7 +288,7 @@ RETURN
 
 STATIC PROCEDURE Vws_Entity( d, oS, e, aT, nBlockRgb, nDepth )
    LOCAL cT := e[ "_type" ], com := e[ "common" ], aLI, nRgb, cLayer, n, i, j, p, q, aV, aP, vN
-   LOCAL ax, ay, bx, by, nR, nA, nB, nC, cName, aEnts, aI, nRot, nSx, nSy, ca, sa, aBase, k, az, bz, nZ0
+   LOCAL ax, ay, bx, by, nR, nA, nB, nC, cName, aEnts, aI, nRot, nSx, nSy, ca, sa, aBase, k, az, bz, nZ0, aG, aSg
    IF Vws_N( com, "invisible", .F. )
       RETURN
    ENDIF
@@ -414,6 +414,18 @@ STATIC PROCEDURE Vws_Entity( d, oS, e, aT, nBlockRgb, nDepth )
             oS[ "_dz" ] := nZ0
          NEXT
       NEXT
+   CASE Left( cT, 10 ) == "DIMENSION_" .AND. hb_HHasKey( e, "base" ) .AND. ! Empty( Vws_DimBlock( d, e ) ) .AND. nDepth < VWS_MAXDEPTH
+      Vws_Block( d, oS, Doc_EntitiesInBlock( d, Vws_DimBlock( d, e ) ), aT, nRgb, nDepth + 1 )
+   CASE Left( cT, 10 ) == "DIMENSION_" .AND. hb_HHasKey( e, "base" ) .AND. Empty( Vws_DimBlock( d, e ) ) .AND. Vwd_Geom( d, e ) != NIL
+      aG := Vwd_Geom( d, e )
+      FOR EACH aSg IN aG[ 1 ]
+         Vws_Wire( oS, { { aSg[ 1 ][ 1 ], aSg[ 1 ][ 2 ], 0.0 }, { aSg[ 2 ][ 1 ], aSg[ 2 ][ 2 ], 0.0 } }, nRgb, cLayer, aT )
+      NEXT
+      FOR EACH aSg IN aG[ 2 ]
+         p := Vws_Apply( aT, aSg[ 1 ], aSg[ 2 ] )
+         AAdd( oS[ "texts" ], { p[ 1 ], p[ 2 ], aSg[ 3 ] * IIf( aT == NIL, 1.0, Sqrt( Abs( aT[ 1 ] * aT[ 4 ] - aT[ 2 ] * aT[ 3 ] ) ) ), aSg[ 4 ] + IIf( aT == NIL, 0.0, OCX_ATAN2( aT[ 2 ], aT[ 1 ] ) ), aSg[ 5 ], nRgb } )
+         Vws_Ext( oS, p[ 1 ], p[ 2 ] )
+      NEXT
    OTHERWISE
       IF hb_HHasKey( e, "block_name" ) .AND. ValType( e[ "block_name" ] ) == "C" .AND. ! Empty( e[ "block_name" ] ) .AND. nDepth < VWS_MAXDEPTH
          aEnts := Doc_EntitiesInBlock( d, e[ "block_name" ] )
@@ -425,6 +437,12 @@ STATIC PROCEDURE Vws_Entity( d, oS, e, aT, nBlockRgb, nDepth )
       Vws_Skip( oS, cT )
    ENDCASE
 RETURN
+
+/* nombre del bloque anonimo de una cota si existe y tiene geometria; "" si no */
+STATIC FUNCTION Vws_DimBlock( d, e )
+   LOCAL c := e[ "base" ][ "block_name" ]
+   IF ValType( c ) == "C" .AND. ! Empty( c ) .AND. ! Empty( Doc_EntitiesInBlock( d, c ) ) ; RETURN c ; ENDIF
+RETURN ""
 
 /* puntos de un borde de HATCH */
 STATIC FUNCTION Vws_EdgePts( g )

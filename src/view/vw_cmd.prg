@@ -71,6 +71,7 @@ RETURN "ZOOM [E | A | I | O | factor | W x1,y1 x2,y2]  (alias Z)" + Chr( 10 ) + 
        "SNAP [ON|OFF|TODO|END|MID|CEN|QUA|NOD|INS|INT|PER]  enganche a objetos" + Chr( 10 ) + ;
        "OFFSET d | TRIM | EXTEND | FILLET r | CHAMFER d1 [d2]  (clics junto a los objetos)  EXPLODE descompone polilineas" + Chr( 10 ) + ;
        "ELLIPSE c a b | SPLINE p1 p2 .. | STRETCH v1 v2 base dest | ARRAYRECT f c dx dy | ARRAYPOLAR c n [ang] | AREA [puntos]" + Chr( 10 ) + ;
+       "TEXT x,y h texto | MTEXT x,y h texto | INSERT bloque x,y [esc [giro]] | DIMLINEAR/DIMALIGNED p1 p2 off | DIMRADIUS/DIMDIAMETER c p" + Chr( 10 ) + ;
        "ROTAR bx,by ang  ESCALA bx,by f  SIMETRIA x1,y1 x2,y2 [B]  giran, escalan, reflejan la seleccion" + Chr( 10 ) + ;
        "RECTANG x1,y1 x2,y2  POLIGONO [lados] cx,cy x,y  crean un rectangulo / poligono regular" + Chr( 10 ) + ;
        "AYUDA          esta ayuda (HELP)"
@@ -238,6 +239,20 @@ FUNCTION VwK_Exec( s, cLine )
       RETURN VwD_Cmd( s, "ARRAYPOLAR", aTok )
    CASE cCmd == "AREA" .OR. cCmd == "AREAS"
       RETURN VwD_Cmd( s, "AREA", aTok )
+   CASE cCmd == "TEXT" .OR. cCmd == "TEXTO" .OR. cCmd == "DT"
+      RETURN VwA_Cmd( s, "TEXT", aTok )
+   CASE cCmd == "MTEXT" .OR. cCmd == "MT"
+      RETURN VwA_Cmd( s, "MTEXT", aTok )
+   CASE cCmd == "INSERT" .OR. cCmd == "INSERTAR" .OR. cCmd == "I"
+      RETURN VwA_Cmd( s, "INSERT", aTok )
+   CASE cCmd == "DIMLINEAR" .OR. cCmd == "DLI"
+      RETURN VwA_Cmd( s, "DIMLINEAR", aTok )
+   CASE cCmd == "DIMALIGNED" .OR. cCmd == "DAL"
+      RETURN VwA_Cmd( s, "DIMALIGNED", aTok )
+   CASE cCmd == "DIMRADIUS" .OR. cCmd == "DRA"
+      RETURN VwA_Cmd( s, "DIMRADIUS", aTok )
+   CASE cCmd == "DIMDIAMETER" .OR. cCmd == "DDI"
+      RETURN VwA_Cmd( s, "DIMDIAMETER", aTok )
    CASE cCmd == "ROTAR" .OR. cCmd == "ROTATE" .OR. cCmd == "RO"
       RETURN VwX_Cmd( s, "ROTATE", aTok )
    CASE cCmd == "ESCALA" .OR. cCmd == "SCALE" .OR. cCmd == "SC"
