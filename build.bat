@@ -107,7 +107,7 @@ if not "%HBERR%" == "0" goto CERR
 :CSRC
 
 echo === C: csrc\*.c ===
-for %%C in (ocx_math ocad_geom ocad_dxf) do call :ONEC %%C
+for %%C in (ocx_math ocad_geom ocad_dxf ocad_win) do call :ONEC %%C
 if not "%HBERR%" == "0" goto CERR
 
 echo === Enlazando %OUTEXE% ===
