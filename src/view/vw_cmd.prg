@@ -70,6 +70,7 @@ RETURN "ZOOM [E | A | I | O | factor | W x1,y1 x2,y2]  (alias Z)" + Chr( 10 ) + 
        "GUARDAR [ruta] guarda el DXF (Ctrl+S)" + Chr( 10 ) + ;
        "SNAP [ON|OFF|TODO|END|MID|CEN|QUA|NOD|INS|INT|PER]  enganche a objetos" + Chr( 10 ) + ;
        "OFFSET d | TRIM | EXTEND | FILLET r | CHAMFER d1 [d2]  (clics junto a los objetos)  EXPLODE descompone polilineas" + Chr( 10 ) + ;
+       "ELLIPSE c a b | SPLINE p1 p2 .. | STRETCH v1 v2 base dest | ARRAYRECT f c dx dy | ARRAYPOLAR c n [ang] | AREA [puntos]" + Chr( 10 ) + ;
        "ROTAR bx,by ang  ESCALA bx,by f  SIMETRIA x1,y1 x2,y2 [B]  giran, escalan, reflejan la seleccion" + Chr( 10 ) + ;
        "RECTANG x1,y1 x2,y2  POLIGONO [lados] cx,cy x,y  crean un rectangulo / poligono regular" + Chr( 10 ) + ;
        "AYUDA          esta ayuda (HELP)"
@@ -225,6 +226,18 @@ FUNCTION VwK_Exec( s, cLine )
       RETURN VwM_Cmd( s, "CHAMFER", aTok )
    CASE cCmd == "EXPLODE" .OR. cCmd == "DESCOMP" .OR. cCmd == "X"
       RETURN VwM_Cmd( s, "EXPLODE", aTok )
+   CASE cCmd == "ELLIPSE" .OR. cCmd == "ELIPSE" .OR. cCmd == "EL"
+      RETURN VwD_Cmd( s, "ELLIPSE", aTok )
+   CASE cCmd == "SPLINE" .OR. cCmd == "SPL"
+      RETURN VwD_Cmd( s, "SPLINE", aTok )
+   CASE cCmd == "STRETCH" .OR. cCmd == "ESTIRA" .OR. cCmd == "S"
+      RETURN VwD_Cmd( s, "STRETCH", aTok )
+   CASE cCmd == "ARRAYRECT" .OR. cCmd == "MATRIZR"
+      RETURN VwD_Cmd( s, "ARRAYRECT", aTok )
+   CASE cCmd == "ARRAYPOLAR" .OR. cCmd == "MATRIZP"
+      RETURN VwD_Cmd( s, "ARRAYPOLAR", aTok )
+   CASE cCmd == "AREA" .OR. cCmd == "AREAS"
+      RETURN VwD_Cmd( s, "AREA", aTok )
    CASE cCmd == "ROTAR" .OR. cCmd == "ROTATE" .OR. cCmd == "RO"
       RETURN VwX_Cmd( s, "ROTATE", aTok )
    CASE cCmd == "ESCALA" .OR. cCmd == "SCALE" .OR. cCmd == "SC"
@@ -359,6 +372,7 @@ FUNCTION VwK_Prompt( s )
    CASE cK == "CIRCLE" ; RETURN IIf( n == 0, "CIRCULO: centro", "CIRCULO: punto en el radio (o escriba el radio)" )
    CASE cK == "PLINE" ; RETURN IIf( n == 0, "PLINE: primer punto", "PLINE: siguiente punto (Intro termina)" )
    CASE cK == "POINT" ; RETURN "PUNTO: ubicacion"
+   CASE cK == "ELLIPSE" .OR. cK == "SPLINE" .OR. cK == "STRETCH" ; RETURN VwD_Prompt( pe )
    CASE cK == "OFFSET" .OR. cK == "TRIM" .OR. cK == "EXTEND" .OR. cK == "FILLET" .OR. cK == "CHAMFER" ; RETURN VwM_Prompt( pe )
    CASE cK == "ROTATE" .OR. cK == "SCALE" .OR. cK == "MIRROR" .OR. cK == "RECT" .OR. cK == "POLYGON" ; RETURN VwX_Prompt( pe )
    ENDCASE
@@ -371,6 +385,10 @@ RETURN Vk_Res( "Cancelado" )
 FUNCTION VwK_Finish( s )
    LOCAL pe := s[ "pend" ], r
    s[ "pend" ] := NIL
+   IF pe[ "cmd" ] == "SPLINE" .AND. Len( pe[ "pts" ] ) >= 2
+      IF Vwe_Spline( s, pe[ "pts" ] ) == 0 ; RETURN Vk_Res( "SPLINE: puntos no validos" ) ; ENDIF
+      RETURN Vk_Res( "Spline creada", , .T. )
+   ENDIF
    IF pe[ "cmd" ] == "PLINE" .AND. Len( pe[ "pts" ] ) >= 2
       Vwe_Pline( s, pe[ "pts" ], .F. )
       RETURN Vk_Res( "Polilinea creada", , .T. )
@@ -400,6 +418,8 @@ FUNCTION VwK_Point( s, x, y )
    d := VwX_Point( s, pe, x, y )
    IF d != NIL ; RETURN d ; ENDIF
    d := VwM_Point( s, pe, x, y )
+   IF d != NIL ; RETURN d ; ENDIF
+   d := VwD_Point( s, pe, x, y )
    IF d != NIL ; RETURN d ; ENDIF
    DO CASE
    CASE cK == "LINE"
