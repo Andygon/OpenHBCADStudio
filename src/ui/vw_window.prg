@@ -159,6 +159,7 @@ METHOD Activate() CLASS TViewer
 RETURN NIL
 
 METHOD OnInit() CLASS TViewer
+   OCX_DARKTITLE( ::oWnd:hWnd )                  // barra de titulo oscura (Windows reciente)
    BEGIN SEQUENCE WITH { | e | Break( e ) }
       ::oWnd:bMButtonDown := { | nRow, nCol | ::OnMDown( nRow - ::nTop, nCol ) }
       ::oWnd:bMButtonUp   := { || ::OnLUp() }
