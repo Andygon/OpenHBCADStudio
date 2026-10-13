@@ -61,6 +61,7 @@ CLASS TViewer
    METHOD OnChar( nKey )
    METHOD RunCmd()
    METHOD Exec( cLine )
+   METHOD SaveAs()
    METHOD Wp( nRow, nCol )
    METHOD BtnAt( nRow, nCol )
    METHOD DrawBar( hMem, c )
@@ -88,6 +89,7 @@ METHOD Activate() CLASS TViewer
       MENU
          MENUITEM "&Abrir DXF...  Ctrl+O" ACTION oSelf:Open()
          MENUITEM "&Guardar  Ctrl+S" ACTION oSelf:Exec( "GUARDAR" )
+         MENUITEM "Guardar &como..." ACTION oSelf:SaveAs()
          SEPARATOR
          MENUITEM "&Salir" ACTION oSelf:oWnd:End()
       ENDMENU
@@ -220,7 +222,7 @@ METHOD InitBtns() CLASS TViewer
    LOCAL a := { { "Abrir", "@ABRIR" }, { "Guardar", "GUARDAR" }, { "|", "" }, { "Linea", "LINEA" }, { "Circulo", "CIRCULO" }, ;
                 { "Pline", "PLINE" }, { "Punto", "PUNTO" }, { "|", "" }, { "Mover", "MOVER" }, { "Copiar", "COPIAR" }, ;
                 { "Borrar", "BORRAR" }, { "Deshacer", "DESHACER" }, { "|", "" }, { "Zoom E", "ZOOM E" }, { "Capas", "CAPAS" }, ;
-                { "Snap", "SNAP" } }, b, nX := 4
+                { "Snap", "SNAP" }, { "|", "" }, { "G.como", "@GUARDARCOMO" } }, b, nX := 4
    ::aBtns := {}
    FOR EACH b IN a
       AAdd( ::aBtns, { b[ 1 ], b[ 2 ], nX, nX + Len( b[ 1 ] ) * 8 + 12 } )
@@ -251,7 +253,11 @@ METHOD OnLDown( nRow, nCol ) CLASS TViewer
    LOCAL aW, aG, r, b
    b := ::BtnAt( nRow, nCol )
    IF b != NIL
-      IF b[ 2 ] == "@ABRIR" ; ::Open() ; ELSE ; ::Exec( b[ 2 ] ) ; ENDIF
+      DO CASE
+      CASE b[ 2 ] == "@ABRIR" ; ::Open()
+      CASE b[ 2 ] == "@GUARDARCOMO" ; ::SaveAs()
+      OTHERWISE ; ::Exec( b[ 2 ] )
+      ENDCASE
       RETURN NIL
    ENDIF
    ::aDrag := { nRow, nCol }
@@ -407,6 +413,29 @@ METHOD RunCmd() CLASS TViewer
    ::Exec( cLine )
 RETURN NIL
 
+METHOD SaveAs() CLASS TViewer
+   LOCAL cFile
+   IF ::oSes == NIL
+      ::Status( "Abra un DXF primero (Archivo, Abrir DXF)" )
+      RETURN NIL
+   ENDIF
+   cFile := cGetFile( "Dibujos DXF (*.dxf)|*.dxf|", "Guardar como", 1, , .T. )
+   IF Empty( cFile )
+      RETURN NIL
+   ENDIF
+   IF ! ( Lower( Right( cFile, 4 ) ) == ".dxf" )
+      cFile += ".dxf"
+   ENDIF
+   IF hb_FileExists( cFile ) .AND. ! MsgYesNo( "El archivo ya existe:" + CRLF + cFile + CRLF + "Sobrescribir?", "Guardar como" )
+      RETURN NIL
+   ENDIF
+   ::Exec( "GUARDAR " + cFile )
+   IF hb_HHasKey( ::oSes, "file" ) .AND. ::oSes[ "file" ] == cFile
+      ::cFile := cFile
+      ::Title()
+   ENDIF
+RETURN NIL
+
 METHOD Exec( cLine ) CLASS TViewer
    LOCAL r
    IF ::oSes == NIL .OR. ( Empty( cLine ) .AND. ! ( hb_HHasKey( ::oSes, "pend" ) .AND. ::oSes[ "pend" ] != NIL ) )
@@ -439,8 +468,8 @@ RETURN NIL
       ::oWnd:Refresh()
    CASE nKey == 79 .AND. GetKeyState( 17 )              // Ctrl+O
       ::Open()
-   CASE nKey == 83 .AND. GetKeyState( 17 )              // Ctrl+S
-      ::Exec( "GUARDAR" )
+   CASE nKey == 83 .AND. GetKeyState( 17 )              // Ctrl+S (Mayus = guardar como)
+      IF GetKeyState( 16 ) ; ::SaveAs() ; ELSE ; ::Exec( "GUARDAR" ) ; ENDIF
    CASE nKey == 90 .AND. GetKeyState( 17 )              // Ctrl+Z
       ::Exec( "DESHACER" )
    CASE nKey == 46                                      // Supr
