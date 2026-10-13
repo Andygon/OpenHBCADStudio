@@ -4,6 +4,9 @@ REM OpenHBCADStudio - build.bat
 REM Equivalente Windows de build.sh: compila y enlaza la SUITE DE TESTS
 REM (tests\t_main.prg + src\codec, src\geom2d, src\space, src\tessellation,
 REM csrc\ocx_math.c) con Harbour + MSVC 2022 x64 y la ejecuta.
+REM Con USE_FW=1 compila en cambio la APLICACION GUI completa (ohbcad.prg +
+REM todos los .prg de SOURCES.lst + csrc\*.c) y la enlaza con FiveWin 64
+REM (obj_a\, OpenHBCADStudio.exe). No se ejecuta (es GUI).
 REM Resultado esperado al final:  RESULTADO: N ok, 0 fallos  /  OCX-ALL-OK
 REM
 REM Uso (desde cualquier carpeta):  build.bat [clean] [norun]
@@ -26,7 +29,18 @@ REM            BuildTools si hace falta). Si ya estas en un "x64 Native Tools
 REM            Command Prompt" (cl en el PATH) se omite.
 REM   HBGT     WIN (por defecto: salida en la ventana de consola) o STD (salida
 REM            por stdout, redirigible: "build.bat > log.txt"; necesario bajo Wine).
-REM   OUTEXE   ejecutable resultante (por defecto t_ocx.exe en la raiz)
+REM   OUTEXE   ejecutable resultante (por defecto t_ocx.exe en la raiz; con
+REM            USE_FW=1, OpenHBCADStudio.exe)
+REM
+REM LIBRERIAS QUE DEBE TENER EL HARBOUR DEL USUARIO (HBROOT\lib\win\msvc64):
+REM   Siempre:  hbvm hbrtl gtwin gtstd hblang hbmacro hbrdd rddntx rddcdx rddfpt
+REM             hbsix hbdebug hbcommon hbpp hbcpage hbpcre hbzlib
+REM   USE_FW=1 (ademas, contribs compiladas con MSVC64): hbcplr hbct hbwin xhb
+REM             hbziparc hbmzip (+ gtgui). xhb lo exige la propia FiveH64.lib
+REM             (I18N, NOTIFY, TXMLDOCUMENT); hbct aporta SIN/COS/FLOOR/TOKEN...;
+REM             hbwin las WAPI_* y OLE; hbmzip/hbziparc las HB_UNZIP*.
+REM   Y de FWH_DIR\lib: FiveH64.lib FiveHC64.lib libmariadb64.lib hbhpdf64.lib
+REM             libhpdf64.lib.
 REM Notas: fuentes en UTF-8 (/ku). Los tests leen tests\fixtures\*.dxf con
 REM rutas relativas: el .bat ya hace cd a la raiz del repo. Para ver bien los
 REM acentos en consola: chcp 65001 antes de ejecutar.
@@ -40,13 +54,17 @@ if "%HBROOT%" == "" set "HBROOT=C:\PRG\HB\HB_64_MSVC22"
 if "%FWH_DIR%" == "" if not "%FWDIR%" == "" set "FWH_DIR=%FWDIR%"
 if "%FWH_DIR%" == "" set "FWH_DIR=C:\PRG\FWH\fwh2605\fwh64"
 if "%USE_FW%" == "" set "USE_FW=0"
+if "%OUTEXE%" == "" if "%USE_FW%" == "1" set "OUTEXE=OpenHBCADStudio.exe"
 if "%OUTEXE%" == "" set "OUTEXE=t_ocx.exe"
+set "HBW=/w3 /es2"
 if "%HBGT%" == "" set "HBGT=WIN"
 if "%VSVARS%" == "" set "VSVARS=%ProgramFiles%\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat"
 set "HBBIN=%HBROOT%\bin\win\msvc64"
 set "HBINC=%HBROOT%\include"
 set "HBLIB=%HBROOT%\lib\win\msvc64"
 set "OBJD=obj_t"
+if "%USE_FW%" == "1" set "OBJD=obj_a"
+if "%USE_FW%" == "1" set "HBW=/w0"
 
 if /i "%1" == "clean" goto CLEAN
 set "NORUN=0"
@@ -66,6 +84,7 @@ set "FWINC="
 if exist "%FWH_DIR%\include" set "FWINC=;%FWH_DIR%\include"
 
 echo === Harbour + cl: fuentes ===
+if "%USE_FW%" == "1" goto APPSRC
 for %%F in (tests\*.prg) do call :ONE "%%F"
 call :ONE "src\tessellation.prg"
 for %%F in (src\space\*.prg) do call :ONE "%%F"
@@ -75,20 +94,34 @@ if not "%HBERR%" == "0" goto CERR
 if /i not "%HBGT%" == "STD" del "%OBJD%\obj_t_gtstub.obj" >NUL 2>&1
 if /i "%HBGT%" == "STD" call :GTSTUB
 if not "%HBERR%" == "0" goto CERR
+goto CSRC
+:APPSRC
+for /f "usebackq delims=" %%F in ("SOURCES.lst") do call :ONE "%%F"
+if not "%HBERR%" == "0" goto CERR
+:CSRC
 
-echo === C: csrc\ocx_math.c ===
-cl -nologo -TC -W3 -O2 -c -I"%HBINC%" -D_WIN64 -D__FLAT__ csrc\ocx_math.c -Fo"%OBJD%\ocx_math.obj" > cl_one.log 2>&1
-if ERRORLEVEL 1 type cl_one.log
-if ERRORLEVEL 1 goto CERR
+echo === C: csrc\*.c ===
+for %%C in (ocx_math ocad_geom ocad_dxf) do call :ONEC %%C
+if not "%HBERR%" == "0" goto CERR
 
 echo === Enlazando %OUTEXE% ===
 if exist lnk_t.tmp del lnk_t.tmp
 for %%O in (%OBJD%\*.obj) do echo %%O>> lnk_t.tmp
-if "%USE_FW%" == "1" echo "%FWH_DIR%\lib\FiveH64.lib" "%FWH_DIR%\lib\FiveHC64.lib">> lnk_t.tmp
+if "%USE_FW%" == "1" goto LNKAPP
 for %%L in (hbvm hbrtl gtwin gtstd hblang hbmacro hbrdd rddntx rddcdx rddfpt hbsix hbdebug hbcommon hbpp hbcpage hbpcre hbzlib) do echo "%HBLIB%\%%L.lib">> lnk_t.tmp
 for %%L in (kernel32 user32 gdi32 winspool comctl32 comdlg32 advapi32 shell32 ole32 oleaut32 uuid odbc32 odbccp32 iphlpapi mpr version wsock32 ws2_32 msimg32 oledlg psapi gdiplus winmm ucrt UxTheme) do echo %%L.lib>> lnk_t.tmp
 link @lnk_t.tmp /OUT:%OUTEXE% /nologo /subsystem:console /NODEFAULTLIB:libucrt /NODEFAULTLIB:msvcrt
 if ERRORLEVEL 1 goto LERR
+goto LNKOK
+:LNKAPP
+for %%L in (FiveH64 FiveHC64 libmariadb64 hbhpdf64 libhpdf64) do echo "%FWH_DIR%\lib\%%L.lib">> lnk_t.tmp
+for %%L in (xhb hbct hbwin hbziparc hbmzip hbcplr hbvm hbrtl gtwin gtgui gtstd hblang hbmacro hbrdd rddntx rddcdx rddfpt hbsix hbdebug hbcommon hbpp hbcpage hbpcre hbzlib) do echo "%HBLIB%\%%L.lib">> lnk_t.tmp
+for %%L in (kernel32 user32 gdi32 winspool comctl32 comdlg32 advapi32 shell32 ole32 oleaut32 uuid odbc32 odbccp32 iphlpapi mpr version wsock32 ws2_32 msimg32 oledlg psapi gdiplus winmm ucrt UxTheme) do echo %%L.lib>> lnk_t.tmp
+link @lnk_t.tmp /OUT:%OUTEXE% /nologo /subsystem:windows /NODEFAULTLIB:libucrt /NODEFAULTLIB:msvcrt
+if ERRORLEVEL 1 goto LERR
+echo * %OUTEXE% (GUI, FiveWin) construido *
+goto END
+:LNKOK
 echo * %OUTEXE% construido *
 if "%NORUN%" == "1" goto END
 echo === Ejecutando la bateria de tests ===
@@ -110,11 +143,17 @@ if /i "%~nx1" == "smoke.prg" goto :eof
 if /i "%~nx1" == "tscan.prg" goto :eof
 if exist "%OBJD%\%OBJ%.obj" goto :eof
 echo [%REL%]
-"%HBBIN%\harbour.exe" "%REL%" /n /ku /w3 /es2 /iinclude%FWINC%;%HBINC% /d__64__ /dFWH_CC_MSVC64 /o%OBJD%\ > comp_one.log 2>&1
+"%HBBIN%\harbour.exe" "%REL%" /n /ku %HBW% /iinclude%FWINC%;%HBINC% /d__64__ /dFWH_CC_MSVC64 /o%OBJD%\ > comp_one.log 2>&1
 if ERRORLEVEL 1 goto CERR_ONE
 cl -nologo -TC -W3 -O2 -c -I"%HBINC%" -D_WIN64 -D__FLAT__ "%OBJD%\%~n1.c" -Fo"%OBJD%\%OBJ%.obj" > cl_one.log 2>&1
 if ERRORLEVEL 1 goto CERR_ONE
 del "%OBJD%\%~n1.c" >NUL 2>&1
+goto :eof
+:ONEC
+if exist "%OBJD%\%1.obj" goto :eof
+cl -nologo -TC -W3 -O2 -c -I"%HBINC%" -D_WIN64 -D__FLAT__ csrc\%1.c -Fo"%OBJD%\%1.obj" > cl_one.log 2>&1
+if ERRORLEVEL 1 type cl_one.log
+if ERRORLEVEL 1 set HBERR=1
 goto :eof
 :CERR_ONE
 echo * ERROR compilando %REL% *
@@ -125,7 +164,7 @@ set HBERR=1
 goto :eof
 
 :CLEAN
-del /q %OBJD%\*.obj %OBJD%\*.c 2>NUL
+del /q obj_t\*.obj obj_t\*.c obj_a\*.obj obj_a\*.c 2>NUL
 del /q lnk_t.tmp comp_one.log cl_one.log t_ocx.exe 2>NUL
 echo * Limpio *
 goto END
