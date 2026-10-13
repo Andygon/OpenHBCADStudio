@@ -2,7 +2,7 @@
 #include "ocx.ch"
 
 PROCEDURE T_ViewSatReal()
-   LOCAL ps, pt, pc, bad := 0, i, ex := { 1.0, 0.0, 0.0 }, ey := { 0.0, 1.0, 0.0 }, ez := { 0.0, 0.0, 1.0 }, dd
+   LOCAL cam, aAll := {}, sh, k, ok := .T., nBack, ps, pt, pc, bad := 0, i, ex := { 1.0, 0.0, 0.0 }, ey := { 0.0, 1.0, 0.0 }, ez := { 0.0, 0.0, 1.0 }, dd
    LOCAL c := hb_MemoRead( "tests/fixtures/solids3d.dxf" ), d, e, nS := 0, sat, r, nF := 0, nT := 0, nSk := 0, nOk := 0, nPl := 0, cs
    IF Empty( c ) ; Chk( .F., "[extra] satreal: no se encuentra tests/fixtures/solids3d.dxf" ) ; RETURN ; ENDIF
    d := Dxr_ReadString( c )
@@ -15,6 +15,7 @@ PROCEDURE T_ViewSatReal()
       IF sat == NIL ; LOOP ; ENDIF
       IF Len( Sat_Find( sat, "face" ) ) > 0 .AND. Len( Sat_Find( sat, "coedge" ) ) > 0 ; nOk++ ; ENDIF
       r := Sat_Tess( sat )
+      AEval( r[ "tris" ], {| t | AAdd( aAll, t ) } )
       IF r[ "skipped" ] == 0 .AND. Len( r[ "tris" ] ) > 0 ; nPl++ ; ENDIF
       nF += r[ "faces" ] ; nT += Len( r[ "tris" ] ) ; nSk += r[ "skipped" ]
    NEXT
@@ -37,5 +38,18 @@ PROCEDURE T_ViewSatReal()
       IF Abs( dd - ( 2.0 + 0.5 * i * 0.3 ) ) > 0.000001 .OR. Abs( pc[ 1 ][ 3 ] - i * 0.3 ) > 0.000001 ; bad++ ; ENDIF
    NEXT
    Chk( bad == 0, "[extra] satreal: evaluadores esfera/toro/cono caen en su superficie (" + hb_ntos( bad ) + ")" )
+   // B13c: sombreado painter
+   cam := VwC_New() ; cam[ "pitch" ] := 0.6 ; cam[ "yaw" ] := 0.4 ; cam[ "scale" ] := 5.0
+   sh := VwS_Shade( cam, aAll ) ; nBack := Len( VwS_Shade( cam, aAll, .F. ) )
+   FOR k := 2 TO Len( sh )
+      IF sh[ k ][ 5 ] < sh[ k - 1 ][ 5 ] ; ok := .F. ; ENDIF
+   NEXT
+   FOR k := 1 TO Len( sh )
+      IF sh[ k ][ 4 ] < 0.25 - 0.000001 .OR. sh[ k ][ 4 ] > 1.000001 ; ok := .F. ; ENDIF
+   NEXT
+   Chk( Len( sh ) > 0 .AND. Len( sh ) < nBack .AND. ok, "[extra] shade: ordenado lejos->cerca, sombra en 0.25..1 y se descartan caras traseras (" + hb_ntos( Len( sh ) ) + "/" + hb_ntos( nBack ) + ")" )
+   sh := VwS_Shade( VwC_New(), { { { 0.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0 }, { 0.0, 1.0, 0.0 }, { 0.0, 0.0, 1.0 } }, { { 0.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0 }, { 0.0, 1.0, 0.0 }, { 0.0, 0.0, -1.0 } } } )
+   Chk( Len( sh ) == 1 .AND. Abs( sh[ 1 ][ 4 ] - 1.0 ) < 0.000001, "[extra] shade: en planta la normal +Z mira a la camara (sombra 1.0) y -Z se descarta" )
+   Chk( VwS_Color( 0.5, 200 + 100 * 256 + 50 * 65536 ) == 100 + 50 * 256 + 25 * 65536, "[extra] shade: VwS_Color oscurece" )
    OutStd( "satreal caras=" + hb_ntos( nF ) + " tris=" + hb_ntos( nT ) + " saltadas=" + hb_ntos( nSk ) + hb_eol() )
 RETURN
