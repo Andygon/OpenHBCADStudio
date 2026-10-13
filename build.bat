@@ -24,6 +24,8 @@ REM   VSVARS   vcvarsall.bat de Visual Studio 2022
 REM            (por defecto Community; ajustar a Professional/Enterprise/
 REM            BuildTools si hace falta). Si ya estas en un "x64 Native Tools
 REM            Command Prompt" (cl en el PATH) se omite.
+REM   HBGT     WIN (por defecto: salida en la ventana de consola) o STD (salida
+REM            por stdout, redirigible: "build.bat > log.txt"; necesario bajo Wine).
 REM   OUTEXE   ejecutable resultante (por defecto t_ocx.exe en la raiz)
 REM Notas: fuentes en UTF-8 (/ku). Los tests leen tests\fixtures\*.dxf con
 REM rutas relativas: el .bat ya hace cd a la raiz del repo. Para ver bien los
@@ -39,6 +41,7 @@ if "%FWH_DIR%" == "" if not "%FWDIR%" == "" set "FWH_DIR=%FWDIR%"
 if "%FWH_DIR%" == "" set "FWH_DIR=C:\PRG\FWH\fwh2605\fwh64"
 if "%USE_FW%" == "" set "USE_FW=0"
 if "%OUTEXE%" == "" set "OUTEXE=t_ocx.exe"
+if "%HBGT%" == "" set "HBGT=WIN"
 if "%VSVARS%" == "" set "VSVARS=%ProgramFiles%\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat"
 set "HBBIN=%HBROOT%\bin\win\msvc64"
 set "HBINC=%HBROOT%\include"
@@ -51,7 +54,7 @@ if /i "%1" == "norun" set "NORUN=1"
 if /i "%2" == "norun" set "NORUN=1"
 
 if not exist "%HBBIN%\harbour.exe" goto NOHB
-where cl >NUL 2>&1
+cl /? >NUL 2>&1
 if not ERRORLEVEL 1 goto HAVECL
 if not exist "%VSVARS%" goto NOENV
 call "%VSVARS%" amd64
@@ -69,6 +72,9 @@ for %%F in (src\space\*.prg) do call :ONE "%%F"
 for %%F in (src\geom2d\*.prg) do call :ONE "%%F"
 for %%F in (src\codec\*.prg) do call :ONE "%%F"
 if not "%HBERR%" == "0" goto CERR
+if /i not "%HBGT%" == "STD" del "%OBJD%\obj_t_gtstub.obj" >NUL 2>&1
+if /i "%HBGT%" == "STD" call :GTSTUB
+if not "%HBERR%" == "0" goto CERR
 
 echo === C: csrc\ocx_math.c ===
 cl -nologo -TC -W3 -O2 -c -I"%HBINC%" -D_WIN64 -D__FLAT__ csrc\ocx_math.c -Fo"%OBJD%\ocx_math.obj" > cl_one.log 2>&1
@@ -79,7 +85,7 @@ echo === Enlazando %OUTEXE% ===
 if exist lnk_t.tmp del lnk_t.tmp
 for %%O in (%OBJD%\*.obj) do echo %%O>> lnk_t.tmp
 if "%USE_FW%" == "1" echo "%FWH_DIR%\lib\FiveH64.lib" "%FWH_DIR%\lib\FiveHC64.lib">> lnk_t.tmp
-for %%L in (hbvm hbrtl gtwin hblang hbmacro hbrdd rddntx rddcdx rddfpt hbsix hbdebug hbcommon hbpp hbcpage hbct hbpcre hbzlib) do echo "%HBLIB%\%%L.lib">> lnk_t.tmp
+for %%L in (hbvm hbrtl gtwin gtstd hblang hbmacro hbrdd rddntx rddcdx rddfpt hbsix hbdebug hbcommon hbpp hbcpage hbpcre hbzlib) do echo "%HBLIB%\%%L.lib">> lnk_t.tmp
 for %%L in (kernel32 user32 gdi32 winspool comctl32 comdlg32 advapi32 shell32 ole32 oleaut32 uuid odbc32 odbccp32 iphlpapi mpr version wsock32 ws2_32 msimg32 oledlg psapi gdiplus winmm ucrt UxTheme) do echo %%L.lib>> lnk_t.tmp
 link @lnk_t.tmp /OUT:%OUTEXE% /nologo /subsystem:console /NODEFAULTLIB:libucrt /NODEFAULTLIB:msvcrt
 if ERRORLEVEL 1 goto LERR
@@ -89,6 +95,12 @@ echo === Ejecutando la bateria de tests ===
 "%OUTEXE%"
 echo (codigo de salida %ERRORLEVEL%: 0 = OCX-ALL-OK)
 goto END
+
+:GTSTUB
+echo ANNOUNCE HB_GTSYS> "%OBJD%\gtstub.prg"
+echo REQUEST HB_GT_STD_DEFAULT>> "%OBJD%\gtstub.prg"
+call :ONE "%OBJD%\gtstub.prg"
+goto :eof
 
 :ONE
 set "REL=%~1"
