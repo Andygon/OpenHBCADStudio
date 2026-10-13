@@ -91,15 +91,32 @@ STATIC PROCEDURE Vws_Ext( oS, x, y )
    ENDIF
 RETURN
 
-/* aPts: puntos { x, y } en coordenadas de bloque; se transforman con aT */
+/* caja 3D de la escena: { minx, miny, minz, maxx, maxy, maxz } */
+STATIC PROCEDURE Vws_Ext3( oS, x, y, z )
+   LOCAL e := oS[ "ext3" ]
+   IF e == NIL
+      oS[ "ext3" ] := { x, y, z, x, y, z }
+   ELSE
+      IF x < e[ 1 ] ; e[ 1 ] := x ; ENDIF
+      IF y < e[ 2 ] ; e[ 2 ] := y ; ENDIF
+      IF z < e[ 3 ] ; e[ 3 ] := z ; ENDIF
+      IF x > e[ 4 ] ; e[ 4 ] := x ; ENDIF
+      IF y > e[ 5 ] ; e[ 5 ] := y ; ENDIF
+      IF z > e[ 6 ] ; e[ 6 ] := z ; ENDIF
+   ENDIF
+RETURN
+
+/* aPts: puntos { x, y } o { x, y, z } en coordenadas de bloque; se transforman con aT */
 STATIC PROCEDURE Vws_Wire( oS, aPts, nRgb, cLayer, aT )
-   LOCAL a := {}, p, q, aB := NIL
+   LOCAL a := {}, p, q, aB := NIL, nZ
    IF nRgb < 0 .OR. Len( aPts ) < 1
       RETURN
    ENDIF
    FOR EACH p IN aPts
       q := Vws_Apply( aT, p[ 1 ], p[ 2 ] )
-      AAdd( a, q )
+      nZ := IIf( Len( p ) >= 3, p[ 3 ], 0.0 ) + oS[ "_dz" ]
+      AAdd( a, { q[ 1 ], q[ 2 ], nZ } )
+      Vws_Ext3( oS, q[ 1 ], q[ 2 ], nZ )
       IF aB == NIL
          aB := { q[ 1 ], q[ 2 ], q[ 1 ], q[ 2 ] }
       ELSE
@@ -131,8 +148,9 @@ RETURN aP
 STATIC FUNCTION Vws_BulgePts( p1, p2, nB )
    LOCAL dx := p2[ 1 ] - p1[ 1 ], dy := p2[ 2 ] - p1[ 2 ], d := Sqrt( dx * dx + dy * dy )
    LOCAL h, cx, cy, r, a0, nSw, nSeg, i, aP := {}
+   LOCAL z1 := IIf( Len( p1 ) >= 4, p1[ 4 ], 0.0 ), z2 := IIf( Len( p2 ) >= 4, p2[ 4 ], 0.0 )
    IF d < 0.000000000001 .OR. Abs( nB ) < 0.000000000001
-      RETURN { p2 }
+      RETURN { { p2[ 1 ], p2[ 2 ], z2 } }
    ENDIF
    h := ( d / 2.0 ) * ( 1.0 - nB * nB ) / ( 2.0 * nB )
    cx := ( p1[ 1 ] + p2[ 1 ] ) / 2.0 + ( - dy / d ) * h
@@ -143,16 +161,16 @@ STATIC FUNCTION Vws_BulgePts( p1, p2, nB )
    nSeg := Max( 2, Int( Abs( nSw ) / ( OCX_TAU / 96.0 ) + 0.999999 ) )
    IF nSeg % 2 == 1 ; nSeg++ ; ENDIF
    FOR i := 1 TO nSeg - 1
-      AAdd( aP, { cx + r * OCX_COS( a0 + nSw * i / nSeg ), cy + r * OCX_SIN( a0 + nSw * i / nSeg ) } )
+      AAdd( aP, { cx + r * OCX_COS( a0 + nSw * i / nSeg ), cy + r * OCX_SIN( a0 + nSw * i / nSeg ), z1 + ( z2 - z1 ) * i / nSeg } )
    NEXT
-   AAdd( aP, p2 )
+   AAdd( aP, { p2[ 1 ], p2[ 2 ], z2 } )
 RETURN aP
 
 /* aV: { {x,y,bulge}, ... } */
 STATIC FUNCTION Vws_PolyPts( aV, lClosed )
    LOCAL aP := {}, i, n := Len( aV ), j, q
    IF n == 0 ; RETURN aP ; ENDIF
-   AAdd( aP, { aV[ 1 ][ 1 ], aV[ 1 ][ 2 ] } )
+   AAdd( aP, { aV[ 1 ][ 1 ], aV[ 1 ][ 2 ], IIf( Len( aV[ 1 ] ) >= 4, aV[ 1 ][ 4 ], 0.0 ) } )
    FOR i := 1 TO IIf( lClosed, n, n - 1 )
       j := IIf( i == n, 1, i + 1 )
       FOR EACH q IN Vws_BulgePts( aV[ i ], aV[ j ], aV[ i ][ 3 ] )
@@ -183,25 +201,26 @@ RETURN nA + nB
 STATIC FUNCTION Vws_SplinePts( e )
    LOCAL aCp := e[ "control_points" ], aFp := Vws_N( e, "fit_points", {} ), aK := Vws_N( e, "knots", {} )
    LOCAL aW := Vws_N( e, "weights", {} ), nDeg := Vws_N( e, "degree", 3 ), nN := Len( aCp )
-   LOCAL aP := {}, p, i, nSeg, u, u0, u1, nx, ny, nd, nBs, nWt
+   LOCAL aP := {}, p, i, nSeg, u, u0, u1, nx, ny, nz, nd, nBs, nWt
    IF nN >= 2 .AND. Len( aK ) == nN + nDeg + 1 .AND. nDeg >= 1
       u0 := aK[ nDeg + 1 ] ; u1 := aK[ nN + 1 ]
       IF u1 > u0
          nSeg := Max( 24, nN * 12 )
          FOR i := 0 TO nSeg
             u := u0 + ( u1 - u0 ) * i / nSeg
-            nx := 0.0 ; ny := 0.0 ; nd := 0.0
+            nx := 0.0 ; ny := 0.0 ; nz := 0.0 ; nd := 0.0
             FOR p := 0 TO nN - 1
                nBs := Vws_Basis( aK, p, nDeg, u, u1 )
                IF nBs != 0.0
                   nWt := IIf( Len( aW ) == nN, aW[ p + 1 ], 1.0 )
                   nx += nBs * nWt * aCp[ p + 1 ][ 1 ]
                   ny += nBs * nWt * aCp[ p + 1 ][ 2 ]
+                  nz += nBs * nWt * aCp[ p + 1 ][ 3 ]
                   nd += nBs * nWt
                ENDIF
             NEXT
             IF nd > 0.000000000001
-               AAdd( aP, { nx / nd, ny / nd } )
+               AAdd( aP, { nx / nd, ny / nd, nz / nd } )
             ENDIF
          NEXT
          IF Len( aP ) >= 2 ; RETURN aP ; ENDIF
@@ -209,7 +228,7 @@ STATIC FUNCTION Vws_SplinePts( e )
    ENDIF
    aP := {}
    FOR EACH p IN IIf( Len( aFp ) >= 2, aFp, aCp )
-      AAdd( aP, { p[ 1 ], p[ 2 ] } )
+      AAdd( aP, { p[ 1 ], p[ 2 ], p[ 3 ] } )
    NEXT
 RETURN aP
 
@@ -269,7 +288,7 @@ RETURN
 
 STATIC PROCEDURE Vws_Entity( d, oS, e, aT, nBlockRgb, nDepth )
    LOCAL cT := e[ "_type" ], com := e[ "common" ], aLI, nRgb, cLayer, n, i, j, p, q, aV, aP, vN
-   LOCAL ax, ay, bx, by, nR, nA, nB, nC, cName, aEnts, aI, nRot, nSx, nSy, ca, sa, aBase, k
+   LOCAL ax, ay, bx, by, nR, nA, nB, nC, cName, aEnts, aI, nRot, nSx, nSy, ca, sa, aBase, k, az, bz, nZ0
    IF Vws_N( com, "invisible", .F. )
       RETURN
    ENDIF
@@ -289,7 +308,7 @@ STATIC PROCEDURE Vws_Entity( d, oS, e, aT, nBlockRgb, nDepth )
    ENDIF
    DO CASE
    CASE cT == "LINE"
-      Vws_Wire( oS, { { e[ "start" ][ 1 ], e[ "start" ][ 2 ] }, { e[ "end" ][ 1 ], e[ "end" ][ 2 ] } }, nRgb, cLayer, aT )
+      Vws_Wire( oS, { { e[ "start" ][ 1 ], e[ "start" ][ 2 ], e[ "start" ][ 3 ] }, { e[ "end" ][ 1 ], e[ "end" ][ 2 ], e[ "end" ][ 3 ] } }, nRgb, cLayer, aT )
    CASE cT == "CIRCLE" .OR. cT == "ARC"
       vN := e[ "normal" ]
       IF cT == "CIRCLE"
@@ -300,28 +319,28 @@ STATIC PROCEDURE Vws_Entity( d, oS, e, aT, nBlockRgb, nDepth )
       aV := {}
       FOR EACH p IN aP
          q := Vws_Ocs( vN, e[ "center" ][ 1 ] + p[ 1 ], e[ "center" ][ 2 ] + p[ 2 ], e[ "center" ][ 3 ] )
-         AAdd( aV, { q[ 1 ], q[ 2 ] } )
+         AAdd( aV, { q[ 1 ], q[ 2 ], q[ 3 ] } )
       NEXT
       Vws_Wire( oS, aV, nRgb, cLayer, aT )
    CASE cT == "LWPOLYLINE"
       aV := {}
       FOR EACH p IN e[ "vertices" ]
          q := Vws_Ocs( e[ "normal" ], p[ "location" ][ 1 ], p[ "location" ][ 2 ], Vws_N( e, "elevation", 0.0 ) )
-         AAdd( aV, { q[ 1 ], q[ 2 ], Vws_N( p, "bulge", 0.0 ) } )
+         AAdd( aV, { q[ 1 ], q[ 2 ], Vws_N( p, "bulge", 0.0 ), q[ 3 ] } )
       NEXT
       Vws_Wire( oS, Vws_PolyPts( aV, e[ "is_closed" ] ), nRgb, cLayer, aT )
    CASE cT == "POLYLINE2D"
       aV := {}
       FOR EACH p IN e[ "vertices" ]
          q := Vws_Ocs( e[ "normal" ], p[ "location" ][ 1 ], p[ "location" ][ 2 ], Vws_N( e, "elevation", 0.0 ) )
-         AAdd( aV, { q[ 1 ], q[ 2 ], Vws_N( p, "bulge", 0.0 ) } )
+         AAdd( aV, { q[ 1 ], q[ 2 ], Vws_N( p, "bulge", 0.0 ), q[ 3 ] } )
       NEXT
       Vws_Wire( oS, Vws_PolyPts( aV, hb_bitAnd( e[ "flags" ], 1 ) != 0 ), nRgb, cLayer, aT )
    CASE cT == "POLYLINE3D" .OR. cT == "POLYLINE"
       aV := {}
       FOR EACH p IN e[ "vertices" ]
          IF hb_HHasKey( p, "position" )
-            AAdd( aV, { p[ "position" ][ 1 ], p[ "position" ][ 2 ], 0.0 } )
+            AAdd( aV, { p[ "position" ][ 1 ], p[ "position" ][ 2 ], 0.0, p[ "position" ][ 3 ] } )
          ENDIF
       NEXT
       n := ( ValType( e[ "flags" ] ) == "H" .AND. e[ "flags" ][ "closed" ] )
@@ -338,23 +357,25 @@ STATIC PROCEDURE Vws_Entity( d, oS, e, aT, nBlockRgb, nDepth )
       ENDDO
       n := Max( 12, Int( ( nB - nA ) / ( OCX_TAU / 96.0 ) ) + 1 )
       aP := {}
+      az := e[ "major_axis" ][ 3 ] ; bz := ( vN[ 1 ] * ay - vN[ 2 ] * ax ) * e[ "minor_axis_ratio" ]
       FOR i := 0 TO n
          nC := nA + ( nB - nA ) * i / n
          AAdd( aP, { e[ "center" ][ 1 ] + ax * OCX_COS( nC ) + bx * OCX_SIN( nC ), ;
-                     e[ "center" ][ 2 ] + ay * OCX_COS( nC ) + by * OCX_SIN( nC ) } )
+                     e[ "center" ][ 2 ] + ay * OCX_COS( nC ) + by * OCX_SIN( nC ), ;
+                     e[ "center" ][ 3 ] + az * OCX_COS( nC ) + bz * OCX_SIN( nC ) } )
       NEXT
       Vws_Wire( oS, aP, nRgb, cLayer, aT )
    CASE cT == "SPLINE"
       Vws_Wire( oS, Vws_SplinePts( e ), nRgb, cLayer, aT )
    CASE cT == "POINT"
       p := e[ "location" ]
-      Vws_Wire( oS, { { p[ 1 ], p[ 2 ] } }, nRgb, cLayer, aT )
+      Vws_Wire( oS, { { p[ 1 ], p[ 2 ], p[ 3 ] } }, nRgb, cLayer, aT )
    CASE cT == "SOLID" .OR. cT == "3DFACE"
       aP := {}
       FOR EACH k IN { "first_corner", "second_corner", "fourth_corner", "third_corner" }
-         AAdd( aP, { e[ k ][ 1 ], e[ k ][ 2 ] } )
+         AAdd( aP, { e[ k ][ 1 ], e[ k ][ 2 ], e[ k ][ 3 ] } )
       NEXT
-      AAdd( aP, { aP[ 1 ][ 1 ], aP[ 1 ][ 2 ] } )
+      AAdd( aP, { aP[ 1 ][ 1 ], aP[ 1 ][ 2 ], aP[ 1 ][ 3 ] } )
       Vws_Wire( oS, aP, nRgb, cLayer, aT )
    CASE cT == "HATCH"
       Vws_Hatch( oS, e, nRgb, aT )
@@ -387,7 +408,10 @@ STATIC PROCEDURE Vws_Entity( d, oS, e, aT, nBlockRgb, nDepth )
             aI := { ca * nSx, sa * nSx, - sa * nSy, ca * nSy, 0.0, 0.0 }
             aI[ 5 ] := nA - ( aI[ 1 ] * aBase[ 1 ] + aI[ 3 ] * aBase[ 2 ] )
             aI[ 6 ] := nB - ( aI[ 2 ] * aBase[ 1 ] + aI[ 4 ] * aBase[ 2 ] )
+            nZ0 := oS[ "_dz" ]
+            oS[ "_dz" ] := nZ0 + e[ "insert_point" ][ 3 ] - aBase[ 3 ] * Vws_N( e, "z_scale", 1.0 )
             Vws_Block( d, oS, aEnts, Vws_Compose( aT, aI ), nRgb, nDepth + 1 )
+            oS[ "_dz" ] := nZ0
          NEXT
       NEXT
    OTHERWISE
@@ -493,7 +517,7 @@ RETURN
 /* Entrada: d = documento del codec (Dxr_ReadString) */
 /* hHidden: capas apagadas por el usuario (clave = nombre en mayusculas), opcional */
 FUNCTION Vws_Build( d, hHidden )
-   LOCAL oS := hb_Hash( "wires", {}, "texts", {}, "fills", {}, "ents", hb_Hash(), "ext", NIL, "skipped", hb_Hash(), ;
+   LOCAL oS := hb_Hash( "wires", {}, "texts", {}, "fills", {}, "ents", hb_Hash(), "ext", NIL, "ext3", NIL, "_dz", 0.0, "skipped", hb_Hash(), ;
                         "hidden", IIf( hHidden == NIL, hb_Hash(), hHidden ), "_style", 0, "_h", "" )
    Vws_Block( d, oS, Doc_ModelSpaceEntities( d ), NIL, VWS_WHITE, 0 )
 RETURN oS
