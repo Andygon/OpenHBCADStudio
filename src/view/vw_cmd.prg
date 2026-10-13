@@ -77,7 +77,7 @@ RETURN "ZOOM [E | A | I | O | factor | W x1,y1 x2,y2]  (alias Z)" + Chr( 10 ) + 
        "AYUDA          esta ayuda (HELP)"
 
 FUNCTION VwK_Exec( s, cLine )
-   LOCAL aTok, cCmd, c := s[ "cam" ], p1, r, p2, cArg, n, aL, k, cOut, o, h
+   LOCAL aTok, cCmd, c := s[ "cam" ], p1, r, p2, cArg, n, aL, k, cOut, o, h, lLand, nTk
    LOCAL aW, i, lPend
    aTok := {}
    FOR EACH cArg IN hb_ATokens( AllTrim( cLine ), " " )
@@ -271,6 +271,29 @@ FUNCTION VwK_Exec( s, cLine )
       s[ "pend" ] := NIL
       VwC_Fit3( c, s[ "scene" ][ "ext3" ], 0.95 )
       RETURN Vk_Res( "Vista " + Upper( cArg ), , .T. )
+   CASE cCmd == "SOMBREADO" .OR. cCmd == "SHADE" .OR. cCmd == "SHADEMODE"
+      cArg := IIf( Len( aTok ) >= 2, Upper( aTok[ 2 ] ), "" )
+      DO CASE
+      CASE cArg $ "OFF NO ALAMBRE WIREFRAME 2D" ; c[ "shade" ] := .F.
+      CASE cArg $ "ON SI" ; c[ "shade" ] := .T.
+      OTHERWISE ; c[ "shade" ] := ! ( hb_HHasKey( c, "shade" ) .AND. c[ "shade" ] == .T. )
+      ENDCASE
+      RETURN Vk_Res( "Sombreado " + IIf( c[ "shade" ], "activado (" + hb_ntos( Len( s[ "scene" ][ "tris" ] ) ) + " triangulos; solo se ve en vista 3D)", "desactivado" ), , .T. )
+   CASE cCmd == "PLOT" .OR. cCmd == "TRAZAR" .OR. cCmd == "EXPORTPDF" .OR. cCmd == "PDF"
+      // PLOT [papel] [V] [ruta.pdf]  (papel por defecto A4 apaisado; V = vertical)
+      cArg := "A4" ; lLand := .T. ; p1 := ""
+      FOR nTk := 2 TO Len( aTok )
+         IF Upper( aTok[ nTk ] ) == "V" ; lLand := .F.
+         ELSEIF Upper( Right( aTok[ nTk ], 4 ) ) == ".PDF" ; p1 := aTok[ nTk ]
+         ELSEIF ! ( Plot_PaperSize( aTok[ nTk ], .F. ) == NIL ) ; cArg := aTok[ nTk ]
+         ENDIF
+      NEXT
+      IF Empty( p1 )
+         p1 := IIf( hb_HHasKey( s, "file" ) .AND. ! Empty( s[ "file" ] ), hb_FNameExtSet( s[ "file" ], ".pdf" ), "trazado.pdf" )
+      ENDIF
+      cArg := Plot_Pdf( s[ "scene" ], cArg, lLand, 10.0, .F. )
+      IF cArg == NIL .OR. ! hb_MemoWrit( p1, cArg ) ; RETURN Vk_Res( "No se pudo escribir " + p1 ) ; ENDIF
+      RETURN Vk_Res( "PDF escrito: " + p1 + " (" + hb_ntos( Len( cArg ) ) + " bytes)" )
    CASE cCmd == "ORBITA" .OR. cCmd == "ORBIT"
       IF Len( aTok ) < 3 .OR. ! Vk_IsNum( aTok[ 2 ] ) .OR. ! Vk_IsNum( aTok[ 3 ] )
          RETURN Vk_Res( "Uso: ORBITA azimut elevacion (grados; planta = 0 90, frontal = 0 0)" )
