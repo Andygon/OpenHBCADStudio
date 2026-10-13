@@ -9,7 +9,7 @@
 ----------------------------------------------------------------------------*/
 #include "ocx.ch"
 
-STATIC FUNCTION Vwe_Push( s, aOps )
+FUNCTION Vwe_Push( s, aOps )
    IF ! hb_HHasKey( s, "undo" ) ; s[ "undo" ] := {} ; ENDIF
    IF Len( aOps ) > 0 ; AAdd( s[ "undo" ], aOps ) ; ENDIF
 RETURN NIL
