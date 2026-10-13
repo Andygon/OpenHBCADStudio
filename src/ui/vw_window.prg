@@ -119,6 +119,11 @@ METHOD Activate() CLASS TViewer
          MENUITEM "&Acercar" ACTION oSelf:Zoom( 1.5 )
          MENUITEM "A&lejar" ACTION oSelf:Zoom( 1.0 / 1.5 )
          SEPARATOR
+         MENUITEM "&Planta (SUP)" ACTION oSelf:Exec( "VISTA SUP" )
+         MENUITEM "&Frontal" ACTION oSelf:Exec( "VISTA FRONTAL" )
+         MENUITEM "&Derecha" ACTION oSelf:Exec( "VISTA DERECHA" )
+         MENUITEM "&Isometrica (3D)" ACTION oSelf:Exec( "VISTA ISO" )
+         SEPARATOR
          MENUITEM "&Capas..." ACTION oSelf:Exec( "CAPAS" )
          MENUITEM "&Regenerar" ACTION oSelf:Exec( "REGEN" )
          MENUITEM "&Snap a objetos (activar/apagar)" ACTION oSelf:Exec( "SNAP" )
@@ -201,7 +206,11 @@ RETURN NIL
 METHOD Fit() CLASS TViewer
    ::Size()
    IF ::oScene != NIL
-      VwC_FitExtents( ::oCam, Vws_Extents( ::oScene ), 0.95 )
+      IF VwC_Is3D( ::oCam )
+         VwC_Fit3( ::oCam, ::oScene[ "ext3" ], 0.95 )
+      ELSE
+         VwC_FitExtents( ::oCam, Vws_Extents( ::oScene ), 0.95 )
+      ENDIF
    ENDIF
    ::oWnd:Refresh()
 RETURN NIL
@@ -221,7 +230,7 @@ RETURN NIL
 METHOD InitBtns() CLASS TViewer
    LOCAL a := { { "Abrir", "@ABRIR" }, { "Guardar", "GUARDAR" }, { "|", "" }, { "Linea", "LINEA" }, { "Circulo", "CIRCULO" }, ;
                 { "Pline", "PLINE" }, { "Punto", "PUNTO" }, { "|", "" }, { "Mover", "MOVER" }, { "Copiar", "COPIAR" }, ;
-                { "Borrar", "BORRAR" }, { "Deshacer", "DESHACER" }, { "|", "" }, { "Zoom E", "ZOOM E" }, { "Capas", "CAPAS" }, ;
+                { "Borrar", "BORRAR" }, { "Deshacer", "DESHACER" }, { "|", "" }, { "Zoom E", "ZOOM E" }, { "Planta", "VISTA SUP" }, { "3D", "3D" }, { "Capas", "CAPAS" }, ;
                 { "Snap", "SNAP" }, { "|", "" }, { "G.como", "@GUARDARCOMO" } }, b, nX := 4
    ::aBtns := {}
    FOR EACH b IN a
@@ -266,6 +275,11 @@ METHOD OnLDown( nRow, nCol ) CLASS TViewer
    IF ::oSes != NIL
       ::Size()
       aW := VwC_S2W( ::oCam, nCol, nRow )
+      IF VwC_Is3D( ::oCam )
+         ::nMode := If( GetKeyState( 17 ), 1, 2 )
+         SetCapture( ::oWnd:hWnd )
+         RETURN NIL
+      ENDIF
       IF hb_HHasKey( ::oSes, "pend" ) .AND. ::oSes[ "pend" ] != NIL
          aW := ::Wp( nRow, nCol )
          r := VwK_Point( ::oSes, aW[ 1 ], aW[ 2 ] )
@@ -291,7 +305,7 @@ RETURN NIL
 
 METHOD OnMDown( nRow, nCol ) CLASS TViewer
    ::aDrag := { nRow, nCol }
-   ::nMode := 1
+   ::nMode := If( GetKeyState( 16 ), 4, 1 )          // Mayus + boton central = orbita
    SetCapture( ::oWnd:hWnd )
 RETURN NIL
 
@@ -318,17 +332,25 @@ METHOD OnLUp() CLASS TViewer
       lMove := Abs( ::aMouse[ 1 ] - ::aDrag[ 1 ] ) > 4 .OR. Abs( ::aMouse[ 2 ] - ::aDrag[ 2 ] ) > 4
       ::Size()
       IF lMove
-         aW := VwC_S2W( ::oCam, ::aDrag[ 2 ], ::aDrag[ 1 ] )
-         aW2 := VwC_S2W( ::oCam, ::aMouse[ 2 ], ::aMouse[ 1 ] )
-         aH := Vwp_Box( ::oScene, aW[ 1 ], aW[ 2 ], aW2[ 1 ], aW2[ 2 ] )
+         IF VwC_Is3D( ::oCam )
+            aH := Vwp_Box3( ::oScene, ::oCam, ::aDrag[ 2 ], ::aDrag[ 1 ], ::aMouse[ 2 ], ::aMouse[ 1 ] )
+         ELSE
+            aW := VwC_S2W( ::oCam, ::aDrag[ 2 ], ::aDrag[ 1 ] )
+            aW2 := VwC_S2W( ::oCam, ::aMouse[ 2 ], ::aMouse[ 1 ] )
+            aH := Vwp_Box( ::oScene, aW[ 1 ], aW[ 2 ], aW2[ 1 ], aW2[ 2 ] )
+         ENDIF
          IF ! lShift ; s[ "sel" ] := hb_Hash() ; ENDIF
          FOR EACH k IN aH
             s[ "sel" ][ k ] := .T.
          NEXT
       ELSE
-         aW := VwC_S2W( ::oCam, ::aDrag[ 2 ], ::aDrag[ 1 ] )
-         nTol := 6.0 / ::oCam[ "scale" ]
-         k := Vwp_Pick( ::oScene, aW[ 1 ], aW[ 2 ], nTol )
+         IF VwC_Is3D( ::oCam )
+            k := Vwp_Pick3( ::oScene, ::oCam, ::aDrag[ 2 ], ::aDrag[ 1 ], 6.0 )
+         ELSE
+            aW := VwC_S2W( ::oCam, ::aDrag[ 2 ], ::aDrag[ 1 ] )
+            nTol := 6.0 / ::oCam[ "scale" ]
+            k := Vwp_Pick( ::oScene, aW[ 1 ], aW[ 2 ], nTol )
+         ENDIF
          IF ! lShift ; s[ "sel" ] := hb_Hash() ; ENDIF
          IF k != NIL
             IF lShift .AND. hb_HHasKey( s[ "sel" ], k )
@@ -360,6 +382,10 @@ METHOD OnMove( nRow, nCol, nFlags ) CLASS TViewer
       VwC_PanPx( ::oCam, nCol - ::aDrag[ 2 ], nRow - ::aDrag[ 1 ] )
       ::aDrag := { nRow, nCol }
       ::oWnd:Refresh()
+   CASE ::nMode == 4
+      VwC_Orbit( ::oCam, ( nCol - ::aDrag[ 2 ] ) * 0.01, ( nRow - ::aDrag[ 1 ] ) * 0.01 )
+      ::aDrag := { nRow, nCol }
+      ::oWnd:Refresh()
    CASE ::nMode == 3
       ::oWnd:Refresh()
    CASE ::nMode == 2
@@ -372,6 +398,11 @@ METHOD OnMove( nRow, nCol, nFlags ) CLASS TViewer
          ::oWnd:Refresh()
       ENDIF
       aW := VwC_S2W( ::oCam, nCol, nRow )
+      IF VwC_Is3D( ::oCam )
+         ::Status( "Vista 3D (alambre)  azimut " + AllTrim( Str( ::oCam[ "yaw" ] * 180.0 / 3.14159265358979, 8, 1 ) ) + ;
+                   "  elevacion " + AllTrim( Str( ::oCam[ "pitch" ] * 180.0 / 3.14159265358979, 8, 1 ) ) + "   Mayus+rueda pulsada = orbita" )
+         RETURN NIL
+      ENDIF
       ::Status( "X=" + AllTrim( Str( aW[ 1 ], 14, 4 ) ) + "  Y=" + AllTrim( Str( aW[ 2 ], 14, 4 ) ) + ;
                 "   zoom " + AllTrim( Str( ::oCam[ "scale" ], 14, 4 ) ) + If( Empty( ::cCmd ), "", "   Comando: " + ::cCmd ) )
    ENDCASE
@@ -515,7 +546,7 @@ RETURN NIL
 
 METHOD Paint( hDC ) CLASS TViewer
    LOCAL c := ::Size(), nW := c[ "w" ], nH := c[ "h" ], hMem, hBmp, hOld, hBr
-   LOCAL aVis, w, p, a, nI, nX, nY, nLX, nLY, hPen, hOldPen, aT, nPx, oF, aS, nN := 0, aB
+   LOCAL lV3 := VwC_Is3D( c ), aVis, w, p, a, nI, nX, nY, nLX, nLY, hPen, hOldPen, aT, nPx, oF, aS, nN := 0, aB
    hMem := CreateCompatibleDC( hDC )
    hBmp := CreateCompatibleBitmap( hDC, nW, nH )
    hOld := SelectObject( hMem, hBmp )
@@ -525,10 +556,14 @@ METHOD Paint( hDC ) CLASS TViewer
    IF ::oScene != NIL
       aVis := VwC_Visible( c )
       hOldPen := NIL
-      ::DrawFills( hMem, c )
+      IF lV3
+         VwC_Setup( c )
+      ELSE
+         ::DrawFills( hMem, c )
+      ENDIF
       FOR EACH w IN ::oScene[ "wires" ]
          aB := w[ 4 ]
-         IF aB[ 3 ] < aVis[ 1 ] .OR. aB[ 1 ] > aVis[ 3 ] .OR. aB[ 4 ] < aVis[ 2 ] .OR. aB[ 2 ] > aVis[ 4 ]
+         IF ! lV3 .AND. ( aB[ 3 ] < aVis[ 1 ] .OR. aB[ 1 ] > aVis[ 3 ] .OR. aB[ 4 ] < aVis[ 2 ] .OR. aB[ 2 ] > aVis[ 4 ] )
             LOOP
          ENDIF
          IF ! Empty( w[ 6 ] ) .AND. ::oSes != NIL .AND. hb_HHasKey( ::oSes[ "sel" ], w[ 6 ] )
@@ -540,7 +575,7 @@ METHOD Paint( hDC ) CLASS TViewer
          IF hOldPen == NIL ; hOldPen := nI ; ENDIF
          nLX := NIL
          FOR EACH p IN w[ 3 ]
-            a := VwC_W2S( c, p[ 1 ], p[ 2 ] )
+            a := If( lV3, VwC_P3( c, p[ 1 ], p[ 2 ], If( Len( p ) >= 3, p[ 3 ], 0.0 ) ), VwC_W2S( c, p[ 1 ], p[ 2 ] ) )
             nX := Max( - 30000, Min( 30000, Int( a[ 1 ] ) ) )
             nY := Max( - 30000, Min( 30000, Int( a[ 2 ] ) ) )
             IF nLX == NIL
@@ -557,9 +592,11 @@ METHOD Paint( hDC ) CLASS TViewer
       IF hOldPen != NIL
          SelectObject( hMem, hOldPen )
       ENDIF
-      ::DrawGrips( hMem, c )
+      IF ! lV3
+         ::DrawGrips( hMem, c )
+      ENDIF
       SetBkMode( hMem, 1 )
-      FOR EACH aT IN ::oScene[ "texts" ]
+      FOR EACH aT IN If( lV3, {}, ::oScene[ "texts" ] )
          nPx := Int( aT[ 3 ] * c[ "scale" ] )
          IF nPx < 5 .OR. nPx > 2000
             LOOP
