@@ -108,7 +108,7 @@ FUNCTION Vwe_GripMove( s, cHandle, nIdx, x, y )
    cT := e[ "_type" ]
    g := Vwp_Grips( e )
    IF nIdx < 1 .OR. nIdx > Len( g ) ; RETURN .F. ; ENDIF
-   IF ( cT == "CIRCLE" .OR. cT == "ARC" .OR. cT == "LWPOLYLINE" ) .AND. Abs( e[ "normal" ][ 3 ] ) < 0.999
+   IF ( cT == "CIRCLE" .OR. cT == "ARC" .OR. cT == "LWPOLYLINE" .OR. cT == "ELLIPSE" ) .AND. Abs( e[ "normal" ][ 3 ] ) < 0.999
       RETURN .F.                                      // solo planos XY
    ENDIF
    old := Ent_Clone( e )
@@ -143,6 +143,24 @@ FUNCTION Vwe_GripMove( s, cHandle, nIdx, x, y )
       ENDIF
    CASE cT == "LWPOLYLINE"
       e[ "vertices" ][ nIdx ][ "location" ] := { x, y }
+   CASE cT == "ELLIPSE"
+      c := e[ "center" ]
+      IF nIdx == 1
+         Ent_Translate( e, { x - c[ 1 ], y - c[ 2 ], 0.0 } )
+      ELSEIF nIdx == 2 .OR. nIdx == 3
+         nA := Sqrt( ( x - c[ 1 ] ) ^ 2 + ( y - c[ 2 ] ) ^ 2 )
+         IF nA < 0.000001
+            Doc_ReplaceEntityArc( s[ "doc" ], h, old )
+            RETURN .F.
+         ENDIF
+         e[ "major_axis" ] := { IIf( nIdx == 2, x - c[ 1 ], c[ 1 ] - x ), IIf( nIdx == 2, y - c[ 2 ], c[ 2 ] - y ), e[ "major_axis" ][ 3 ] }
+      ELSE
+         nA := Sqrt( e[ "major_axis" ][ 1 ] ^ 2 + e[ "major_axis" ][ 2 ] ^ 2 )
+         e[ "minor_axis_ratio" ] := Max( 0.0001, Min( 1.0, Sqrt( ( x - c[ 1 ] ) ^ 2 + ( y - c[ 2 ] ) ^ 2 ) / Max( nA, 0.000001 ) ) )
+      ENDIF
+   CASE cT == "SPLINE"
+      c := IIf( Len( e[ "fit_points" ] ) >= 2, "fit_points", "control_points" )
+      e[ c ][ nIdx ] := { x, y, e[ c ][ nIdx ][ 3 ] }
    CASE cT == "POINT"
       e[ "location" ] := { x, y, e[ "location" ][ 3 ] }
    CASE cT == "TEXT" .OR. cT == "MTEXT"
