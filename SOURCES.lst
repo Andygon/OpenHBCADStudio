@@ -729,3 +729,8 @@ src\ui\wrap_bar.prg
 src\videos.prg
 src\ui\vw_window.prg
 src\ui\vw_ribbon.prg
+src\ui\vw_icons1.prg
+src\ui\vw_icons2.prg
+src\ui\vw_icons3.prg
+src\ui\vw_icons4.prg
+src\ui\vw_iconfile.prg
