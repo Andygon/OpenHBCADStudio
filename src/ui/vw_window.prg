@@ -16,8 +16,10 @@
 
 #define VWW_ROP_SRCCOPY 13369376
 #define VWW_MAXTEXTS    4000
-#define VWW_CYAN        16776960
-#define VWW_BLUE        16711680
+#define VWW_CYAN        16757760      /* primario del tema oscuro Rust (Oxocarbon #00B4FF) */
+#define VWW_BLUE        16757760
+#define VWW_BG          1447446       /* lienzo [22,22,22] (theme_canvas_background Oxocarbon) */
+#define VWW_SUCCESS     5882112       /* #00C15A: captura (crossing) */
 #define VWW_YELLOW      65535
 #define VWW_BARH        26
 
@@ -136,7 +138,7 @@ METHOD Activate() CLASS TViewer
          MENUITEM "&Comandos" ACTION oSelf:Exec( "AYUDA" )
       ENDMENU
    ENDMENU
-   DEFINE BRUSH ::oBrush COLOR 0
+   DEFINE BRUSH ::oBrush COLOR VWW_BG
    DEFINE WINDOW ::oWnd TITLE "OpenHBCADStudio - Visor" MENU oMenu BRUSH ::oBrush
    SET MESSAGE OF ::oWnd TO "Listo. Abra un DXF (Archivo, Abrir DXF) o pase la ruta como argumento."
    ::InitBtns()
@@ -571,7 +573,7 @@ METHOD Paint( hDC ) CLASS TViewer
    hMem := CreateCompatibleDC( hDC )
    hBmp := CreateCompatibleBitmap( hDC, nW, nH )
    hOld := SelectObject( hMem, hBmp )
-   hBr := CreateSolidBrush( 0 )
+   hBr := CreateSolidBrush( VWW_BG )
    FillRect( hMem, { 0, 0, nH, nW }, hBr )
    DeleteObject( hBr )
    IF ::oScene != NIL
@@ -659,7 +661,7 @@ METHOD Paint( hDC ) CLASS TViewer
    ENDIF
    IF ::aBox != NIL
       // goma elastica: ventana (izq a der) = continua, captura = discontinua
-      hPen := CreatePen( If( ::aBox[ 4 ] >= ::aBox[ 2 ], 0, 2 ), 1, 16777215 )
+      hPen := CreatePen( If( ::aBox[ 4 ] >= ::aBox[ 2 ], 0, 2 ), 1, If( ::aBox[ 4 ] >= ::aBox[ 2 ], VWW_CYAN, VWW_SUCCESS ) )
       hOldPen := SelectObject( hMem, hPen )
       MoveTo( hMem, ::aBox[ 2 ], ::aBox[ 1 ] ) ; LineTo( hMem, ::aBox[ 4 ], ::aBox[ 1 ] )
       LineTo( hMem, ::aBox[ 4 ], ::aBox[ 3 ] ) ; LineTo( hMem, ::aBox[ 2 ], ::aBox[ 3 ] )
