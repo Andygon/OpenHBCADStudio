@@ -222,17 +222,30 @@ FUNCTION Vwp_SnapPts( e )
    ENDCASE
 RETURN a
 
+/* interseccion de segmentos a-b y c-d; { x, y } o NIL */
+STATIC FUNCTION Vwp_SegInt( ax, ay, bx, by, cx, cy, dx, dy )
+   LOCAL r1 := bx - ax, r2 := by - ay, s1 := dx - cx, s2 := dy - cy, nDen := r1 * s2 - r2 * s1, t, u
+   IF Abs( nDen ) < 0.000000000001 ; RETURN NIL ; ENDIF
+   t := ( ( cx - ax ) * s2 - ( cy - ay ) * s1 ) / nDen
+   u := ( ( cx - ax ) * r2 - ( cy - ay ) * r1 ) / nDen
+   IF t < 0.0 .OR. t > 1.0 .OR. u < 0.0 .OR. u > 1.0 ; RETURN NIL ; ENDIF
+RETURN { ax + t * r1, ay + t * r2 }
+
 /* punto de enganche mas cercano a (x,y) dentro de nTol (unidades mundo), solo para los
-   modos activos en cModes (ej. "END MID CEN"); { x, y, cModo } o NIL */
-FUNCTION Vwp_Snap( oS, cModes, x, y, nTol )
+   modos activos en cModes (ej. "END MID CEN"); { x, y, cModo } o NIL.
+   INT = interseccion de dos trazos; PER = pie de la perpendicular desde aFrom ({x,y}, opcional). */
+FUNCTION Vwp_Snap( oS, cModes, x, y, nTol, aFrom )
    LOCAL w, aB, hSeen := hb_Hash(), e, p, nBest := nTol, r := NIL, d
+   LOCAL aNear := {}, i, j, k, l, aP, aQ, q, nL2, t, fx, fy, lInt := ( "INT" $ cModes ), lPer := ( "PER" $ cModes .AND. aFrom != NIL )
    IF Empty( cModes ) ; RETURN NIL ; ENDIF
    FOR EACH w IN oS[ "wires" ]
-      IF Empty( w[ 6 ] ) .OR. hb_HHasKey( hSeen, w[ 6 ] ) ; LOOP ; ENDIF
+      IF Empty( w[ 6 ] ) ; LOOP ; ENDIF
       aB := w[ 4 ]
       IF x < aB[ 1 ] - nTol .OR. x > aB[ 3 ] + nTol .OR. y < aB[ 2 ] - nTol .OR. y > aB[ 4 ] + nTol
          LOOP
       ENDIF
+      IF ( lInt .OR. lPer ) .AND. Len( aNear ) < 60 ; AAdd( aNear, w ) ; ENDIF
+      IF hb_HHasKey( hSeen, w[ 6 ] ) ; LOOP ; ENDIF
       hSeen[ w[ 6 ] ] := .T.
       IF ! hb_HHasKey( oS[ "ents" ], w[ 6 ] ) ; LOOP ; ENDIF
       e := oS[ "ents" ][ w[ 6 ] ]
@@ -244,4 +257,43 @@ FUNCTION Vwp_Snap( oS, cModes, x, y, nTol )
          ENDIF
       NEXT
    NEXT
+   IF lPer
+      FOR EACH w IN aNear
+         aP := w[ 3 ]
+         FOR j := 1 TO Len( aP ) - 1
+            nL2 := ( aP[ j + 1 ][ 1 ] - aP[ j ][ 1 ] ) ^ 2 + ( aP[ j + 1 ][ 2 ] - aP[ j ][ 2 ] ) ^ 2
+            IF nL2 < 0.000000000001 ; LOOP ; ENDIF
+            t := ( ( aFrom[ 1 ] - aP[ j ][ 1 ] ) * ( aP[ j + 1 ][ 1 ] - aP[ j ][ 1 ] ) + ( aFrom[ 2 ] - aP[ j ][ 2 ] ) * ( aP[ j + 1 ][ 2 ] - aP[ j ][ 2 ] ) ) / nL2
+            IF t < 0.0 .OR. t > 1.0 ; LOOP ; ENDIF
+            fx := aP[ j ][ 1 ] + t * ( aP[ j + 1 ][ 1 ] - aP[ j ][ 1 ] ) ; fy := aP[ j ][ 2 ] + t * ( aP[ j + 1 ][ 2 ] - aP[ j ][ 2 ] )
+            d := Sqrt( ( x - fx ) ^ 2 + ( y - fy ) ^ 2 )
+            IF d <= nBest
+               nBest := d ; r := { fx, fy, "PER" }
+            ENDIF
+         NEXT
+      NEXT
+   ENDIF
+   IF lInt
+      FOR i := 1 TO Len( aNear ) - 1
+         FOR k := i + 1 TO Len( aNear )
+            IF aNear[ i ][ 6 ] == aNear[ k ][ 6 ] ; LOOP ; ENDIF
+            aP := aNear[ i ][ 3 ] ; aQ := aNear[ k ][ 3 ]
+            FOR j := 1 TO Len( aP ) - 1
+               IF Max( aP[ j ][ 1 ], aP[ j + 1 ][ 1 ] ) < x - nTol .OR. Min( aP[ j ][ 1 ], aP[ j + 1 ][ 1 ] ) > x + nTol .OR. ;
+                  Max( aP[ j ][ 2 ], aP[ j + 1 ][ 2 ] ) < y - nTol .OR. Min( aP[ j ][ 2 ], aP[ j + 1 ][ 2 ] ) > y + nTol
+                  LOOP
+               ENDIF
+               FOR l := 1 TO Len( aQ ) - 1
+                  q := Vwp_SegInt( aP[ j ][ 1 ], aP[ j ][ 2 ], aP[ j + 1 ][ 1 ], aP[ j + 1 ][ 2 ], aQ[ l ][ 1 ], aQ[ l ][ 2 ], aQ[ l + 1 ][ 1 ], aQ[ l + 1 ][ 2 ] )
+                  IF q != NIL
+                     d := Sqrt( ( x - q[ 1 ] ) ^ 2 + ( y - q[ 2 ] ) ^ 2 )
+                     IF d <= nBest
+                        nBest := d ; r := { q[ 1 ], q[ 2 ], "INT" }
+                     ENDIF
+                  ENDIF
+               NEXT
+            NEXT
+         NEXT
+      NEXT
+   ENDIF
 RETURN r
