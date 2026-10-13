@@ -66,7 +66,7 @@ RETURN "ZOOM [E | A | I | O | factor | W x1,y1 x2,y2]  (alias Z)" + Chr( 10 ) + 
        "BORRAR         borra la seleccion (tecla Supr)" + Chr( 10 ) + ;
        "DESHACER       deshace (Ctrl+Z)   CAPA nombre = capa actual" + Chr( 10 ) + ;
        "GUARDAR [ruta] guarda el DXF (Ctrl+S)" + Chr( 10 ) + ;
-       "SNAP [ON|OFF|TODO|END|MID|CEN|QUA|NOD|INS]  enganche a objetos" + Chr( 10 ) + ;
+       "SNAP [ON|OFF|TODO|END|MID|CEN|QUA|NOD|INS|INT|PER]  enganche a objetos" + Chr( 10 ) + ;
        "AYUDA          esta ayuda (HELP)"
 
 FUNCTION VwK_Exec( s, cLine )
@@ -243,15 +243,15 @@ FUNCTION VwK_Exec( s, cLine )
          DO CASE
          CASE cArg $ "ON SI" ; s[ "snap" ][ "on" ] := .T.
          CASE cArg $ "OFF NO" ; s[ "snap" ][ "on" ] := .F.
-         CASE cArg $ "TODO ALL" ; s[ "snap" ][ "modes" ] := "END MID CEN QUA NOD INS"
-         CASE cArg $ "END MID CEN QUA NOD INS" .AND. Len( cArg ) == 3
+         CASE cArg $ "TODO ALL" ; s[ "snap" ][ "modes" ] := "END MID CEN QUA NOD INS INT PER"
+         CASE cArg $ "END MID CEN QUA NOD INS INT PER" .AND. Len( cArg ) == 3
             IF cArg $ s[ "snap" ][ "modes" ]
                s[ "snap" ][ "modes" ] := AllTrim( StrTran( " " + s[ "snap" ][ "modes" ] + " ", " " + cArg + " ", " " ) )
             ELSE
                s[ "snap" ][ "modes" ] := AllTrim( s[ "snap" ][ "modes" ] + " " + cArg )
             ENDIF
          OTHERWISE
-            RETURN Vk_Res( "Uso: SNAP ON | OFF | TODO | END | MID | CEN | QUA | NOD | INS" )
+            RETURN Vk_Res( "Uso: SNAP ON | OFF | TODO | END | MID | CEN | QUA | NOD | INS | INT | PER" )
          ENDCASE
       ELSE
          s[ "snap" ][ "on" ] := ! s[ "snap" ][ "on" ]
@@ -380,4 +380,5 @@ RETURN "Guardado: " + cFile + " (" + hb_ntos( Len( c ) ) + " bytes)"
 FUNCTION VwK_SnapAt( s, x, y, nTol )
    IF ! hb_HHasKey( s, "snap" ) ; s[ "snap" ] := hb_Hash( "on", .T., "modes", "END MID CEN" ) ; ENDIF
    IF ! s[ "snap" ][ "on" ] ; RETURN NIL ; ENDIF
-RETURN Vwp_Snap( s[ "scene" ], s[ "snap" ][ "modes" ], x, y, nTol )
+RETURN Vwp_Snap( s[ "scene" ], s[ "snap" ][ "modes" ], x, y, nTol, ;
+                 IIf( hb_HHasKey( s, "pend" ) .AND. s[ "pend" ] != NIL .AND. Len( s[ "pend" ][ "pts" ] ) > 0, ATail( s[ "pend" ][ "pts" ] ), NIL ) )
