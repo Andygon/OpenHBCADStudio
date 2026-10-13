@@ -18,6 +18,8 @@
 #define VWW_MAXTEXTS    4000
 #define VWW_CYAN        16776960
 #define VWW_BLUE        16711680
+#define VWW_YELLOW      65535
+#define VWW_BARH        26
 
 CLASS TViewer
    DATA oWnd
@@ -30,6 +32,8 @@ CLASS TViewer
    DATA aBox     INIT NIL
    DATA aGrip    INIT NIL
    DATA aRub     INIT NIL
+   DATA aSnap    INIT NIL
+   DATA aBtns    INIT {}
    DATA cFile    INIT ""
    DATA aPens    INIT {}
    DATA hPenKeys INIT {}
@@ -57,6 +61,10 @@ CLASS TViewer
    METHOD OnChar( nKey )
    METHOD RunCmd()
    METHOD Exec( cLine )
+   METHOD Wp( nRow, nCol )
+   METHOD BtnAt( nRow, nCol )
+   METHOD DrawBar( hMem, c )
+   METHOD InitBtns()
    METHOD Prompt()
    METHOD DrawFills( hMem, c )
    METHOD DrawGrips( hMem, c )
@@ -78,21 +86,50 @@ METHOD Activate() CLASS TViewer
    MENU oMenu
       MENUITEM "&Archivo"
       MENU
-         MENUITEM "&Abrir DXF..." ACTION oSelf:Open()
-         MENUITEM "&Guardar (Ctrl+S)" ACTION oSelf:Exec( "GUARDAR" )
+         MENUITEM "&Abrir DXF...  Ctrl+O" ACTION oSelf:Open()
+         MENUITEM "&Guardar  Ctrl+S" ACTION oSelf:Exec( "GUARDAR" )
          SEPARATOR
          MENUITEM "&Salir" ACTION oSelf:oWnd:End()
       ENDMENU
+      MENUITEM "&Editar"
+      MENU
+         MENUITEM "&Deshacer  Ctrl+Z" ACTION oSelf:Exec( "DESHACER" )
+         MENUITEM "&Borrar  Supr" ACTION oSelf:Exec( "BORRAR" )
+         SEPARATOR
+         MENUITEM "Seleccionar &todo" ACTION oSelf:Exec( "SELTODO" )
+         MENUITEM "&Quitar seleccion" ACTION oSelf:Exec( "DESELECCIONAR" )
+      ENDMENU
+      MENUITEM "&Dibujo"
+      MENU
+         MENUITEM "&Linea" ACTION oSelf:Exec( "LINEA" )
+         MENUITEM "&Circulo" ACTION oSelf:Exec( "CIRCULO" )
+         MENUITEM "&Polilinea" ACTION oSelf:Exec( "PLINE" )
+         MENUITEM "P&unto" ACTION oSelf:Exec( "PUNTO" )
+      ENDMENU
+      MENUITEM "&Modificar"
+      MENU
+         MENUITEM "&Mover" ACTION oSelf:Exec( "MOVER" )
+         MENUITEM "&Copiar" ACTION oSelf:Exec( "COPIAR" )
+      ENDMENU
       MENUITEM "&Vista"
       MENU
-         MENUITEM "Zoom &extensiones" ACTION oSelf:Fit()
+         MENUITEM "Zoom &extensiones  Inicio" ACTION oSelf:Fit()
          MENUITEM "&Acercar" ACTION oSelf:Zoom( 1.5 )
          MENUITEM "A&lejar" ACTION oSelf:Zoom( 1.0 / 1.5 )
+         SEPARATOR
+         MENUITEM "&Capas..." ACTION oSelf:Exec( "CAPAS" )
+         MENUITEM "&Regenerar" ACTION oSelf:Exec( "REGEN" )
+         MENUITEM "&Snap a objetos (activar/apagar)" ACTION oSelf:Exec( "SNAP" )
+      ENDMENU
+      MENUITEM "A&yuda"
+      MENU
+         MENUITEM "&Comandos" ACTION oSelf:Exec( "AYUDA" )
       ENDMENU
    ENDMENU
    DEFINE BRUSH ::oBrush COLOR 0
    DEFINE WINDOW ::oWnd TITLE "OpenHBCADStudio - Visor" MENU oMenu BRUSH ::oBrush
    SET MESSAGE OF ::oWnd TO "Listo. Abra un DXF (Archivo, Abrir DXF) o pase la ruta como argumento."
+   ::InitBtns()
    ::oWnd:bPainted    := { | hDC | oSelf:Paint( hDC ) }
    ::oWnd:bResized    := { || oSelf:oWnd:Refresh() }
    ::oWnd:bLClicked   := { | nRow, nCol | oSelf:OnLDown( nRow, nCol ) }
@@ -179,8 +216,44 @@ METHOD OnWheel( nDelta ) CLASS TViewer
    ::oWnd:Refresh()
 RETURN NIL
 
+METHOD InitBtns() CLASS TViewer
+   LOCAL a := { { "Abrir", "@ABRIR" }, { "Guardar", "GUARDAR" }, { "|", "" }, { "Linea", "LINEA" }, { "Circulo", "CIRCULO" }, ;
+                { "Pline", "PLINE" }, { "Punto", "PUNTO" }, { "|", "" }, { "Mover", "MOVER" }, { "Copiar", "COPIAR" }, ;
+                { "Borrar", "BORRAR" }, { "Deshacer", "DESHACER" }, { "|", "" }, { "Zoom E", "ZOOM E" }, { "Capas", "CAPAS" }, ;
+                { "Snap", "SNAP" } }, b, nX := 4
+   ::aBtns := {}
+   FOR EACH b IN a
+      AAdd( ::aBtns, { b[ 1 ], b[ 2 ], nX, nX + Len( b[ 1 ] ) * 8 + 12 } )
+      nX += Len( b[ 1 ] ) * 8 + 16
+   NEXT
+RETURN NIL
+
+METHOD BtnAt( nRow, nCol ) CLASS TViewer
+   LOCAL b
+   IF nRow > VWW_BARH ; RETURN NIL ; ENDIF
+   FOR EACH b IN ::aBtns
+      IF ! Empty( b[ 2 ] ) .AND. nCol >= b[ 3 ] .AND. nCol <= b[ 4 ]
+         RETURN b
+      ENDIF
+   NEXT
+RETURN NIL
+
+/* punto mundo bajo (nRow,nCol), enganchado a objetos si el snap esta activo */
+METHOD Wp( nRow, nCol ) CLASS TViewer
+   LOCAL aW := VwC_S2W( ::oCam, nCol, nRow ), aS
+   IF ::oSes != NIL
+      aS := VwK_SnapAt( ::oSes, aW[ 1 ], aW[ 2 ], 10.0 / ::oCam[ "scale" ] )
+      IF aS != NIL ; aW := { aS[ 1 ], aS[ 2 ] } ; ENDIF
+   ENDIF
+RETURN aW
+
 METHOD OnLDown( nRow, nCol ) CLASS TViewer
-   LOCAL aW, aG, r
+   LOCAL aW, aG, r, b
+   b := ::BtnAt( nRow, nCol )
+   IF b != NIL
+      IF b[ 2 ] == "@ABRIR" ; ::Open() ; ELSE ; ::Exec( b[ 2 ] ) ; ENDIF
+      RETURN NIL
+   ENDIF
    ::aDrag := { nRow, nCol }
    ::aBox := NIL
    ::aGrip := NIL
@@ -188,6 +261,7 @@ METHOD OnLDown( nRow, nCol ) CLASS TViewer
       ::Size()
       aW := VwC_S2W( ::oCam, nCol, nRow )
       IF hb_HHasKey( ::oSes, "pend" ) .AND. ::oSes[ "pend" ] != NIL
+         aW := ::Wp( nRow, nCol )
          r := VwK_Point( ::oSes, aW[ 1 ], aW[ 2 ] )
          ::oScene := ::oSes[ "scene" ]
          ::Status( r[ 1 ] )
@@ -223,7 +297,7 @@ METHOD OnLUp() CLASS TViewer
    ReleaseCapture()
    IF ::nMode == 3 .AND. s != NIL .AND. ::aGrip != NIL
       ::Size()
-      aW := VwC_S2W( ::oCam, ::aMouse[ 2 ], ::aMouse[ 1 ] )
+      aW := ::Wp( ::aMouse[ 1 ], ::aMouse[ 2 ] )
       IF Abs( ::aMouse[ 1 ] - ::aDrag[ 1 ] ) > 2 .OR. Abs( ::aMouse[ 2 ] - ::aDrag[ 2 ] ) > 2
          IF Vwe_GripMove( s, ::aGrip[ 1 ], ::aGrip[ 2 ], aW[ 1 ], aW[ 2 ] )
             ::oScene := s[ "scene" ]
@@ -269,6 +343,12 @@ METHOD OnMove( nRow, nCol, nFlags ) CLASS TViewer
    LOCAL aW
    ::aMouse := { nRow, nCol }
    ::Size()
+   ::aSnap := NIL
+   IF ::oSes != NIL .AND. ( ::nMode == 3 .OR. ( hb_HHasKey( ::oSes, "pend" ) .AND. ::oSes[ "pend" ] != NIL ) )
+      aW := VwC_S2W( ::oCam, nCol, nRow )
+      ::aSnap := VwK_SnapAt( ::oSes, aW[ 1 ], aW[ 2 ], 10.0 / ::oCam[ "scale" ] )
+      IF ::aSnap != NIL ; ::oWnd:Refresh() ; ENDIF
+   ENDIF
    DO CASE
    CASE ::nMode == 1
       VwC_PanPx( ::oCam, nCol - ::aDrag[ 2 ], nRow - ::aDrag[ 1 ] )
@@ -467,6 +547,20 @@ METHOD Paint( hDC ) CLASS TViewer
          IF ++nN >= VWW_MAXTEXTS ; EXIT ; ENDIF
       NEXT
    ENDIF
+   IF ::aSnap != NIL
+      a := VwC_W2S( c, ::aSnap[ 1 ], ::aSnap[ 2 ] )
+      hPen := CreatePen( 0, 1, VWW_YELLOW )
+      hOldPen := SelectObject( hMem, hPen )
+      MoveTo( hMem, Int( a[ 1 ] ) - 6, Int( a[ 2 ] ) - 6 ) ; LineTo( hMem, Int( a[ 1 ] ) + 6, Int( a[ 2 ] ) - 6 )
+      LineTo( hMem, Int( a[ 1 ] ) + 6, Int( a[ 2 ] ) + 6 ) ; LineTo( hMem, Int( a[ 1 ] ) - 6, Int( a[ 2 ] ) + 6 )
+      LineTo( hMem, Int( a[ 1 ] ) - 6, Int( a[ 2 ] ) - 6 )
+      SelectObject( hMem, hOldPen )
+      DeleteObject( hPen )
+      SetBkMode( hMem, 1 )
+      SetTextColor( hMem, VWW_YELLOW )
+      TextOut( hMem, Int( a[ 2 ] ) + 8, Int( a[ 1 ] ) + 8, ::aSnap[ 3 ] )
+   ENDIF
+   ::DrawBar( hMem, c )
    IF ::aRub != NIL .OR. ( ::nMode == 3 .AND. ::aGrip != NIL )
       a := VwC_W2S( c, If( ::aRub != NIL, ::aRub[ 1 ], ::aGrip[ 3 ] ), If( ::aRub != NIL, ::aRub[ 2 ], ::aGrip[ 4 ] ) )
       hPen := CreatePen( 2, 1, 16777215 )
@@ -553,4 +647,27 @@ METHOD DrawGrips( hMem, c ) CLASS TViewer
    SelectObject( hMem, hOldB )
    DeleteObject( hPen )
    DeleteObject( hBr )
+RETURN NIL
+
+/* barra de botones propia (GDI) en la parte alta del lienzo */
+METHOD DrawBar( hMem, c ) CLASS TViewer
+   LOCAL b, hBr := CreateSolidBrush( 4210752 ), hPen := CreatePen( 0, 1, 10526880 ), hOld, lOn := .T.
+   FillRect( hMem, { 0, 0, VWW_BARH, c[ "w" ] }, hBr )
+   DeleteObject( hBr )
+   SetBkMode( hMem, 1 )
+   hOld := SelectObject( hMem, hPen )
+   IF ::oSes != NIL .AND. hb_HHasKey( ::oSes, "snap" ) ; lOn := ::oSes[ "snap" ][ "on" ] ; ENDIF
+   FOR EACH b IN ::aBtns
+      IF Empty( b[ 2 ] )
+         SetTextColor( hMem, 10526880 )
+         TextOut( hMem, 6, b[ 3 ], "|" )
+         LOOP
+      ENDIF
+      MoveTo( hMem, b[ 3 ], 2 ) ; LineTo( hMem, b[ 4 ], 2 ) ; LineTo( hMem, b[ 4 ], VWW_BARH - 3 )
+      LineTo( hMem, b[ 3 ], VWW_BARH - 3 ) ; LineTo( hMem, b[ 3 ], 2 )
+      SetTextColor( hMem, If( b[ 2 ] == "SNAP" .AND. ! lOn, 8421504, 16777215 ) )
+      TextOut( hMem, 6, b[ 3 ] + 6, b[ 1 ] )
+   NEXT
+   SelectObject( hMem, hOld )
+   DeleteObject( hPen )
 RETURN NIL

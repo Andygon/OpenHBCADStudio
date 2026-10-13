@@ -171,3 +171,77 @@ FUNCTION Vwp_GripAt( oS, hSel, x, y, nTol )
       NEXT
    NEXT
 RETURN r
+
+/* --- snap a objetos (END, MID, CEN, QUA, NOD, INS) --- */
+
+/* puntos de enganche de una entidad: { {x,y,cModo}, ... } */
+FUNCTION Vwp_SnapPts( e )
+   LOCAL cT := e[ "_type" ], g := Vwp_Grips( e ), a := {}, i, n := Len( g ), v, lClosed, p, q, nB
+   DO CASE
+   CASE cT == "LINE" .AND. n == 3
+      a := { { g[ 1 ][ 1 ], g[ 1 ][ 2 ], "END" }, { g[ 2 ][ 1 ], g[ 2 ][ 2 ], "MID" }, { g[ 3 ][ 1 ], g[ 3 ][ 2 ], "END" } }
+   CASE cT == "CIRCLE" .AND. n == 5
+      AAdd( a, { g[ 1 ][ 1 ], g[ 1 ][ 2 ], "CEN" } )
+      FOR i := 2 TO 5
+         AAdd( a, { g[ i ][ 1 ], g[ i ][ 2 ], "QUA" } )
+      NEXT
+   CASE cT == "ARC" .AND. n == 4
+      a := { { g[ 1 ][ 1 ], g[ 1 ][ 2 ], "END" }, { g[ 2 ][ 1 ], g[ 2 ][ 2 ], "MID" }, { g[ 3 ][ 1 ], g[ 3 ][ 2 ], "END" }, { g[ 4 ][ 1 ], g[ 4 ][ 2 ], "CEN" } }
+   CASE cT == "LWPOLYLINE" .OR. cT == "POLYLINE2D" .OR. cT == "POLYLINE3D" .OR. cT == "POLYLINE"
+      lClosed := hb_HHasKey( e, "is_closed" ) .AND. ValType( e[ "is_closed" ] ) == "L" .AND. e[ "is_closed" ]
+      FOR i := 1 TO n
+         AAdd( a, { g[ i ][ 1 ], g[ i ][ 2 ], "END" } )
+      NEXT
+      FOR i := 1 TO IIf( lClosed, n, n - 1 )
+         p := g[ i ] ; q := g[ IIf( i == n, 1, i + 1 ) ]
+         nB := 0.0
+         IF cT == "LWPOLYLINE" .AND. i <= Len( e[ "vertices" ] ) .AND. hb_HHasKey( e[ "vertices" ][ i ], "bulge" )
+            nB := e[ "vertices" ][ i ][ "bulge" ]
+         ENDIF
+         IF Abs( nB ) < 0.000000001
+            AAdd( a, { ( p[ 1 ] + q[ 1 ] ) / 2, ( p[ 2 ] + q[ 2 ] ) / 2, "MID" } )
+         ENDIF
+      NEXT
+   CASE cT == "ELLIPSE" .AND. n == 5
+      AAdd( a, { g[ 1 ][ 1 ], g[ 1 ][ 2 ], "CEN" } )
+      FOR i := 2 TO 5
+         AAdd( a, { g[ i ][ 1 ], g[ i ][ 2 ], "QUA" } )
+      NEXT
+   CASE cT == "POINT" .AND. n == 1
+      a := { { g[ 1 ][ 1 ], g[ 1 ][ 2 ], "NOD" } }
+   CASE cT == "TEXT" .OR. cT == "MTEXT" .OR. cT == "INSERT" .OR. cT == "MINSERT"
+      FOR EACH v IN g
+         AAdd( a, { v[ 1 ], v[ 2 ], "INS" } )
+      NEXT
+   CASE cT == "SOLID" .OR. cT == "3DFACE"
+      FOR EACH v IN g
+         AAdd( a, { v[ 1 ], v[ 2 ], "END" } )
+      NEXT
+   CASE cT == "SPLINE" .AND. n >= 2
+      a := { { g[ 1 ][ 1 ], g[ 1 ][ 2 ], "END" }, { g[ n ][ 1 ], g[ n ][ 2 ], "END" } }
+   ENDCASE
+RETURN a
+
+/* punto de enganche mas cercano a (x,y) dentro de nTol (unidades mundo), solo para los
+   modos activos en cModes (ej. "END MID CEN"); { x, y, cModo } o NIL */
+FUNCTION Vwp_Snap( oS, cModes, x, y, nTol )
+   LOCAL w, aB, hSeen := hb_Hash(), e, p, nBest := nTol, r := NIL, d
+   IF Empty( cModes ) ; RETURN NIL ; ENDIF
+   FOR EACH w IN oS[ "wires" ]
+      IF Empty( w[ 6 ] ) .OR. hb_HHasKey( hSeen, w[ 6 ] ) ; LOOP ; ENDIF
+      aB := w[ 4 ]
+      IF x < aB[ 1 ] - nTol .OR. x > aB[ 3 ] + nTol .OR. y < aB[ 2 ] - nTol .OR. y > aB[ 4 ] + nTol
+         LOOP
+      ENDIF
+      hSeen[ w[ 6 ] ] := .T.
+      IF ! hb_HHasKey( oS[ "ents" ], w[ 6 ] ) ; LOOP ; ENDIF
+      e := oS[ "ents" ][ w[ 6 ] ]
+      FOR EACH p IN Vwp_SnapPts( e )
+         IF ! ( p[ 3 ] $ cModes ) ; LOOP ; ENDIF
+         d := Sqrt( ( x - p[ 1 ] ) ^ 2 + ( y - p[ 2 ] ) ^ 2 )
+         IF d <= nBest
+            nBest := d ; r := p
+         ENDIF
+      NEXT
+   NEXT
+RETURN r
