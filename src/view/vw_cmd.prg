@@ -69,6 +69,7 @@ RETURN "ZOOM [E | A | I | O | factor | W x1,y1 x2,y2]  (alias Z)" + Chr( 10 ) + 
        "DESHACER       deshace (Ctrl+Z)   CAPA nombre = capa actual" + Chr( 10 ) + ;
        "GUARDAR [ruta] guarda el DXF (Ctrl+S)" + Chr( 10 ) + ;
        "SNAP [ON|OFF|TODO|END|MID|CEN|QUA|NOD|INS|INT|PER]  enganche a objetos" + Chr( 10 ) + ;
+       "OFFSET d | TRIM | EXTEND | FILLET r | CHAMFER d1 [d2]  (clics junto a los objetos)  EXPLODE descompone polilineas" + Chr( 10 ) + ;
        "ROTAR bx,by ang  ESCALA bx,by f  SIMETRIA x1,y1 x2,y2 [B]  giran, escalan, reflejan la seleccion" + Chr( 10 ) + ;
        "RECTANG x1,y1 x2,y2  POLIGONO [lados] cx,cy x,y  crean un rectangulo / poligono regular" + Chr( 10 ) + ;
        "AYUDA          esta ayuda (HELP)"
@@ -212,6 +213,18 @@ FUNCTION VwK_Exec( s, cLine )
         .OR. cCmd == "PLINE" .OR. cCmd == "PL" .OR. cCmd == "POLILINEA" .OR. cCmd == "POINT" .OR. cCmd == "PUNTO" ;
         .OR. cCmd == "MOVE" .OR. cCmd == "MOVER" .OR. cCmd == "M" .OR. cCmd == "COPY" .OR. cCmd == "COPIAR" .OR. cCmd == "CO"
       RETURN VwK_Draw( s, cCmd, aTok )
+   CASE cCmd == "OFFSET" .OR. cCmd == "DESFASE" .OR. cCmd == "DF"
+      RETURN VwM_Cmd( s, "OFFSET", aTok )
+   CASE cCmd == "TRIM" .OR. cCmd == "RECORTA" .OR. cCmd == "TR"
+      RETURN VwM_Cmd( s, "TRIM", aTok )
+   CASE cCmd == "EXTEND" .OR. cCmd == "ALARGA" .OR. cCmd == "EX"
+      RETURN VwM_Cmd( s, "EXTEND", aTok )
+   CASE cCmd == "FILLET" .OR. cCmd == "EMPALME" .OR. cCmd == "F"
+      RETURN VwM_Cmd( s, "FILLET", aTok )
+   CASE cCmd == "CHAMFER" .OR. cCmd == "CHAFLAN" .OR. cCmd == "CHA"
+      RETURN VwM_Cmd( s, "CHAMFER", aTok )
+   CASE cCmd == "EXPLODE" .OR. cCmd == "DESCOMP" .OR. cCmd == "X"
+      RETURN VwM_Cmd( s, "EXPLODE", aTok )
    CASE cCmd == "ROTAR" .OR. cCmd == "ROTATE" .OR. cCmd == "RO"
       RETURN VwX_Cmd( s, "ROTATE", aTok )
    CASE cCmd == "ESCALA" .OR. cCmd == "SCALE" .OR. cCmd == "SC"
@@ -346,6 +359,7 @@ FUNCTION VwK_Prompt( s )
    CASE cK == "CIRCLE" ; RETURN IIf( n == 0, "CIRCULO: centro", "CIRCULO: punto en el radio (o escriba el radio)" )
    CASE cK == "PLINE" ; RETURN IIf( n == 0, "PLINE: primer punto", "PLINE: siguiente punto (Intro termina)" )
    CASE cK == "POINT" ; RETURN "PUNTO: ubicacion"
+   CASE cK == "OFFSET" .OR. cK == "TRIM" .OR. cK == "EXTEND" .OR. cK == "FILLET" .OR. cK == "CHAMFER" ; RETURN VwM_Prompt( pe )
    CASE cK == "ROTATE" .OR. cK == "SCALE" .OR. cK == "MIRROR" .OR. cK == "RECT" .OR. cK == "POLYGON" ; RETURN VwX_Prompt( pe )
    ENDCASE
 RETURN IIf( n == 0, cK + ": punto base", cK + ": punto destino" )
@@ -384,6 +398,8 @@ FUNCTION VwK_Point( s, x, y )
    AAdd( pe[ "pts" ], { x, y } )
    n := Len( pe[ "pts" ] )
    d := VwX_Point( s, pe, x, y )
+   IF d != NIL ; RETURN d ; ENDIF
+   d := VwM_Point( s, pe, x, y )
    IF d != NIL ; RETURN d ; ENDIF
    DO CASE
    CASE cK == "LINE"
