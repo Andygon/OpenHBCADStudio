@@ -28,6 +28,8 @@ CLASS TViewer
    DATA cCmd     INIT ""
    DATA nMode    INIT 0
    DATA aBox     INIT NIL
+   DATA aGrip    INIT NIL
+   DATA aRub     INIT NIL
    DATA cFile    INIT ""
    DATA aPens    INIT {}
    DATA hPenKeys INIT {}
@@ -54,6 +56,7 @@ CLASS TViewer
    METHOD OnMDown( nRow, nCol )
    METHOD OnChar( nKey )
    METHOD RunCmd()
+   METHOD Exec( cLine )
    METHOD Prompt()
    METHOD DrawFills( hMem, c )
    METHOD DrawGrips( hMem, c )
@@ -76,6 +79,7 @@ METHOD Activate() CLASS TViewer
       MENUITEM "&Archivo"
       MENU
          MENUITEM "&Abrir DXF..." ACTION oSelf:Open()
+         MENUITEM "&Guardar (Ctrl+S)" ACTION oSelf:Exec( "GUARDAR" )
          SEPARATOR
          MENUITEM "&Salir" ACTION oSelf:oWnd:End()
       ENDMENU
@@ -141,6 +145,7 @@ METHOD Open( cFile ) CLASS TViewer
    ENDIF
    ::oSes := VwS_New( d )
    ::oSes[ "cam" ] := ::oCam
+   ::oSes[ "file" ] := cFile
    ::oScene := ::oSes[ "scene" ]
    ::cCmd := ""
    ::cFile := cFile
@@ -175,8 +180,31 @@ METHOD OnWheel( nDelta ) CLASS TViewer
 RETURN NIL
 
 METHOD OnLDown( nRow, nCol ) CLASS TViewer
+   LOCAL aW, aG, r
    ::aDrag := { nRow, nCol }
    ::aBox := NIL
+   ::aGrip := NIL
+   IF ::oSes != NIL
+      ::Size()
+      aW := VwC_S2W( ::oCam, nCol, nRow )
+      IF hb_HHasKey( ::oSes, "pend" ) .AND. ::oSes[ "pend" ] != NIL
+         r := VwK_Point( ::oSes, aW[ 1 ], aW[ 2 ] )
+         ::oScene := ::oSes[ "scene" ]
+         ::Status( r[ 1 ] )
+         ::aRub := IIf( ::oSes[ "pend" ] != NIL .AND. Len( ::oSes[ "pend" ][ "pts" ] ) > 0, ATail( ::oSes[ "pend" ][ "pts" ] ), NIL )
+         ::oWnd:Refresh()
+         RETURN NIL
+      ENDIF
+      IF ! GetKeyState( 17 ) .AND. Len( ::oSes[ "sel" ] ) > 0 .AND. Len( ::oSes[ "sel" ] ) <= 200
+         aG := Vwp_GripAt( ::oScene, ::oSes[ "sel" ], aW[ 1 ], aW[ 2 ], 6.0 / ::oCam[ "scale" ] )
+         IF aG != NIL
+            ::aGrip := aG
+            ::nMode := 3
+            SetCapture( ::oWnd:hWnd )
+            RETURN NIL
+         ENDIF
+      ENDIF
+   ENDIF
    ::nMode := If( GetKeyState( 17 ), 1, 2 )
    SetCapture( ::oWnd:hWnd )
 RETURN NIL
@@ -193,6 +221,19 @@ METHOD OnLUp() CLASS TViewer
       RETURN NIL
    ENDIF
    ReleaseCapture()
+   IF ::nMode == 3 .AND. s != NIL .AND. ::aGrip != NIL
+      ::Size()
+      aW := VwC_S2W( ::oCam, ::aMouse[ 2 ], ::aMouse[ 1 ] )
+      IF Abs( ::aMouse[ 1 ] - ::aDrag[ 1 ] ) > 2 .OR. Abs( ::aMouse[ 2 ] - ::aDrag[ 2 ] ) > 2
+         IF Vwe_GripMove( s, ::aGrip[ 1 ], ::aGrip[ 2 ], aW[ 1 ], aW[ 2 ] )
+            ::oScene := s[ "scene" ]
+            ::Status( "Grip movido (Ctrl+Z deshace)" )
+         ELSE
+            ::Status( "Este tipo de entidad no admite ese grip" )
+         ENDIF
+      ENDIF
+      ::aGrip := NIL
+   ENDIF
    IF ::nMode == 2 .AND. s != NIL
       lMove := Abs( ::aMouse[ 1 ] - ::aDrag[ 1 ] ) > 4 .OR. Abs( ::aMouse[ 2 ] - ::aDrag[ 2 ] ) > 4
       ::Size()
@@ -233,12 +274,17 @@ METHOD OnMove( nRow, nCol, nFlags ) CLASS TViewer
       VwC_PanPx( ::oCam, nCol - ::aDrag[ 2 ], nRow - ::aDrag[ 1 ] )
       ::aDrag := { nRow, nCol }
       ::oWnd:Refresh()
+   CASE ::nMode == 3
+      ::oWnd:Refresh()
    CASE ::nMode == 2
       IF Abs( nRow - ::aDrag[ 1 ] ) > 4 .OR. Abs( nCol - ::aDrag[ 2 ] ) > 4
          ::aBox := { ::aDrag[ 1 ], ::aDrag[ 2 ], nRow, nCol }
          ::oWnd:Refresh()
       ENDIF
    OTHERWISE
+      IF ::aRub != NIL
+         ::oWnd:Refresh()
+      ENDIF
       aW := VwC_S2W( ::oCam, nCol, nRow )
       ::Status( "X=" + AllTrim( Str( aW[ 1 ], 14, 4 ) ) + "  Y=" + AllTrim( Str( aW[ 2 ], 14, 4 ) ) + ;
                 "   zoom " + AllTrim( Str( ::oCam[ "scale" ], 14, 4 ) ) + If( Empty( ::cCmd ), "", "   Comando: " + ::cCmd ) )
@@ -258,7 +304,11 @@ METHOD OnChar( nKey ) CLASS TViewer
       ::Prompt()
    CASE nKey == 27
       ::cCmd := ""
-      IF ::oSes != NIL ; ::oSes[ "sel" ] := hb_Hash() ; ENDIF
+      ::aRub := NIL
+      IF ::oSes != NIL
+         ::oSes[ "pend" ] := NIL
+         ::oSes[ "sel" ] := hb_Hash()
+      ENDIF
       ::Status( "Cancelado" )
       ::oWnd:Refresh()
    CASE nKey >= 32 .AND. nKey < 256
@@ -268,9 +318,18 @@ METHOD OnChar( nKey ) CLASS TViewer
 RETURN NIL
 
 METHOD RunCmd() CLASS TViewer
-   LOCAL r, cLine := ::cCmd
+   LOCAL cLine := ::cCmd
    ::cCmd := ""
-   IF Empty( cLine ) .OR. ::oSes == NIL
+   IF Empty( cLine ) .AND. ::oSes != NIL .AND. hb_HHasKey( ::oSes, "pend" ) .AND. ::oSes[ "pend" ] != NIL
+      ::Exec( "" )
+      RETURN NIL
+   ENDIF
+   ::Exec( cLine )
+RETURN NIL
+
+METHOD Exec( cLine ) CLASS TViewer
+   LOCAL r
+   IF ::oSes == NIL .OR. ( Empty( cLine ) .AND. ! ( hb_HHasKey( ::oSes, "pend" ) .AND. ::oSes[ "pend" ] != NIL ) )
       IF ::oSes == NIL .AND. ! Empty( cLine )
          ::Status( "Abra un DXF primero (Archivo, Abrir DXF)" )
       ENDIF
@@ -279,6 +338,7 @@ METHOD RunCmd() CLASS TViewer
    ::Size()
    r := VwK_Exec( ::oSes, cLine )
    ::oScene := ::oSes[ "scene" ]
+   ::aRub := IIf( hb_HHasKey( ::oSes, "pend" ) .AND. ::oSes[ "pend" ] != NIL .AND. Len( ::oSes[ "pend" ][ "pts" ] ) > 0, ATail( ::oSes[ "pend" ][ "pts" ] ), NIL )
    ::Status( StrTran( r[ 1 ], Chr( 10 ), " " ) )
    IF r[ 2 ]
       MsgInfo( r[ 1 ], "OpenHBCADStudio - " + Upper( cLine ) )
@@ -299,6 +359,12 @@ RETURN NIL
       ::oWnd:Refresh()
    CASE nKey == 79 .AND. GetKeyState( 17 )              // Ctrl+O
       ::Open()
+   CASE nKey == 83 .AND. GetKeyState( 17 )              // Ctrl+S
+      ::Exec( "GUARDAR" )
+   CASE nKey == 90 .AND. GetKeyState( 17 )              // Ctrl+Z
+      ::Exec( "DESHACER" )
+   CASE nKey == 46                                      // Supr
+      ::Exec( "BORRAR" )
    ENDCASE
 RETURN NIL
 
@@ -400,6 +466,15 @@ METHOD Paint( hDC ) CLASS TViewer
          SelectObject( hMem, aS )
          IF ++nN >= VWW_MAXTEXTS ; EXIT ; ENDIF
       NEXT
+   ENDIF
+   IF ::aRub != NIL .OR. ( ::nMode == 3 .AND. ::aGrip != NIL )
+      a := VwC_W2S( c, If( ::aRub != NIL, ::aRub[ 1 ], ::aGrip[ 3 ] ), If( ::aRub != NIL, ::aRub[ 2 ], ::aGrip[ 4 ] ) )
+      hPen := CreatePen( 2, 1, 16777215 )
+      hOldPen := SelectObject( hMem, hPen )
+      MoveTo( hMem, Int( a[ 1 ] ), Int( a[ 2 ] ) )
+      LineTo( hMem, ::aMouse[ 2 ], ::aMouse[ 1 ] )
+      SelectObject( hMem, hOldPen )
+      DeleteObject( hPen )
    ENDIF
    IF ::aBox != NIL
       // goma elastica: ventana (izq a der) = continua, captura = discontinua
