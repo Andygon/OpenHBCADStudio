@@ -60,6 +60,8 @@ RETURN "ZOOM [E | A | I | O | factor | W x1,y1 x2,y2]  (alias Z)" + Chr( 10 ) + 
        "DIST x1,y1 x2,y2  distancia y angulo entre dos puntos" + Chr( 10 ) + ;
        "ID x,y         muestra un punto" + Chr( 10 ) + ;
        "REGEN          regenera el dibujo" + Chr( 10 ) + ;
+       "VISTA SUP|FRONTAL|POSTERIOR|DERECHA|IZQUIERDA|ISO|ISO-SE|ISO-NE|ISO-NO  (3D: alambre)  3D = ISO" + Chr( 10 ) + ;
+       "ORBITA az el   ajusta azimut y elevacion en grados (Mayus + rueda pulsada = orbita)" + Chr( 10 ) + ;
        "LINEA [x,y x,y ...]   CIRCULO [x,y radio]   ARCO x,y r a1 a2   PUNTO [x,y]   PLINE [x,y ...]" + Chr( 10 ) + ;
        "   sin puntos: haga clic o escriba x,y; Intro termina" + Chr( 10 ) + ;
        "MOVER [dx,dy]  COPIAR [dx,dy]  mueven/copian la seleccion (o dos clics)" + Chr( 10 ) + ;
@@ -104,7 +106,11 @@ FUNCTION VwK_Exec( s, cLine )
       cArg := IIf( Len( aTok ) >= 2, Upper( aTok[ 2 ] ), "E" )
       DO CASE
       CASE cArg $ "E T A EXTENTS EXTENSION TODO ALL"
-         VwC_FitExtents( c, s[ "scene" ][ "ext" ], 0.95 )
+         IF VwC_Is3D( c )
+            VwC_Fit3( c, s[ "scene" ][ "ext3" ], 0.95 )
+         ELSE
+            VwC_FitExtents( c, s[ "scene" ][ "ext" ], 0.95 )
+         ENDIF
          RETURN Vk_Res( "Zoom extensiones", , .T. )
       CASE cArg $ "I IN MAS"
          VwC_ZoomAt( c, 2.0, c[ "w" ] / 2, c[ "h" ] / 2 )
@@ -204,7 +210,24 @@ FUNCTION VwK_Exec( s, cLine )
         .OR. cCmd == "PLINE" .OR. cCmd == "PL" .OR. cCmd == "POLILINEA" .OR. cCmd == "POINT" .OR. cCmd == "PUNTO" ;
         .OR. cCmd == "MOVE" .OR. cCmd == "MOVER" .OR. cCmd == "M" .OR. cCmd == "COPY" .OR. cCmd == "COPIAR" .OR. cCmd == "CO"
       RETURN VwK_Draw( s, cCmd, aTok )
+   CASE cCmd == "VISTA" .OR. cCmd == "VIEW" .OR. cCmd == "3D"
+      cArg := IIf( cCmd == "3D" .OR. Len( aTok ) < 2, "ISO", aTok[ 2 ] )
+      IF ! VwC_View( c, cArg )
+         RETURN Vk_Res( "Vistas: SUP FRONTAL POSTERIOR DERECHA IZQUIERDA ISO ISO-SE ISO-NE ISO-NO" )
+      ENDIF
+      s[ "pend" ] := NIL
+      VwC_Fit3( c, s[ "scene" ][ "ext3" ], 0.95 )
+      RETURN Vk_Res( "Vista " + Upper( cArg ), , .T. )
+   CASE cCmd == "ORBITA" .OR. cCmd == "ORBIT"
+      IF Len( aTok ) < 3 .OR. ! Vk_IsNum( aTok[ 2 ] ) .OR. ! Vk_IsNum( aTok[ 3 ] )
+         RETURN Vk_Res( "Uso: ORBITA azimut elevacion (grados; planta = 0 90, frontal = 0 0)" )
+      ENDIF
+      c[ "yaw" ] := Val( aTok[ 2 ] ) * OCX_PI / 180.0
+      c[ "pitch" ] := 0.0
+      VwC_Orbit( c, 0.0, Val( aTok[ 3 ] ) * OCX_PI / 180.0 )
+      RETURN Vk_Res( "Orbita azimut " + Vk_Num( Val( aTok[ 2 ] ) ) + " elevacion " + Vk_Num( c[ "pitch" ] * 180.0 / OCX_PI ), , .T. )
    CASE cCmd == "ARC" .OR. cCmd == "ARCO"
+      IF VwC_Is3D( c ) ; RETURN Vk_Res( "Vuelva a la planta (VISTA SUP) para dibujar o editar" ) ; ENDIF
       p1 := Vk_Pt( aTok, 2 )
       IF p1 == NIL .OR. Len( aTok ) < IIf( At( ",", aTok[ 2 ] ) > 0, 5, 6 )
          RETURN Vk_Res( "Uso: ARCO cx,cy radio angulo-inicial angulo-final (grados, antihorario)" )
@@ -273,6 +296,9 @@ FUNCTION VwK_Draw( s, cCmd, aTok )
    CASE cCmd $ "MOVE MOVER M" ; cK := "MOVE"
    OTHERWISE ; cK := "COPY"
    ENDCASE
+   IF VwC_Is3D( s[ "cam" ] )
+      RETURN Vk_Res( "Vuelva a la planta (VISTA SUP) para dibujar o editar" )
+   ENDIF
    IF ( cK == "MOVE" .OR. cK == "COPY" ) .AND. Len( s[ "sel" ] ) == 0
       RETURN Vk_Res( "Primero seleccione objetos (clic, caja o SELTODO)" )
    ENDIF

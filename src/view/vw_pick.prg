@@ -297,3 +297,63 @@ FUNCTION Vwp_Snap( oS, cModes, x, y, nTol, aFrom )
       NEXT
    ENDIF
 RETURN r
+
+/* --- seleccion en vistas 3D: se proyectan los trazos a pantalla (camara c) --- */
+
+/* handle de la entidad cuyo trazo pasa a menos de nTolPx pixeles de (sx,sy); NIL si ninguna */
+FUNCTION Vwp_Pick3( oS, c, sx, sy, nTolPx )
+   LOCAL i, w, aP, j, a, b, nBest := nTolPx, r := NIL, d
+   VwC_Setup( c )
+   FOR i := Len( oS[ "wires" ] ) TO 1 STEP -1
+      w := oS[ "wires" ][ i ]
+      IF Empty( w[ 6 ] ) ; LOOP ; ENDIF
+      aP := w[ 3 ]
+      a := VwC_P3( c, aP[ 1 ][ 1 ], aP[ 1 ][ 2 ], IIf( Len( aP[ 1 ] ) >= 3, aP[ 1 ][ 3 ], 0.0 ) )
+      IF Len( aP ) == 1
+         d := Sqrt( ( sx - a[ 1 ] ) ^ 2 + ( sy - a[ 2 ] ) ^ 2 )
+         IF d <= nBest ; nBest := d ; r := w[ 6 ] ; ENDIF
+         LOOP
+      ENDIF
+      FOR j := 1 TO Len( aP ) - 1
+         b := VwC_P3( c, aP[ j + 1 ][ 1 ], aP[ j + 1 ][ 2 ], IIf( Len( aP[ j + 1 ] ) >= 3, aP[ j + 1 ][ 3 ], 0.0 ) )
+         d := Vwp_DistSeg( sx, sy, a[ 1 ], a[ 2 ], b[ 1 ], b[ 2 ] )
+         IF d <= nBest ; nBest := d ; r := w[ 6 ] ; ENDIF
+         a := b
+      NEXT
+   NEXT
+RETURN r
+
+/* caja de seleccion en pantalla (px): izquierda a derecha = ventana, derecha a izquierda = captura */
+FUNCTION Vwp_Box3( oS, c, x1, y1, x2, y2 )
+   LOCAL r := { Min( x1, x2 ), Min( y1, y2 ), Max( x1, x2 ), Max( y1, y2 ) }, lWin := ( x2 >= x1 )
+   LOCAL h := hb_Hash(), a := {}, w, j, k, lOk, p, q, aS
+   VwC_Setup( c )
+   FOR EACH w IN oS[ "wires" ]
+      IF Empty( w[ 6 ] ) ; LOOP ; ENDIF
+      aS := {}
+      FOR EACH p IN w[ 3 ]
+         AAdd( aS, VwC_P3( c, p[ 1 ], p[ 2 ], IIf( Len( p ) >= 3, p[ 3 ], 0.0 ) ) )
+      NEXT
+      IF lWin
+         lOk := .T.
+         FOR EACH q IN aS
+            IF ! Vwp_In( q[ 1 ], q[ 2 ], r ) ; lOk := .F. ; EXIT ; ENDIF
+         NEXT
+         IF ! lOk
+            h[ w[ 6 ] ] := .F.
+         ELSEIF ! hb_HHasKey( h, w[ 6 ] )
+            h[ w[ 6 ] ] := .T.
+         ENDIF
+      ELSE
+         lOk := .F.
+         FOR j := 1 TO Len( aS )
+            IF Vwp_In( aS[ j ][ 1 ], aS[ j ][ 2 ], r ) ; lOk := .T. ; EXIT ; ENDIF
+            IF j < Len( aS ) .AND. Vwp_SegHitsRect( aS[ j ][ 1 ], aS[ j ][ 2 ], aS[ j + 1 ][ 1 ], aS[ j + 1 ][ 2 ], r ) ; lOk := .T. ; EXIT ; ENDIF
+         NEXT
+         IF lOk ; h[ w[ 6 ] ] := .T. ; ENDIF
+      ENDIF
+   NEXT
+   FOR EACH k IN hb_HKeys( h )
+      IF h[ k ] ; AAdd( a, k ) ; ENDIF
+   NEXT
+RETURN a
