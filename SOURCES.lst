@@ -728,3 +728,4 @@ src\ui\window\xref_manager.prg
 src\ui\wrap_bar.prg
 src\videos.prg
 src\ui\vw_window.prg
+src\ui\vw_ribbon.prg

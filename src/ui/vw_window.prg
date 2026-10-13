@@ -34,6 +34,8 @@ CLASS TViewer
    DATA aRub     INIT NIL
    DATA aSnap    INIT NIL
    DATA aBtns    INIT {}
+   DATA oRb
+   DATA nTop     INIT 0
    DATA cFile    INIT ""
    DATA aPens    INIT {}
    DATA hPenKeys INIT {}
@@ -61,6 +63,7 @@ CLASS TViewer
    METHOD OnChar( nKey )
    METHOD RunCmd()
    METHOD Exec( cLine )
+   METHOD Run( cCmd )
    METHOD SaveAs()
    METHOD Wp( nRow, nCol )
    METHOD BtnAt( nRow, nCol )
@@ -137,11 +140,15 @@ METHOD Activate() CLASS TViewer
    DEFINE WINDOW ::oWnd TITLE "OpenHBCADStudio - Visor" MENU oMenu BRUSH ::oBrush
    SET MESSAGE OF ::oWnd TO "Listo. Abra un DXF (Archivo, Abrir DXF) o pase la ruta como argumento."
    ::InitBtns()
+   IF Empty( GetEnv( "OHB_NORIBBON" ) )
+      ::oRb := Vwr_Build( ::oWnd, oSelf )
+      ::nTop := Vwr_Height()
+   ENDIF
    ::oWnd:bPainted    := { | hDC | oSelf:Paint( hDC ) }
    ::oWnd:bResized    := { || oSelf:oWnd:Refresh() }
-   ::oWnd:bLClicked   := { | nRow, nCol | oSelf:OnLDown( nRow, nCol ) }
+   ::oWnd:bLClicked   := { | nRow, nCol | oSelf:OnLDown( nRow - oSelf:nTop, nCol ) }
    ::oWnd:bLButtonUp  := { || oSelf:OnLUp() }
-   ::oWnd:bMMoved     := { | nRow, nCol, nFlags | oSelf:OnMove( nRow, nCol, nFlags ) }
+   ::oWnd:bMMoved     := { | nRow, nCol, nFlags | oSelf:OnMove( nRow - oSelf:nTop, nCol, nFlags ) }
    ::oWnd:bMouseWheel := { | nKey, nDelta | oSelf:OnWheel( nDelta ) }
    ::oWnd:bKeyDown    := { | nKey | oSelf:OnKey( nKey ) }
    ::oWnd:bKeyChar    := { | nKey | oSelf:OnChar( nKey ) }
@@ -151,7 +158,7 @@ RETURN NIL
 
 METHOD OnInit() CLASS TViewer
    BEGIN SEQUENCE WITH { | e | Break( e ) }
-      ::oWnd:bMButtonDown := { | nRow, nCol | ::OnMDown( nRow, nCol ) }
+      ::oWnd:bMButtonDown := { | nRow, nCol | ::OnMDown( nRow - ::nTop, nCol ) }
       ::oWnd:bMButtonUp   := { || ::OnLUp() }
    END SEQUENCE
    IF ! Empty( ::cFile )
@@ -161,7 +168,7 @@ RETURN NIL
 
 METHOD Size() CLASS TViewer
    LOCAL aR := GetClientRect( ::oWnd:hWnd )
-   VwC_SetSize( ::oCam, aR[ 4 ] - aR[ 2 ], aR[ 3 ] - aR[ 1 ] )
+   VwC_SetSize( ::oCam, aR[ 4 ] - aR[ 2 ], aR[ 3 ] - aR[ 1 ] - ::nTop )
 RETURN ::oCam
 
 METHOD Title() CLASS TViewer
@@ -241,7 +248,7 @@ RETURN NIL
 
 METHOD BtnAt( nRow, nCol ) CLASS TViewer
    LOCAL b
-   IF nRow > VWW_BARH ; RETURN NIL ; ENDIF
+   IF ::nTop > 0 .OR. nRow > VWW_BARH ; RETURN NIL ; ENDIF
    FOR EACH b IN ::aBtns
       IF ! Empty( b[ 2 ] ) .AND. nCol >= b[ 3 ] .AND. nCol <= b[ 4 ]
          RETURN b
@@ -467,6 +474,20 @@ METHOD SaveAs() CLASS TViewer
    ENDIF
 RETURN NIL
 
+/* accion de un boton de la cinta: @ = accion de la ventana, resto = linea de comandos */
+METHOD Run( cCmd ) CLASS TViewer
+   DO CASE
+   CASE Empty( cCmd ) ; ::Status( "Aun no portado (ver hoja Fase2)" )
+   CASE cCmd == "@ABRIR" ; ::Open()
+   CASE cCmd == "@GUARDARCOMO" ; ::SaveAs()
+   CASE cCmd == "@ZOOMIN" ; ::Zoom( 1.5 )
+   CASE cCmd == "@ZOOMOUT" ; ::Zoom( 1.0 / 1.5 )
+   CASE cCmd == "@SALIR" ; ::oWnd:End()
+   OTHERWISE ; ::Exec( cCmd )
+   ENDCASE
+   ::oWnd:Refresh()
+RETURN NIL
+
 METHOD Exec( cLine ) CLASS TViewer
    LOCAL r
    IF ::oSes == NIL .OR. ( Empty( cLine ) .AND. ! ( hb_HHasKey( ::oSes, "pend" ) .AND. ::oSes[ "pend" ] != NIL ) )
@@ -626,7 +647,7 @@ METHOD Paint( hDC ) CLASS TViewer
       SetTextColor( hMem, VWW_YELLOW )
       TextOut( hMem, Int( a[ 2 ] ) + 8, Int( a[ 1 ] ) + 8, ::aSnap[ 3 ] )
    ENDIF
-   ::DrawBar( hMem, c )
+   IF ::nTop == 0 ; ::DrawBar( hMem, c ) ; ENDIF
    IF ::aRub != NIL .OR. ( ::nMode == 3 .AND. ::aGrip != NIL )
       a := VwC_W2S( c, If( ::aRub != NIL, ::aRub[ 1 ], ::aGrip[ 3 ] ), If( ::aRub != NIL, ::aRub[ 2 ], ::aGrip[ 4 ] ) )
       hPen := CreatePen( 2, 1, 16777215 )
@@ -646,7 +667,7 @@ METHOD Paint( hDC ) CLASS TViewer
       SelectObject( hMem, hOldPen )
       DeleteObject( hPen )
    ENDIF
-   BitBlt( hDC, 0, 0, nW, nH, hMem, 0, 0, VWW_ROP_SRCCOPY )
+   BitBlt( hDC, 0, ::nTop, nW, nH, hMem, 0, 0, VWW_ROP_SRCCOPY )
    SelectObject( hMem, hOld )
    DeleteObject( hBmp )
    DeleteDC( hMem )
