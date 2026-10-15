@@ -9,7 +9,9 @@ REM todos los .prg de SOURCES.lst + csrc\*.c) y la enlaza con FiveWin 64
 REM (obj_a\, OpenHBCADStudio.exe). No se ejecuta (es GUI).
 REM Resultado esperado al final:  RESULTADO: N ok, 0 fallos  /  OCX-ALL-OK
 REM
-REM Uso (desde cualquier carpeta):  build.bat [clean] [norun]
+REM Uso (desde cualquier carpeta):  build.bat [clean] [norun] [USE_FW=1]
+REM   GUI:    build.bat USE_FW=1 norun   ->  OpenHBCADStudio.exe en la raiz del repo
+REM   Tests:  build.bat                  ->  t_ocx.exe en la raiz (se ejecuta)
 REM
 REM VARIABLES A AJUSTAR (se pueden definir antes de llamar al .bat, o editar
 REM los valores por defecto de abajo):
@@ -53,6 +55,9 @@ if "%HBROOT%" == "" if not "%HBDIR%" == "" set "HBROOT=%HBDIR%"
 if "%HBROOT%" == "" set "HBROOT=C:\PRG\HB\HB_64_MSVC22"
 if "%FWH_DIR%" == "" if not "%FWDIR%" == "" set "FWH_DIR=%FWDIR%"
 if "%FWH_DIR%" == "" set "FWH_DIR=C:\PRG\FWH\fwh2605\fwh64"
+if /i "%1" == "USE_FW=1" set "USE_FW=1"
+if /i "%2" == "USE_FW=1" set "USE_FW=1"
+if /i "%3" == "USE_FW=1" set "USE_FW=1"
 if "%USE_FW%" == "" set "USE_FW=0"
 if "%OUTEXE%" == "" if "%USE_FW%" == "1" set "OUTEXE=OpenHBCADStudio.exe"
 if "%OUTEXE%" == "" set "OUTEXE=t_ocx.exe"
@@ -70,6 +75,7 @@ if /i "%1" == "clean" goto CLEAN
 set "NORUN=0"
 if /i "%1" == "norun" set "NORUN=1"
 if /i "%2" == "norun" set "NORUN=1"
+if /i "%3" == "norun" set "NORUN=1"
 
 if not exist "%HBBIN%\harbour.exe" goto NOHB
 cl /? >NUL 2>&1
@@ -171,7 +177,7 @@ goto :eof
 
 :CLEAN
 del /q obj_t\*.obj obj_t\*.c obj_a\*.obj obj_a\*.c 2>NUL
-del /q lnk_t.tmp comp_one.log cl_one.log t_ocx.exe 2>NUL
+del /q lnk_t.tmp comp_one.log cl_one.log t_ocx.exe OpenHBCADStudio.exe 2>NUL
 echo * Limpio *
 goto END
 :NOHB

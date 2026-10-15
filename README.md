@@ -20,15 +20,16 @@ falta; si en el futuro se requiere alguna utilidad, irá en `C:\PRG\`.
 
 ## Construcción
 
+Desde la raíz del repo, en una consola con MSVC x64 (o dejando que `build.bat` llame a `vcvarsall`):
+
 ```bat
-build64.bat          :: compila OpenHBCADStudio.exe (GUI, x64, incremental)
-build64.bat clean    :: limpia obj\ y binarios
-tests\buildsmk.bat   :: test de consola smoke.exe (16 checks)
+build.bat USE_FW=1 norun   :: compila y enlaza la GUI -> OpenHBCADStudio.exe (raíz del repo)
+build.bat                  :: compila y ejecuta los tests de consola (t_ocx.exe, esperado 0 fallos / OCX-ALL-OK)
+build.bat clean            :: limpia obj_t, obj_a y los ejecutables
 ```
 
-Receta: `harbour /d__64__` + `cl -O2 -D_WIN64` + `link /subsystem:windows`,
-idéntica a `samples\buildh64.bat` oficial de FiveTech (libs `FiveH64.lib` +
-`FiveHC64.lib` + Harbour `msvc64` + sistema).
+Ajusta `HBROOT` (Harbour msvc64) y `FWH_DIR` (fwh64) al principio de `build.bat` o como variables de entorno. Instalación de MSVC: `docs/instalar-msvc.md`. Si falla, envía `comp_one.log` y `cl_one.log`.
+`build64.bat` es el script antiguo del esqueleto previo y ya no es el camino soportado.
 
 ## Uso
 
